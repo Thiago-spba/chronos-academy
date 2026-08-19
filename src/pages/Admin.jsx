@@ -247,20 +247,34 @@ export default function Admin() {
     };
 
     const nextDb = JSON.parse(JSON.stringify(bancoDados));
-    const modulo = nextDb[form.turmaId].modulos.find(m => m.id === form.moduloId);
+    const moduloDestino = nextDb[form.turmaId].modulos.find(m => m.id === form.moduloId);
     
     if (form.id) {
-      const idx = modulo.aulas.findIndex(a => a.id === form.id);
-      if (idx >= 0) modulo.aulas[idx] = novaAula;
+      // Verifica se a aula JÁ ESTÁ no módulo selecionado
+      const indexExistente = moduloDestino.aulas.findIndex(a => a.id === form.id);
+      
+      if (indexExistente >= 0) {
+        // Se ela já está lá, apenas atualiza na MESMA posição
+        moduloDestino.aulas[indexExistente] = novaAula;
+      } else {
+        // Se o professor trocou o bimestre: Remove de onde estava e move para o novo
+        Object.values(nextDb).forEach(turma => {
+          turma.modulos.forEach(mod => {
+            mod.aulas = mod.aulas.filter(a => a.id !== form.id);
+          });
+        });
+        moduloDestino.aulas.push(novaAula);
+      }
     } else {
-      modulo.aulas.push(novaAula);
+      // Aula nova, simplesmente adiciona
+      moduloDestino.aulas.push(novaAula);
     }
     
     try {
       await setDoc(doc(db, "chronos", "dados_escola"), nextDb);
       setBancoDados(nextDb);
       setFormAberto(false);
-      setToast({ mensagem: form.id ? "Aula atualizada!" : "Aula publicada com sucesso!" });
+      setToast({ mensagem: "Aula gravada com sucesso!" });
     } catch (error) {
       alert("Erro de permissão ao salvar os dados.");
     } finally {

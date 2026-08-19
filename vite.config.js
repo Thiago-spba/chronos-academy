@@ -3,10 +3,16 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallback: 'index.html', // ← PWA redireciona para index em qualquer rota
+      },
       manifest: {
         name: 'Chronos Academy - História e Tecnologia',
         short_name: 'Chronos',

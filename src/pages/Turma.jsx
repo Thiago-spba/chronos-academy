@@ -4,7 +4,7 @@ import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronD
 import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 function VideoPlayer({ titulo, videoId, duracao }) {
   const [ativo, setAtivo] = useState(false);
@@ -59,15 +59,15 @@ function VideoPlayer({ titulo, videoId, duracao }) {
   return (
     <div ref={videoRef} className="relative aspect-video w-full max-w-xl mx-auto bg-black rounded-xl overflow-hidden shadow-md group transition-all">
       {!ativo ? (
-        <>
+        <div className="absolute inset-0 w-full h-full">
           <img src={thumbnailUrl} alt={titulo} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500" loading="lazy" />
           <button onClick={handlePlay} className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform">
-              <Play className="w-7 h-7 text-amber-700" fill="currentColor"/>
+              <Play className="w-7 h-7 text-amber-700" fill="currentColor" />
             </div>
           </button>
           <div className="absolute bottom-3 right-3 px-2 py-1 rounded bg-black/80 text-white text-xs font-bold">{duracao}</div>
-        </>
+        </div>
       ) : (
         <YouTube 
           videoId={videoId} 
@@ -87,24 +87,40 @@ export default function Turma() {
   
   const [aulaAtiva, setAulaAtiva] = useState(null);
   const [textosExpandidos, setTextosExpandidos] = useState({});
-  const toggleTexto = (aulaId) => setTextosExpandidos(prev => ({ ...prev, [aulaId]: !prev[aulaId] }));
+  
+  const toggleTexto = (aulaId) => {
+    setTextosExpandidos((prev) => ({ ...prev, [aulaId]: !prev[aulaId] }));
+  };
 
   const [mostrarTodasAulas, setMostrarTodasAulas] = useState({});
-  const toggleMostrarAulas = (moduloId) => setMostrarTodasAulas(prev => ({ ...prev, [moduloId]: !prev[moduloId] }));
+  
+  const toggleMostrarAulas = (moduloId) => {
+    setMostrarTodasAulas((prev) => ({ ...prev, [moduloId]: !prev[moduloId] }));
+  };
 
   useEffect(() => {
-    async function carregarFirebase() {
-      try {
-        const docRef = doc(db, 'chronos', 'dados_escola');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setBancoDados(docSnap.data());
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dados da turma:", error);
+    const docRef = doc(db, 'chronos', 'dados_escola');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setBancoDados(docSnap.data());
+        
+        setAulaAtiva((aulaAtual) => {
+          if (!aulaAtual) return null;
+          const dadosAtualizados = docSnap.data()[id];
+          if (!dadosAtualizados) return null;
+          
+          for (const mod of dadosAtualizados.modulos) {
+            const aulaAtualizada = mod.aulas.find((a) => a.id === aulaAtual.id);
+            if (aulaAtualizada) return aulaAtualizada;
+          }
+          return null;
+        });
       }
-    }
-    carregarFirebase();
+    }, (error) => {
+      console.error("Erro na sincronização:", error);
+    });
+
+    return () => unsubscribe();
   }, [id]);
 
   useEffect(() => {
@@ -113,7 +129,7 @@ export default function Turma() {
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; }
+    return () => { document.body.style.overflow = 'unset'; };
   }, [aulaAtiva]);
 
   const turma = bancoDados ? bancoDados[id] : null;
@@ -187,9 +203,9 @@ export default function Turma() {
                         className="mt-4 mx-auto flex items-center gap-2 py-2 px-6 rounded-full border border-stone-200 dark:border-slate-700 text-sm font-bold text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors"
                       >
                         {exibirTodas ? (
-                          <><ListMinus className="w-4 h-4" /> Ocultar aulas anteriores</>
+                          <span className="flex items-center gap-2"><ListMinus className="w-4 h-4" /> Ocultar aulas anteriores</span>
                         ) : (
-                          <><ListPlus className="w-4 h-4" /> Ver todas as {modulo.aulas.length} aulas</>
+                          <span className="flex items-center gap-2"><ListPlus className="w-4 h-4" /> Ver todas as {modulo.aulas.length} aulas</span>
                         )}
                       </button>
                     )}
@@ -223,7 +239,6 @@ export default function Turma() {
                 Aula {obterNumeroAula(aulaAtiva, 0)} - {aulaAtiva.titulo}
               </h4>
 
-              {/* CORREÇÃO AQUI: Adicionado "items-start" no grid e "name" nativo do HTML para exclusividade */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 items-start">
                 <details name="info-aula" className="group bg-stone-50 dark:bg-slate-950 rounded-2xl border border-stone-100 dark:border-slate-800 overflow-hidden shadow-sm transition-colors">
                   <summary className="flex items-center justify-between p-5 cursor-pointer list-none hover:bg-stone-100/50 dark:hover:bg-slate-900/50 transition-colors">

@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus } from 'lucide-react';
 import YouTube from 'react-youtube';
 
-// IMPORTAÇÕES DO FIREBASE
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -90,7 +89,6 @@ export default function Turma() {
   const [textosExpandidos, setTextosExpandidos] = useState({});
   const toggleTexto = (aulaId) => setTextosExpandidos(prev => ({ ...prev, [aulaId]: !prev[aulaId] }));
 
-  // NOVO ESTADO: Controla a exibição das aulas antigas por bimestre
   const [mostrarTodasAulas, setMostrarTodasAulas] = useState({});
   const toggleMostrarAulas = (moduloId) => setMostrarTodasAulas(prev => ({ ...prev, [moduloId]: !prev[moduloId] }));
 
@@ -136,27 +134,26 @@ export default function Turma() {
   const temMaterial = aulaAtiva ? (aulaAtiva.pdf || (aulaAtiva.pdfs && aulaAtiva.pdfs.length > 0) || aulaAtiva.materialTexto) : false;
 
   return (
-    <div className="animate-fade-in relative">
+    <div className="animate-fade-in relative pb-12">
       <div className="mb-10 text-center sm:text-left">
         <h2 className="text-3xl font-black text-stone-800 dark:text-slate-100">{turma.nome}</h2>
-        <p className="text-sm font-bold text-amber-600 dark:text-indigo-400 uppercase tracking-widest">{turma.disciplina}</p>
+        <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">{turma.disciplina}</p>
       </div>
 
       <div className="space-y-4">
         {turma.modulos.map((modulo) => {
-          // Lógica para separar as aulas: Atrela o índice original para o número não quebrar, depois recorta as 2 últimas.
           const aulasComIndiceOriginal = modulo.aulas.map((aula, idx) => ({ ...aula, originalIndex: idx }));
           const exibirTodas = mostrarTodasAulas[modulo.id];
           const aulasParaExibir = exibirTodas ? aulasComIndiceOriginal : aulasComIndiceOriginal.slice(-2);
 
           return (
-            <details key={modulo.id} open={modulo.abertoPadrao} className="group bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
-              <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 list-none">
+            <details key={modulo.id} className="group bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden transition-colors">
+              <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 hover:bg-stone-50 dark:hover:bg-slate-800/80 transition-colors list-none">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400 group-open:bg-amber-100 dark:group-open:text-amber-700 transition-colors"><FolderOpen className="w-5 h-5"/></div>
+                  <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400 group-open:bg-amber-100 dark:group-open:bg-amber-900/40 group-open:text-amber-700 dark:group-open:text-amber-400 transition-colors"><FolderOpen className="w-5 h-5"/></div>
                   <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">{modulo.titulo}</h3>
                 </div>
-                <ChevronDown className="w-5 h-5 text-stone-400 transition-transform group-open:rotate-180" />
+                <ChevronDown className="w-5 h-5 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
               </summary>
 
               <div className="p-4 sm:p-8 border-t border-stone-100 dark:border-slate-800 bg-stone-50/20 dark:bg-slate-950/20">
@@ -169,22 +166,21 @@ export default function Turma() {
                         <button 
                           key={aula.id} 
                           onClick={() => setAulaAtiva(aula)}
-                          className="text-left flex items-center gap-4 p-4 bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 rounded-2xl hover:border-amber-500 dark:hover:border-indigo-500 transition-all shadow-sm group"
+                          className="text-left flex items-center gap-4 p-4 bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 rounded-2xl hover:border-amber-500 dark:hover:border-amber-500 transition-all shadow-sm group"
                         >
-                          <div className="w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center bg-stone-100 dark:bg-slate-900 text-stone-600 dark:text-slate-400 font-black group-hover:bg-amber-100 dark:group-hover:bg-indigo-900/40 group-hover:text-amber-700 dark:group-hover:text-indigo-400 transition-colors">
+                          <div className="w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center bg-stone-100 dark:bg-slate-900 text-stone-600 dark:text-slate-400 font-black group-hover:bg-amber-100 dark:group-hover:bg-amber-900/40 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
                             {obterNumeroAula(aula, aula.originalIndex)}
                           </div>
                           <div className="flex-1">
                             <h4 className="font-bold text-stone-800 dark:text-slate-100 text-sm line-clamp-2">{aula.titulo}</h4>
-                            <div className="flex items-center gap-2 mt-1 text-stone-500 text-xs font-bold uppercase">
-                              <Calendar className="w-3 h-3"/> {aula.data}
+                            <div className="flex items-center gap-2 mt-1 text-stone-500 dark:text-slate-500 text-xs font-bold uppercase">
+                              <Calendar className="w-3 h-3"/> {aula.data || aula.semana || 'Sem data'}
                             </div>
                           </div>
                         </button>
                       ))}
                     </div>
 
-                    {/* BOTÃO DE EXPANSÃO (Só aparece se houver mais de 2 aulas) */}
                     {modulo.aulas.length > 2 && (
                       <button 
                         onClick={() => toggleMostrarAulas(modulo.id)}
@@ -208,13 +204,13 @@ export default function Turma() {
       {aulaAtiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-900/60 dark:bg-black/80 backdrop-blur-sm" onClick={() => setAulaAtiva(null)}>
           <div 
-            className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 shadow-2xl rounded-3xl flex flex-col animate-fade-in overflow-hidden" 
+            className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 shadow-2xl rounded-3xl flex flex-col animate-fade-in overflow-hidden border border-stone-200 dark:border-slate-800" 
             onClick={(e) => e.stopPropagation()} 
           >
             <div className="flex-shrink-0 flex items-center justify-between p-4 sm:p-6 bg-white/95 dark:bg-slate-900/95 border-b border-stone-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-stone-500 text-xs font-bold uppercase bg-stone-100 dark:bg-slate-800 px-3 py-1 rounded-full">
-                  <Calendar className="w-3 h-3"/> {aulaAtiva.data}
+                <div className="flex items-center gap-2 text-stone-500 dark:text-slate-400 text-xs font-bold uppercase bg-stone-100 dark:bg-slate-800 px-3 py-1 rounded-full">
+                  <Calendar className="w-3 h-3"/> {aulaAtiva.data || aulaAtiva.semana || 'Sem data'}
                 </div>
               </div>
               <button onClick={() => setAulaAtiva(null)} className="p-2 bg-stone-100 dark:bg-slate-800 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors" title="Fechar aula">
@@ -227,23 +223,24 @@ export default function Turma() {
                 Aula {obterNumeroAula(aulaAtiva, 0)} - {aulaAtiva.titulo}
               </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                <details className="group bg-stone-50 dark:bg-slate-950 rounded-2xl border border-stone-100 dark:border-slate-800/60 overflow-hidden shadow-sm">
-                  <summary className="flex items-center justify-between p-5 cursor-pointer list-none">
-                    <h5 className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-indigo-400 uppercase"><Target className="w-4 h-4" /> O que é isso?</h5>
-                    <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
+              {/* CORREÇÃO AQUI: Adicionado "items-start" no grid e "name" nativo do HTML para exclusividade */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 items-start">
+                <details name="info-aula" className="group bg-stone-50 dark:bg-slate-950 rounded-2xl border border-stone-100 dark:border-slate-800 overflow-hidden shadow-sm transition-colors">
+                  <summary className="flex items-center justify-between p-5 cursor-pointer list-none hover:bg-stone-100/50 dark:hover:bg-slate-900/50 transition-colors">
+                    <h5 className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500 uppercase"><Target className="w-4 h-4" /> O que é isso?</h5>
+                    <ChevronDown className="w-4 h-4 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
                   </summary>
-                  <div className="px-5 pb-5 pt-1 border-t border-stone-100 dark:border-slate-800/60 mt-2">
+                  <div className="px-5 pb-5 pt-1 border-t border-stone-100 dark:border-slate-800 mt-2">
                     <p className="text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{aulaAtiva.introducao}</p>
                   </div>
                 </details>
 
-                <details className="group bg-stone-50 dark:bg-slate-950 rounded-2xl border border-stone-100 dark:border-slate-800/60 overflow-hidden shadow-sm">
-                  <summary className="flex items-center justify-between p-5 cursor-pointer list-none">
-                    <h5 className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-indigo-400 uppercase"><Rocket className="w-4 h-4" /> Para que serve?</h5>
-                    <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
+                <details name="info-aula" className="group bg-stone-50 dark:bg-slate-950 rounded-2xl border border-stone-100 dark:border-slate-800 overflow-hidden shadow-sm transition-colors">
+                  <summary className="flex items-center justify-between p-5 cursor-pointer list-none hover:bg-stone-100/50 dark:hover:bg-slate-900/50 transition-colors">
+                    <h5 className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500 uppercase"><Rocket className="w-4 h-4" /> Para que serve?</h5>
+                    <ChevronDown className="w-4 h-4 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
                   </summary>
-                  <div className="px-5 pb-5 pt-1 border-t border-stone-100 dark:border-slate-800/60 mt-2">
+                  <div className="px-5 pb-5 pt-1 border-t border-stone-100 dark:border-slate-800 mt-2">
                     <p className="text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{aulaAtiva.utilidade}</p>
                   </div>
                 </details>
@@ -265,35 +262,35 @@ export default function Turma() {
 
               {temMaterial && (
                 <div className="flex flex-col gap-3 border-t border-stone-100 dark:border-slate-800 pt-8">
-                  <h5 className="text-sm font-bold text-stone-800 dark:text-slate-200 mb-2 uppercase">Material de Apoio</h5>
+                  <h5 className="text-sm font-bold text-stone-800 dark:text-slate-200 mb-4 uppercase">Material de Apoio</h5>
                   
                   {aulaAtiva.pdf && !aulaAtiva.pdfs && (
-                    <a href={aulaAtiva.pdf.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 hover:border-amber-400 transition-colors">
+                    <a href={aulaAtiva.pdf.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-red-500" />
                         <p className="text-sm font-bold text-stone-800 dark:text-slate-200">{aulaAtiva.pdf.titulo}</p>
                       </div>
-                      <Download className="w-5 h-5 text-stone-400" />
+                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500" />
                     </a>
                   )}
 
                   {aulaAtiva.pdfs && aulaAtiva.pdfs.map((doc, i) => (
-                    <a key={i} href={doc.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 hover:border-amber-400 transition-colors">
+                    <a key={i} href={doc.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-red-500" />
                         <p className="text-sm font-bold text-stone-800 dark:text-slate-200">{doc.titulo}</p>
                       </div>
-                      <Download className="w-5 h-5 text-stone-400" />
+                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500" />
                     </a>
                   ))}
 
                   {aulaAtiva.materialTexto && (
-                    <div className="bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 p-4">
+                    <div className="bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 p-4 mt-2">
                       <button onClick={() => toggleTexto(aulaAtiva.id)} className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2 text-stone-700 dark:text-slate-300 font-bold text-sm">
-                          <AlignLeft className="w-4 h-4 text-amber-600" /> Resumo em Texto
+                          <AlignLeft className="w-4 h-4 text-amber-600 dark:text-amber-500" /> Resumo em Texto
                         </div>
-                        {textosExpandidos[aulaAtiva.id] ? <ChevronUp className="w-4 h-4 text-stone-400" /> : <ChevronDown className="w-4 h-4 text-stone-400" />}
+                        {textosExpandidos[aulaAtiva.id] ? <ChevronUp className="w-4 h-4 text-stone-400 dark:text-slate-500" /> : <ChevronDown className="w-4 h-4 text-stone-400 dark:text-slate-500" />}
                       </button>
                       {textosExpandidos[aulaAtiva.id] && (
                         <div className="mt-4 pt-4 border-t border-stone-200 dark:border-slate-800 text-sm text-stone-600 dark:text-slate-400 whitespace-pre-line leading-relaxed">

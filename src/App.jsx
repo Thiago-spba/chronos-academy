@@ -5,7 +5,6 @@ import Home from './pages/Home';
 import Turma from './pages/Turma';
 import AdminLogin from './pages/AdminLogin';
 import Admin from './pages/Admin';
-import AnuncioPopup from './components/AnuncioPopup';
 
 /* =========================================================================
    COMPONENTE: Rodapé Global Interativo (Currículo do Professor)
@@ -79,7 +78,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-slate-950 transition-colors duration-500 flex flex-col relative">
-      <AnuncioPopup />
       {isAdminRoute && (
         <div className="absolute top-6 right-6 z-50">
           <button onClick={() => setDarkMode(!darkMode)} className="flex items-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-800 text-stone-600 dark:text-slate-300 shadow-lg border border-stone-200 dark:border-slate-700">

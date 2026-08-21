@@ -66,14 +66,25 @@ function GlobalFooter() {
    COMPONENTE PRINCIPAL
    ========================================================================= */
 export default function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  // Inicialização inteligente: Lê o localStorage antes de desenhar a tela
+  const [darkMode, setDarkMode] = useState(() => {
+    const temaSalvo = localStorage.getItem('theme');
+    return temaSalvo === 'dark'; // Retorna true se estava escuro, false se não
+  });
+
   const location = useLocation();
   const isHome = location.pathname === '/';
   const isAdminRoute = location.pathname.startsWith('/admin');
 
+  // Efeito que aplica as cores e SALVA a escolha no localStorage
   useEffect(() => {
-    if (darkMode) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
   }, [darkMode]);
 
   return (
@@ -116,4 +127,3 @@ export default function App() {
     </div>
   );
 }
-

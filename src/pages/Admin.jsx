@@ -13,8 +13,10 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const turmasIniciais = {
-  "2hl": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
-  "1gj": { nome: "1ª Séries G e J", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
+  "2h": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
+  "2l": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
+  "1g": { nome: "1ª Séries G e J", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
+  "1j": { nome: "1ª Séries G e J", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
   "2c-dev": { nome: "2ª Série C", disciplina: "Desenvolvimento de Sistemas", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
   "2c-carr": { nome: "2ª Série C", disciplina: "Carreira e Competências", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] }
 };
@@ -43,7 +45,7 @@ function ModalConfirmar({ onConfirmar, onCancelar }) {
           <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">Excluir Aula?</h3>
         </div>
         <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400 mb-6 leading-relaxed">
-          Esta ação apagará o conteúdo associado a esta aula. Não pode ser desfeito.
+          Esta ação apagará o conteúdo associado a esta aula em todas as turmas vinculadas.
         </p>
         <div className="flex gap-3">
           <button onClick={onCancelar} className="flex-1 py-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 text-xs sm:text-sm font-bold hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors">Cancelar</button>
@@ -71,7 +73,7 @@ export default function Admin() {
   
   // ─── GERENCIAMENTO DE TURMAS ───
   const [modalTurmas, setModalTurmas] = useState(false);
-  const [tipoCriacaoTurma, setTipoCriacaoTurma] = useState("unida"); // "unica" | "unida"
+  const [tipoCriacaoTurma, setTipoCriacaoTurma] = useState("unida");
   const [novaTurma, setNovaTurma] = useState({ 
     ano: "2ª Série", 
     letras: "H e L", 
@@ -85,7 +87,7 @@ export default function Admin() {
   const [busca, setBusca] = useState("");
   const [filtroTurma, setFiltroTurma] = useState("todas");
   const [filtroBimestre, setFiltroBimestre] = useState("todos");
-  const [modoVisualizacao, setModoVisualizacao] = useState("grade"); // "grade" | "compacto"
+  const [modoVisualizacao, setModoVisualizacao] = useState("grade");
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(6);
 
@@ -109,7 +111,6 @@ export default function Admin() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // Reseta para página 1 quando alterar filtros ou busca
   useEffect(() => {
     setPaginaAtual(1);
   }, [busca, filtroTurma, filtroBimestre, itensPorPagina]);
@@ -152,6 +153,31 @@ export default function Admin() {
           turma.modulos.sort((a, b) => a.id.localeCompare(b.id));
         });
 
+        // ─── SINCRONIZAÇÃO AUTOMÁTICA DE TURMAS IRMÃS (H/L e G/J) ───
+        const paresIrmaos = [
+          { principal: "2h", secundaria: "2l", nomeUnificado: "2ª Séries H e L" },
+          { principal: "1g", secundaria: "1j", nomeUnificado: "1ª Séries G e J" }
+        ];
+
+        paresIrmaos.forEach(({ principal, secundaria, nomeUnificado }) => {
+          if (dados[principal] && dados[secundaria]) {
+            dados[principal].nome = nomeUnificado;
+            dados[secundaria].nome = nomeUnificado;
+            
+            const aulasP = dados[principal].modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
+            const aulasS = dados[secundaria].modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
+            
+            // Se uma tem aulas e a outra está com 0, sincroniza para que ambas tenham o mesmo conteúdo
+            if (aulasP > 0 && aulasS === 0) {
+              dados[secundaria].modulos = JSON.parse(JSON.stringify(dados[principal].modulos));
+              precisaAtualizar = true;
+            } else if (aulasS > 0 && aulasP === 0) {
+              dados[principal].modulos = JSON.parse(JSON.stringify(dados[secundaria].modulos));
+              precisaAtualizar = true;
+            }
+          }
+        });
+
         if (precisaAtualizar) {
           await setDoc(docRef, dados);
         }
@@ -180,7 +206,7 @@ export default function Admin() {
 
     if (tipoCriacaoTurma === "unida") {
       nomeFinal = `${novaTurma.ano}s ${novaTurma.letras.trim()}`;
-      idFinal = novaTurma.idCurto.trim() || `${novaTurma.ano.charAt(0)}${novaTurma.letras.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}-${novaTurma.disciplina.slice(0, 4).toLowerCase()}`;
+      idFinal = novaTurma.idCurto.trim() || `${novaTurma.ano.charAt(0)}${novaTurma.letras.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
     } else {
       nomeFinal = novaTurma.nomePersonalizado.trim();
       idFinal = novaTurma.idCurto.trim();
@@ -189,12 +215,12 @@ export default function Admin() {
     const cleanId = idFinal.trim().toLowerCase().replace(/\s+/g, '-');
     
     if(!cleanId || !nomeFinal) {
-      alert("Por favor, preencha o identificador e o nome da turma!");
+      alert("Por favor, preencha todos os campos da turma!");
       return;
     }
 
     if(nextDb[cleanId]) {
-      alert("Já existe uma turma com este identificador!");
+      alert("Já existe uma turma cadastrada com este ID!");
       return;
     }
 
@@ -346,30 +372,38 @@ export default function Admin() {
     };
 
     const nextDb = JSON.parse(JSON.stringify(bancoDados));
-    const moduloDestino = nextDb[form.turmaId].modulos.find(m => m.id === form.moduloId);
     
-    if (form.id) {
-      const indexExistente = moduloDestino.aulas.findIndex(a => a.id === form.id);
-      
-      if (indexExistente >= 0) {
-        moduloDestino.aulas[indexExistente] = novaAula;
-      } else {
-        Object.values(nextDb).forEach(turma => {
-          turma.modulos.forEach(mod => {
+    // Identifica se a turma possui espelhos/irmãs para sincronizar tudo junto
+    const turmasAlvo = [form.turmaId];
+    if (form.turmaId === "2h" && nextDb["2l"]) turmasAlvo.push("2l");
+    if (form.turmaId === "2l" && nextDb["2h"]) turmasAlvo.push("2h");
+    if (form.turmaId === "1g" && nextDb["1j"]) turmasAlvo.push("1j");
+    if (form.turmaId === "1j" && nextDb["1g"]) turmasAlvo.push("1g");
+
+    turmasAlvo.forEach(tId => {
+      const moduloDestino = nextDb[tId]?.modulos?.find(m => m.id === form.moduloId);
+      if (!moduloDestino) return;
+
+      if (form.id) {
+        const indexExistente = moduloDestino.aulas.findIndex(a => a.id === form.id);
+        if (indexExistente >= 0) {
+          moduloDestino.aulas[indexExistente] = novaAula;
+        } else {
+          nextDb[tId].modulos.forEach(mod => {
             mod.aulas = mod.aulas.filter(a => a.id !== form.id);
           });
-        });
+          moduloDestino.aulas.push(novaAula);
+        }
+      } else {
         moduloDestino.aulas.push(novaAula);
       }
-    } else {
-      moduloDestino.aulas.push(novaAula);
-    }
+    });
     
     try {
       await setDoc(doc(db, "chronos", "dados_escola"), nextDb);
       setBancoDados(nextDb);
       setFormAberto(false);
-      setToast({ mensagem: "Aula gravada com sucesso!" });
+      setToast({ mensagem: "Aula gravada e sincronizada com sucesso!" });
     } catch (error) {
       alert("Erro de permissão ao salvar os dados.");
     } finally {
@@ -379,19 +413,34 @@ export default function Admin() {
 
   const excluirAula = async () => {
     const nextDb = JSON.parse(JSON.stringify(bancoDados));
-    const modulo = nextDb[excluindo.turmaId].modulos.find(m => m.id === excluindo.moduloId);
-    modulo.aulas = modulo.aulas.filter(a => a.id !== excluindo.aulaId);
+    const turmasAlvo = [excluindo.turmaId];
+    if (excluindo.turmaId === "2h" && nextDb["2l"]) turmasAlvo.push("2l");
+    if (excluindo.turmaId === "2l" && nextDb["2h"]) turmasAlvo.push("2h");
+    if (excluindo.turmaId === "1g" && nextDb["1j"]) turmasAlvo.push("1j");
+    if (excluindo.turmaId === "1j" && nextDb["1g"]) turmasAlvo.push("1g");
+
+    turmasAlvo.forEach(tId => {
+      const modulo = nextDb[tId]?.modulos?.find(m => m.id === excluindo.moduloId);
+      if (modulo) {
+        modulo.aulas = modulo.aulas.filter(a => a.id !== excluindo.aulaId);
+      }
+    });
+
     await setDoc(doc(db, "chronos", "dados_escola"), nextDb);
     setBancoDados(nextDb);
     setExcluindo(null);
-    setToast({ mensagem: "Aula removida." });
+    setToast({ mensagem: "Aula removida com sucesso." });
   };
 
-  // ─── LISTAGEM TOTAL DE AULAS COM METADADOS ───
+  // ─── LISTAGEM DE AULAS SEM DUPLICATAS VISUAIS ───
   const todasAsAulas = useMemo(() => {
     if (!bancoDados) return [];
     let lista = [];
-    Object.entries(bancoDados).forEach(([turmaId, turmaInfo]) => {
+    // Ignoramos '2l' e '1j' na listagem geral para não duplicar o mesmo card na tela
+    const turmasExibir = Object.keys(bancoDados).filter(id => id !== "2l" && id !== "1j");
+
+    turmasExibir.forEach(turmaId => {
+      const turmaInfo = bancoDados[turmaId];
       turmaInfo.modulos?.forEach(modulo => {
         modulo.aulas?.forEach(aula => {
           lista.push({ 
@@ -408,10 +457,12 @@ export default function Admin() {
     return lista;
   }, [bancoDados]);
 
-  // ─── AGRUPAMENTO DE TURMAS PARA FILTROS (UNIR TURMAS IRMÃS DO MESMO ANO/MATÉRIA) ───
+  // ─── FILTRO DE TURMAS NO TOPO (AGRUPADAS E SEM ZEROS DUPLICADOS) ───
   const listaTurmasFormatada = useMemo(() => {
     if (!bancoDados) return [];
-    return Object.entries(bancoDados).map(([id, info]) => {
+    const turmasFiltradas = Object.entries(bancoDados).filter(([id]) => id !== "2l" && id !== "1j");
+
+    return turmasFiltradas.map(([id, info]) => {
       const totalAulas = info.modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
       return { id, nome: info.nome, disciplina: info.disciplina, totalAulas };
     });
@@ -420,6 +471,7 @@ export default function Admin() {
   // ─── FILTRAGEM (TURMA, BIMESTRE, BUSCA) ───
   const aulasFiltradas = useMemo(() => {
     return todasAsAulas.filter(aula => {
+      // Se selecionou 2h, pega 2h e seu par
       const matchTurma = filtroTurma === "todas" || aula.turmaId === filtroTurma;
       const matchBimestre = filtroBimestre === "todos" || aula.moduloId === filtroBimestre;
       
@@ -436,7 +488,7 @@ export default function Admin() {
     });
   }, [todasAsAulas, filtroTurma, filtroBimestre, busca]);
 
-  // ─── PAGINAÇÃO ───
+  // ─── PAGINAÇÃO (ENCURTA A PÁGINA) ───
   const totalPaginas = Math.ceil(aulasFiltradas.length / itensPorPagina) || 1;
   const aulasPaginadas = useMemo(() => {
     if (itensPorPagina === 999) return aulasFiltradas;
@@ -479,7 +531,7 @@ export default function Admin() {
               <div className="bg-stone-50 dark:bg-slate-950 p-4 sm:p-5 rounded-2xl border border-stone-200 dark:border-slate-800">
                 <h4 className="text-xs font-bold text-stone-600 dark:text-slate-300 mb-3 uppercase tracking-wider">Criar Nova Turma</h4>
                 
-                {/* ESCOLHA ENTRE TURMA ÚNICA OU TURMAS UNIDAS */}
+                {/* OPÇÃO DE TURMA UNIDA OU TURMA ÚNICA */}
                 <div className="flex gap-2 mb-4 bg-white dark:bg-slate-900 p-1 rounded-xl border border-stone-200 dark:border-slate-800">
                   <button
                     type="button"
@@ -490,7 +542,7 @@ export default function Admin() {
                         : "text-stone-500 hover:text-stone-800 dark:hover:text-slate-200"
                     }`}
                   >
-                    🤝 Unir Turmas (Ex: 2ª Séries H e L)
+                    🤝 Unir Turmas do Mesmo Ano (Ex: 3ª Séries A e B)
                   </button>
                   <button
                     type="button"
@@ -517,8 +569,8 @@ export default function Admin() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Letras / Turmas Unidas</label>
-                        <input required placeholder="Ex: H e L  ou  G e J" value={novaTurma.letras} onChange={e => setNovaTurma({...novaTurma, letras: e.target.value})} className={inputBaseClass} />
+                        <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Letras das Séries Unidas</label>
+                        <input required placeholder="Ex: H e L  ou  G e J  ou  A e B" value={novaTurma.letras} onChange={e => setNovaTurma({...novaTurma, letras: e.target.value})} className={inputBaseClass} />
                       </div>
                     </div>
                   ) : (
@@ -542,7 +594,7 @@ export default function Admin() {
 
                     <div>
                       <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">ID da Rota (URL)</label>
-                      <input required placeholder="Ex: 2hl-hist  ou  2c-dev" value={novaTurma.idCurto} onChange={e => setNovaTurma({...novaTurma, idCurto: e.target.value})} className={inputBaseClass} />
+                      <input required placeholder="Ex: 3ab  ou  2c-dev" value={novaTurma.idCurto} onChange={e => setNovaTurma({...novaTurma, idCurto: e.target.value})} className={inputBaseClass} />
                     </div>
                   </div>
 
@@ -667,7 +719,7 @@ export default function Admin() {
       <div className="max-w-6xl mx-auto px-3 sm:px-4">
         {!formAberto ? (
           <>
-            {/* TOPO: TÍTULO E AÇÕES PRINCIPAIS */}
+            {/* TOPO: TÍTULO E AÇÕES */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="min-w-0">
                 <h2 className="text-xl sm:text-2xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2">
@@ -675,7 +727,7 @@ export default function Admin() {
                   <span>Gerenciador de Aulas</span>
                 </h2>
                 <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-1">
-                  Mostrando {aulasPaginadas.length} de {aulasFiltradas.length} aula(s) filtrada(s) (Total no banco: {todasAsAulas.length})
+                  Exibindo {aulasPaginadas.length} de {aulasFiltradas.length} aula(s) filtrada(s)
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -685,7 +737,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* ─── FILTROS DE TURMAS (UNIDAS & INDIVIDUAIS) ─── */}
+            {/* ─── FILTROS DE TURMAS (UNIDAS, SEM DUPLICATAS DE ZERO) ─── */}
             <div className="flex flex-wrap gap-2 mb-4">
               <button
                 onClick={() => setFiltroTurma("todas")}
@@ -724,7 +776,7 @@ export default function Admin() {
               })}
             </div>
 
-            {/* ─── BARRA DE PESQUISA, BIMESTRE E ALTERNADOR DE VISUALIZAÇÃO ─── */}
+            {/* ─── BUSCA, BIMESTRE E VISUALIZAÇÃO COMPACTA ─── */}
             <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-6 items-stretch sm:items-center justify-between">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-slate-500" />
@@ -774,7 +826,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* ─── LISTA DE AULAS (GRADE OU COMPACTA) ─── */}
+            {/* ─── LISTAGEM DAS AULAS (GRADE OU COMPACTA) ─── */}
             {aulasFiltradas.length === 0 ? (
               <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-8 sm:p-12 text-center my-6 shadow-sm">
                 <Search className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-stone-300 dark:text-slate-700" />
@@ -792,7 +844,6 @@ export default function Admin() {
                 )}
               </div>
             ) : modoVisualizacao === "grade" ? (
-              /* MODO GRADE DE CARDS */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                 {aulasPaginadas.map(aula => {
                   const qtdVideos = aula.videos?.length || (aula.video?.videoId ? 1 : 0);
@@ -869,7 +920,6 @@ export default function Admin() {
                 })}
               </div>
             ) : (
-              /* MODO LISTA COMPACTA (ENCURTA A PÁGINA) */
               <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-stone-100 dark:divide-slate-800">
                 {aulasPaginadas.map(aula => {
                   const qtdVideos = aula.videos?.length || (aula.video?.videoId ? 1 : 0);
@@ -899,7 +949,7 @@ export default function Admin() {
               </div>
             )}
 
-            {/* ─── BARRA DE PAGINAÇÃO (ENCURTA A PÁGINA) ─── */}
+            {/* ─── BARRA DE PAGINAÇÃO ─── */}
             {aulasFiltradas.length > 0 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-stone-200 dark:border-slate-800">
                 <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-slate-400 font-semibold">
@@ -966,14 +1016,14 @@ export default function Admin() {
                       }} 
                       className={inputBaseClass}
                     >
-                      {Object.entries(bancoDados).map(([id, info]) => <option key={id} value={id}>{info.nome} - {info.disciplina}</option>)}
+                      {listaTurmasFormatada.map(t => <option key={t.id} value={t.id}>{t.nome} - {t.disciplina}</option>)}
                     </select>
                   </div>
                   
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Bimestre / Módulo</label>
                     <select value={form.moduloId} onChange={e => setForm({...form, moduloId: e.target.value})} className={inputBaseClass}>
-                      {bancoDados[form.turmaId]?.modulos.map(m => (
+                      {bancoDados[form.turmaId]?.modulos?.map(m => (
                         <option key={m.id} value={m.id}>{m.titulo}</option>
                       ))}
                     </select>

@@ -1,6 +1,10 @@
 ﻿import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, Rocket, UploadCloud, Settings, Megaphone, Trophy } from "lucide-react";
+import { 
+  BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
+  AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
+  Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers 
+} from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -32,7 +36,9 @@ function ModalConfirmar({ onConfirmar, onCancelar }) {
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancelar} />
       <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800 shadow-2xl p-6 max-w-sm w-full animate-slide-up">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/50 flex items-center justify-center"><AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" /></div>
+          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/50 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          </div>
           <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">Excluir Aula?</h3>
         </div>
         <p className="text-sm text-stone-500 dark:text-slate-400 mb-6">Esta ação apagará o conteúdo associado a esta aula. Não pode ser desfeito.</p>
@@ -62,6 +68,11 @@ export default function Admin() {
   
   const [modalTurmas, setModalTurmas] = useState(false);
   const [novaTurma, setNovaTurma] = useState({ id: "", nome: "", disciplina: "" });
+
+  // ─── ESTADOS DE FILTRO E BUSCA ───
+  const [busca, setBusca] = useState("");
+  const [filtroTurma, setFiltroTurma] = useState("todas");
+  const [filtroBimestre, setFiltroBimestre] = useState("todos");
 
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
@@ -204,7 +215,6 @@ export default function Admin() {
           ativo: formAviso.ativo 
         } 
       };
-      // A grande correção: Salvando na chave "avisos"
       await setDoc(doc(db, 'chronos', 'config'), { avisos: avisosAtualizados }, { merge: true });
       setTodosAvisos(avisosAtualizados);
       setToast({ mensagem: 'Aviso atualizado com sucesso!' });
@@ -217,8 +227,8 @@ export default function Admin() {
   };
 
   const abrirNovoForm = () => {
-    const primeiraTurmaId = Object.keys(bancoDados)[0];
-    const primeiroModuloId = bancoDados[primeiraTurmaId].modulos[0].id;
+    const primeiraTurmaId = filtroTurma !== "todas" ? filtroTurma : Object.keys(bancoDados)[0];
+    const primeiroModuloId = bancoDados[primeiraTurmaId]?.modulos[0]?.id || "";
     setForm({ 
       id: "", turmaId: primeiraTurmaId, moduloId: primeiroModuloId, numeroAula: "", titulo: "", semana: "", introducao: "", utilidade: "", materialTexto: "", 
       videos: [{ videoId: "", duracao: "" }], pdfs: [] 
@@ -297,14 +307,11 @@ export default function Admin() {
     const moduloDestino = nextDb[form.turmaId].modulos.find(m => m.id === form.moduloId);
     
     if (form.id) {
-      // Verifica se a aula JÁ ESTÁ no módulo selecionado
       const indexExistente = moduloDestino.aulas.findIndex(a => a.id === form.id);
       
       if (indexExistente >= 0) {
-        // Se ela já está lá, apenas atualiza na MESMA posição
         moduloDestino.aulas[indexExistente] = novaAula;
       } else {
-        // Se o professor trocou o bimestre: Remove de onde estava e move para o novo
         Object.values(nextDb).forEach(turma => {
           turma.modulos.forEach(mod => {
             mod.aulas = mod.aulas.filter(a => a.id !== form.id);
@@ -313,7 +320,6 @@ export default function Admin() {
         moduloDestino.aulas.push(novaAula);
       }
     } else {
-      // Aula nova, simplesmente adiciona
       moduloDestino.aulas.push(novaAula);
     }
     
@@ -339,17 +345,57 @@ export default function Admin() {
     setToast({ mensagem: "Aula removida." });
   };
 
+  // ─── LISTAGEM TOTAL DE AULAS COM METADADOS ───
   const todasAsAulas = useMemo(() => {
     if (!bancoDados) return [];
     let lista = [];
     Object.entries(bancoDados).forEach(([turmaId, turmaInfo]) => {
       turmaInfo.modulos.forEach(modulo => {
         modulo.aulas.forEach(aula => {
-          lista.push({ ...aula, turmaId, moduloId: modulo.id, nomeTurma: turmaInfo.nome, nomeModulo: modulo.titulo });
+          lista.push({ 
+            ...aula, 
+            turmaId, 
+            moduloId: modulo.id, 
+            nomeTurma: turmaInfo.nome, 
+            disciplina: turmaInfo.disciplina,
+            nomeModulo: modulo.titulo 
+          });
         });
       });
     });
     return lista;
+  }, [bancoDados]);
+
+  // ─── FILTRAGEM INTELIGENTE (TURMA, BIMESTRE, BUSCA) ───
+  const aulasFiltradas = useMemo(() => {
+    return todasAsAulas.filter(aula => {
+      const matchTurma = filtroTurma === "todas" || aula.turmaId === filtroTurma;
+      const matchBimestre = filtroBimestre === "todos" || aula.moduloId === filtroBimestre;
+      
+      const termo = busca.trim().toLowerCase();
+      const matchBusca = !termo || 
+        aula.titulo?.toLowerCase().includes(termo) ||
+        aula.numeroAula?.toLowerCase().includes(termo) ||
+        aula.semana?.toLowerCase().includes(termo) ||
+        aula.introducao?.toLowerCase().includes(termo) ||
+        aula.disciplina?.toLowerCase().includes(termo);
+
+      return matchTurma && matchBimestre && matchBusca;
+    });
+  }, [todasAsAulas, filtroTurma, filtroBimestre, busca]);
+
+  // ─── MÓDULOS/BIMESTRES DISPONÍVEIS PARA O FILTRO ───
+  const bimestresDisponiveis = useMemo(() => {
+    if (!bancoDados) return [];
+    const setBim = new Map();
+    Object.values(bancoDados).forEach(turma => {
+      turma.modulos.forEach(m => {
+        if (!setBim.has(m.id)) {
+          setBim.set(m.id, m.titulo);
+        }
+      });
+    });
+    return Array.from(setBim.entries()).map(([id, titulo]) => ({ id, titulo }));
   }, [bancoDados]);
 
   if (!autenticado || !bancoDados) return <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-slate-950 font-bold text-stone-700 dark:text-slate-300">Verificando credenciais...</div>;
@@ -403,66 +449,67 @@ export default function Admin() {
         </div>
       )}
 
-
       {/* MODAL AVISO */}
-  {modalAviso && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
-        <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center shrink-0">
-          <h3 className="text-xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2"><Megaphone className="w-5 h-5 text-amber-500"/> Gerenciar Avisos</h3>
-          <button onClick={() => setModalAviso(false)} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"><X className="w-4 h-4"/></button>
-        </div>
-        <div className="p-6 space-y-5 overflow-y-auto">
-          
-          <div>
-            <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Para quem é este aviso?</label>
-            <select 
-              value={formAviso.alvo} 
-              onChange={(e) => carregarAvisoParaAlvo(e.target.value, todosAvisos)} 
-              className={inputBaseClass}
-            >
-              <option value="global">🌍 Todas as Turmas (Global)</option>
-              {Object.entries(bancoDados || {}).map(([id, info]) => (
-                <option key={id} value={id}>🎯 Apenas {info.nome} ({info.disciplina})</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setFormAviso({...formAviso, tipo:'comunicado'})} className={`flex items-center gap-2 p-3 rounded-xl border font-bold text-sm transition-all ${formAviso.tipo==='comunicado' ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-400 shadow-sm' : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400'}`}><Megaphone className="w-4 h-4"/> Comunicado</button>
-            <button type="button" onClick={() => setFormAviso({...formAviso, tipo:'parabens'})} className={`flex items-center gap-2 p-3 rounded-xl border font-bold text-sm transition-all ${formAviso.tipo==='parabens' ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-400 shadow-sm' : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400'}`}><Trophy className="w-4 h-4"/> Parabéns</button>
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Mensagem</label>
-            <textarea rows={4} value={formAviso.mensagem} onChange={e => setFormAviso({...formAviso, mensagem: e.target.value})} placeholder="Escreva o aviso aqui..." className="w-full p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 outline-none resize-none transition-colors"/>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Fechar em (Seg)</label>
-              <input type="number" min="0" value={formAviso.duracao} onChange={e => setFormAviso({...formAviso, duracao: Number(e.target.value)})} className="w-full p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-colors" placeholder="Ex: 5" title="Deixe 0 para não fechar sozinho"/>
+      {modalAviso && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <h3 className="text-xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2"><Megaphone className="w-5 h-5 text-amber-500"/> Gerenciar Avisos</h3>
+              <button onClick={() => setModalAviso(false)} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"><X className="w-4 h-4"/></button>
             </div>
-            <div className="flex flex-col justify-end">
-              <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Status do Aviso</label>
-              <button type="button" onClick={() => setFormAviso({...formAviso, ativo: !formAviso.ativo})} className={`w-full p-4 rounded-2xl font-bold text-sm transition-all border ${formAviso.ativo ? 'bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 border-stone-200 dark:border-slate-700'}`}>{formAviso.ativo ? '✅ Publicado' : '⏸️ Oculto'}</button>
+            <div className="p-6 space-y-5 overflow-y-auto">
+              <div>
+                <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Para quem é este aviso?</label>
+                <select 
+                  value={formAviso.alvo} 
+                  onChange={(e) => carregarAvisoParaAlvo(e.target.value, todosAvisos)} 
+                  className={inputBaseClass}
+                >
+                  <option value="global">🌍 Todas as Turmas (Global)</option>
+                  {Object.entries(bancoDados || {}).map(([id, info]) => (
+                    <option key={id} value={id}>🎯 Apenas {info.nome} ({info.disciplina})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setFormAviso({...formAviso, tipo:'comunicado'})} className={`flex items-center gap-2 p-3 rounded-xl border font-bold text-sm transition-all ${formAviso.tipo==='comunicado' ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-400 shadow-sm' : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400'}`}><Megaphone className="w-4 h-4"/> Comunicado</button>
+                <button type="button" onClick={() => setFormAviso({...formAviso, tipo:'parabens'})} className={`flex items-center gap-2 p-3 rounded-xl border font-bold text-sm transition-all ${formAviso.tipo==='parabens' ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-400 shadow-sm' : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400'}`}><Trophy className="w-4 h-4"/> Parabéns</button>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Mensagem</label>
+                <textarea rows={4} value={formAviso.mensagem} onChange={e => setFormAviso({...formAviso, mensagem: e.target.value})} placeholder="Escreva o aviso aqui..." className="w-full p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 outline-none resize-none transition-colors"/>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Fechar em (Seg)</label>
+                  <input type="number" min="0" value={formAviso.duracao} onChange={e => setFormAviso({...formAviso, duracao: Number(e.target.value)})} className="w-full p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-colors" placeholder="Ex: 5" title="Deixe 0 para não fechar sozinho"/>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-2 uppercase tracking-widest">Status do Aviso</label>
+                  <button type="button" onClick={() => setFormAviso({...formAviso, ativo: !formAviso.ativo})} className={`w-full p-4 rounded-2xl font-bold text-sm transition-all border ${formAviso.ativo ? 'bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 border-stone-200 dark:border-slate-700'}`}>{formAviso.ativo ? '✅ Publicado' : '⏸️ Oculto'}</button>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-4 border-t border-stone-100 dark:border-slate-800">
+                <button onClick={() => setModalAviso(false)} className="flex-1 py-3.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 font-bold hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors">Fechar</button>
+                <button onClick={salvarAviso} disabled={salvandoAviso} className="flex-1 py-3.5 rounded-xl bg-amber-600 text-white font-bold flex items-center justify-center gap-2 hover:bg-amber-700 disabled:opacity-50 transition-all shadow-lg hover:shadow-amber-600/30"><Save className="w-4 h-4"/> {salvandoAviso ? 'Salvando...' : 'Salvar Alterações'}</button>
+              </div>
             </div>
           </div>
-          
-          <div className="flex gap-3 pt-4 border-t border-stone-100 dark:border-slate-800">
-            <button onClick={() => setModalAviso(false)} className="flex-1 py-3.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 font-bold hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors">Fechar</button>
-            <button onClick={salvarAviso} disabled={salvandoAviso} className="flex-1 py-3.5 rounded-xl bg-amber-600 text-white font-bold flex items-center justify-center gap-2 hover:bg-amber-700 disabled:opacity-50 transition-all shadow-lg hover:shadow-amber-600/30"><Save className="w-4 h-4"/> {salvandoAviso ? 'Salvando...' : 'Salvar Alterações'}</button>
-          </div>
         </div>
-      </div>
-    </div>
-  )}
+      )}
 
-  {/* HEADER DO PAINEL */}
+      {/* HEADER DO PAINEL */}
       <div className="bg-white dark:bg-slate-900 border-b border-stone-200 dark:border-slate-800 p-6 flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-600 flex items-center justify-center shadow-lg"><GraduationCap className="w-6 h-6 text-white" /></div>
-          <div><h1 className="text-xl font-black text-stone-800 dark:text-slate-100">Painel do Professor</h1></div>
+          <div className="w-12 h-12 rounded-xl bg-amber-600 flex items-center justify-center shadow-lg shadow-amber-600/20"><GraduationCap className="w-6 h-6 text-white" /></div>
+          <div>
+            <h1 className="text-xl font-black text-stone-800 dark:text-slate-100">Painel do Professor</h1>
+            <p className="text-xs text-stone-500 dark:text-slate-400 font-semibold">Chronos Academy</p>
+          </div>
         </div>
         <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors"><LogOut className="w-4 h-4"/> Sair</button>
       </div>
@@ -470,34 +517,190 @@ export default function Admin() {
       <div className="max-w-6xl mx-auto px-4">
         {!formAberto ? (
           <>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2"><BookOpen className="w-6 h-6 text-amber-500"/> Aulas Publicadas</h2>
-              <div className="flex gap-3">
-                <button onClick={abrirModalAviso} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-slate-800 transition-colors shadow-sm"><Megaphone className="w-5 h-5"/> Avisos</button>
-                <button onClick={() => setModalTurmas(true)} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-slate-800 transition-colors shadow-sm"><Settings className="w-5 h-5"/> Turmas</button>
-                <button onClick={abrirNovoForm} className="bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-amber-700 transition-colors"><Plus className="w-5 h-5"/> Nova Aula</button>
+            {/* TOPO: TÍTULO E AÇÕES PRINCIPAIS */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2">
+                  <BookOpen className="w-6 h-6 text-amber-500"/> Gerenciador de Aulas
+                </h2>
+                <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-1">
+                  Exibindo {aulasFiltradas.length} de {todasAsAulas.length} aula(s) cadastrada(s)
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                <button onClick={abrirModalAviso} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-sm"><Megaphone className="w-4 h-4 text-amber-500"/> Avisos</button>
+                <button onClick={() => setModalTurmas(true)} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-sm"><Settings className="w-4 h-4"/> Turmas</button>
+                <button onClick={abrirNovoForm} className="bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-colors text-sm"><Plus className="w-5 h-5"/> Nova Aula</button>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {todasAsAulas.map(aula => (
-                <div key={aula.id} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col shadow-sm">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-[10px] font-black uppercase bg-stone-100 dark:bg-slate-800 px-2 py-1 rounded text-stone-600 dark:text-slate-300">{aula.nomeTurma}</span>
-                      <span className="text-[10px] font-black uppercase bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">{aula.nomeModulo}</span>
-                    </div>
-                    <span className="text-xs font-bold text-stone-400 dark:text-slate-500 text-right w-full sm:w-auto mt-2 sm:mt-0">{aula.semana || '...'}</span>
-                  </div>
-                  <h3 className="text-lg font-black text-stone-800 dark:text-slate-100 mb-1">{aula.numeroAula}</h3>
-                  <p className="text-sm font-medium text-stone-600 dark:text-slate-400 mb-4 flex-1">{aula.titulo}</p>
-                  <div className="flex gap-2 border-t border-stone-100 dark:border-slate-800 pt-4 mt-auto">
-                    <button onClick={() => editarAula(aula, aula.turmaId, aula.moduloId)} className="flex-1 flex justify-center items-center gap-2 py-2 rounded-lg bg-stone-50 dark:bg-slate-800 text-stone-700 dark:text-slate-300 text-sm font-bold hover:bg-stone-100 dark:hover:bg-slate-700 transition-colors"><Edit3 className="w-4 h-4"/> Editar</button>
-                    <button onClick={() => setExcluindo({ aulaId: aula.id, turmaId: aula.turmaId, moduloId: aula.moduloId })} className="p-2 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><Trash2 className="w-4 h-4"/></button>
-                  </div>
-                </div>
-              ))}
+
+            {/* ─── FILTROS RÁPIDOS POR TURMA (CHIPS / PILLS) ─── */}
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none">
+              <button
+                onClick={() => setFiltroTurma("todas")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border ${
+                  filtroTurma === "todas"
+                    ? "bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20"
+                    : "bg-white dark:bg-slate-900 text-stone-600 dark:text-slate-300 border-stone-200 dark:border-slate-800 hover:bg-stone-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Todas as Turmas
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${filtroTurma === "todas" ? "bg-white/20 text-white" : "bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400"}`}>
+                  {todasAsAulas.length}
+                </span>
+              </button>
+
+              {Object.entries(bancoDados).map(([id, info]) => {
+                const totalAulasTurma = info.modulos.reduce((acc, m) => acc + (m.aulas?.length || 0), 0);
+                const ativa = filtroTurma === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setFiltroTurma(id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border ${
+                      ativa
+                        ? "bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20"
+                        : "bg-white dark:bg-slate-900 text-stone-600 dark:text-slate-300 border-stone-200 dark:border-slate-800 hover:bg-stone-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <span>{info.nome}</span>
+                    <span className="text-[10px] opacity-75 font-normal">({info.disciplina.split(' ')[0]})</span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${ativa ? "bg-white/20 text-white" : "bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400"}`}>
+                      {totalAulasTurma}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* ─── BARRA DE BUSCA E FILTRO DE BIMESTRE ─── */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-slate-500" />
+                <input
+                  type="text"
+                  value={busca}
+                  onChange={e => setBusca(e.target.value)}
+                  placeholder="Pesquisar por aula, assunto, semana ou conteúdo..."
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-sm text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                />
+                {busca && (
+                  <button onClick={() => setBusca("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-slate-200">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-stone-400 shrink-0 hidden sm:block" />
+                <select
+                  value={filtroBimestre}
+                  onChange={e => setFiltroBimestre(e.target.value)}
+                  className="px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs font-bold text-stone-700 dark:text-slate-300 focus:outline-none"
+                >
+                  <option value="todos">Todos os Bimestres</option>
+                  {bimestresDisponiveis.map(b => (
+                    <option key={b.id} value={b.id}>{b.titulo}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* ─── LISTA DE CARDS DE AULAS ─── */}
+            {aulasFiltradas.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-12 text-center my-6 shadow-sm">
+                <Search className="w-12 h-12 mx-auto mb-3 text-stone-300 dark:text-slate-700" />
+                <h3 className="text-base font-bold text-stone-700 dark:text-slate-300">Nenhuma aula encontrada</h3>
+                <p className="text-xs text-stone-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">
+                  Tente alterar os termos da pesquisa ou selecione outra turma/bimestre acima.
+                </p>
+                {(busca || filtroTurma !== "todas" || filtroBimestre !== "todos") && (
+                  <button 
+                    onClick={() => { setBusca(""); setFiltroTurma("todas"); setFiltroBimestre("todos"); }} 
+                    className="mt-4 px-4 py-2 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold hover:bg-amber-100 transition-colors"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {aulasFiltradas.map(aula => {
+                  const qtdVideos = aula.videos?.length || (aula.video?.videoId ? 1 : 0);
+                  const qtdPdfs = aula.pdfs?.length || (aula.pdf?.url ? 1 : 0);
+                  const temTexto = !!aula.materialTexto;
+
+                  return (
+                    <div key={aula.id} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3 gap-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[10px] font-black uppercase bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded text-stone-600 dark:text-slate-300">
+                            {aula.nomeTurma}
+                          </span>
+                          <span className="text-[10px] font-black uppercase bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">
+                            {aula.nomeModulo}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-stone-400 dark:text-slate-500 whitespace-nowrap">
+                          {aula.semana || "—"}
+                        </span>
+                      </div>
+
+                      <div className="mb-2">
+                        <span className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+                          {aula.numeroAula || "Aula"}
+                        </span>
+                        <h3 className="text-base font-black text-stone-800 dark:text-slate-100 leading-snug">
+                          {aula.titulo}
+                        </h3>
+                      </div>
+
+                      {aula.introducao && (
+                        <p className="text-xs text-stone-500 dark:text-slate-400 line-clamp-2 mb-4 flex-1">
+                          {aula.introducao}
+                        </p>
+                      )}
+
+                      {/* BADGES DOS RECURSOS (VÍDEO, PDF, TEXTO) */}
+                      <div className="flex items-center gap-2 mb-4 pt-2 border-t border-stone-100 dark:border-slate-800/60 text-[11px] text-stone-400 dark:text-slate-500 font-semibold">
+                        {qtdVideos > 0 && (
+                          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">
+                            <Video className="w-3 h-3" /> {qtdVideos} vídeo(s)
+                          </span>
+                        )}
+                        {qtdPdfs > 0 && (
+                          <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-md">
+                            <FileText className="w-3 h-3" /> {qtdPdfs} PDF(s)
+                          </span>
+                        )}
+                        {temTexto && (
+                          <span className="flex items-center gap-1 text-stone-600 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                            <AlignLeft className="w-3 h-3" /> Resumo
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 border-t border-stone-100 dark:border-slate-800 pt-3 mt-auto">
+                        <button 
+                          onClick={() => editarAula(aula, aula.turmaId, aula.moduloId)} 
+                          className="flex-1 flex justify-center items-center gap-2 py-2 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-200 text-xs font-bold hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                        >
+                          <Edit3 className="w-3.5 h-3.5"/> Editar
+                        </button>
+                        <button 
+                          onClick={() => setExcluindo({ aulaId: aula.id, turmaId: aula.turmaId, moduloId: aula.moduloId })} 
+                          className="p-2 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                          title="Excluir aula"
+                        >
+                          <Trash2 className="w-4 h-4"/>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </>
         ) : (
           <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl max-w-4xl mx-auto">

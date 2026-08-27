@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { 
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
   AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
-  Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers 
+  Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -12,8 +13,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const turmasIniciais = {
-  "2h": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
-  "1g": { nome: "1ª Séries G e J", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
+  "2hl": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
+  "1gj": { nome: "1ª Séries G e J", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
   "2c-dev": { nome: "2ª Série C", disciplina: "Desenvolvimento de Sistemas", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
   "2c-carr": { nome: "2ª Série C", disciplina: "Carreira e Competências", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] }
 };
@@ -68,13 +69,25 @@ export default function Admin() {
   const [arquivosPdf, setArquivosPdf] = useState([]);
   const [formAberto, setFormAberto] = useState(false);
   
+  // ─── GERENCIAMENTO DE TURMAS ───
   const [modalTurmas, setModalTurmas] = useState(false);
-  const [novaTurma, setNovaTurma] = useState({ id: "", nome: "", disciplina: "", disciplinaOutra: "" });
+  const [tipoCriacaoTurma, setTipoCriacaoTurma] = useState("unida"); // "unica" | "unida"
+  const [novaTurma, setNovaTurma] = useState({ 
+    ano: "2ª Série", 
+    letras: "H e L", 
+    nomePersonalizado: "", 
+    idCurto: "", 
+    disciplina: "História", 
+    disciplinaOutra: "" 
+  });
 
-  // ─── FILTROS E BUSCA ───
+  // ─── FILTROS, BUSCA E VISUALIZAÇÃO ───
   const [busca, setBusca] = useState("");
   const [filtroTurma, setFiltroTurma] = useState("todas");
   const [filtroBimestre, setFiltroBimestre] = useState("todos");
+  const [modoVisualizacao, setModoVisualizacao] = useState("grade"); // "grade" | "compacto"
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [itensPorPagina, setItensPorPagina] = useState(6);
 
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
@@ -95,6 +108,11 @@ export default function Admin() {
     });
     return () => unsubscribe();
   }, [navigate]);
+
+  // Reseta para página 1 quando alterar filtros ou busca
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [busca, filtroTurma, filtroBimestre, itensPorPagina]);
 
   async function carregarFirebase() {
     try {
@@ -156,10 +174,27 @@ export default function Admin() {
     e.preventDefault();
     const ano = "2026";
     const nextDb = { ...bancoDados };
-    const cleanId = novaTurma.id.trim().toLowerCase().replace(/\s+/g, '-');
+
+    let nomeFinal = "";
+    let idFinal = "";
+
+    if (tipoCriacaoTurma === "unida") {
+      nomeFinal = `${novaTurma.ano}s ${novaTurma.letras.trim()}`;
+      idFinal = novaTurma.idCurto.trim() || `${novaTurma.ano.charAt(0)}${novaTurma.letras.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}-${novaTurma.disciplina.slice(0, 4).toLowerCase()}`;
+    } else {
+      nomeFinal = novaTurma.nomePersonalizado.trim();
+      idFinal = novaTurma.idCurto.trim();
+    }
+
+    const cleanId = idFinal.trim().toLowerCase().replace(/\s+/g, '-');
     
+    if(!cleanId || !nomeFinal) {
+      alert("Por favor, preencha o identificador e o nome da turma!");
+      return;
+    }
+
     if(nextDb[cleanId]) {
-      alert("Já existe uma turma cadastrada com este ID!");
+      alert("Já existe uma turma com este identificador!");
       return;
     }
 
@@ -168,7 +203,7 @@ export default function Admin() {
       : novaTurma.disciplina;
 
     nextDb[cleanId] = {
-      nome: novaTurma.nome.trim(),
+      nome: nomeFinal,
       disciplina: disciplinaFinal,
       modulos: [
         { id: `b1-${ano}`, titulo: `1º Bimestre - ${ano}`, abertoPadrao: false, aulas: [] },
@@ -179,8 +214,8 @@ export default function Admin() {
     };
     await setDoc(doc(db, "chronos", "dados_escola"), nextDb);
     setBancoDados(nextDb);
-    setNovaTurma({ id: "", nome: "", disciplina: "", disciplinaOutra: "" });
-    setToast({ mensagem: "Turma criada e agrupada com sucesso!" });
+    setNovaTurma({ ano: "2ª Série", letras: "H e L", nomePersonalizado: "", idCurto: "", disciplina: "História", disciplinaOutra: "" });
+    setToast({ mensagem: `Turma "${nomeFinal}" criada com sucesso!` });
   };
 
   const handleExcluirTurma = async (turmaId) => {
@@ -352,12 +387,13 @@ export default function Admin() {
     setToast({ mensagem: "Aula removida." });
   };
 
+  // ─── LISTAGEM TOTAL DE AULAS COM METADADOS ───
   const todasAsAulas = useMemo(() => {
     if (!bancoDados) return [];
     let lista = [];
     Object.entries(bancoDados).forEach(([turmaId, turmaInfo]) => {
-      turmaInfo.modulos.forEach(modulo => {
-        modulo.aulas.forEach(aula => {
+      turmaInfo.modulos?.forEach(modulo => {
+        modulo.aulas?.forEach(aula => {
           lista.push({ 
             ...aula, 
             turmaId, 
@@ -372,6 +408,16 @@ export default function Admin() {
     return lista;
   }, [bancoDados]);
 
+  // ─── AGRUPAMENTO DE TURMAS PARA FILTROS (UNIR TURMAS IRMÃS DO MESMO ANO/MATÉRIA) ───
+  const listaTurmasFormatada = useMemo(() => {
+    if (!bancoDados) return [];
+    return Object.entries(bancoDados).map(([id, info]) => {
+      const totalAulas = info.modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
+      return { id, nome: info.nome, disciplina: info.disciplina, totalAulas };
+    });
+  }, [bancoDados]);
+
+  // ─── FILTRAGEM (TURMA, BIMESTRE, BUSCA) ───
   const aulasFiltradas = useMemo(() => {
     return todasAsAulas.filter(aula => {
       const matchTurma = filtroTurma === "todas" || aula.turmaId === filtroTurma;
@@ -390,11 +436,19 @@ export default function Admin() {
     });
   }, [todasAsAulas, filtroTurma, filtroBimestre, busca]);
 
+  // ─── PAGINAÇÃO ───
+  const totalPaginas = Math.ceil(aulasFiltradas.length / itensPorPagina) || 1;
+  const aulasPaginadas = useMemo(() => {
+    if (itensPorPagina === 999) return aulasFiltradas;
+    const inicio = (paginaAtual - 1) * itensPorPagina;
+    return aulasFiltradas.slice(inicio, inicio + itensPorPagina);
+  }, [aulasFiltradas, paginaAtual, itensPorPagina]);
+
   const bimestresDisponiveis = useMemo(() => {
     if (!bancoDados) return [];
     const setBim = new Map();
     Object.values(bancoDados).forEach(turma => {
-      turma.modulos.forEach(m => {
+      turma.modulos?.forEach(m => {
         if (!setBim.has(m.id)) {
           setBim.set(m.id, m.titulo);
         }
@@ -410,55 +464,97 @@ export default function Admin() {
       {toast && <Toast mensagem={toast.mensagem} onClose={() => setToast(null)} />}
       {excluindo && <ModalConfirmar onConfirmar={excluirAula} onCancelar={() => setExcluindo(null)} />}
 
-      {/* MODAL DE GERENCIAMENTO DE TURMAS */}
+      {/* MODAL DE GERENCIAMENTO E UNIÃO DE TURMAS */}
       {modalTurmas && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in max-h-[92vh] flex flex-col">
             <div className="p-4 sm:p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg sm:text-xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-amber-500"/> Gerenciar & Agrupar Turmas
+                <Users className="w-5 h-5 text-amber-500"/> Gerenciar & Unir Turmas
               </h3>
               <button onClick={() => setModalTurmas(false)} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"><X className="w-4 h-4"/></button>
             </div>
             
             <div className="p-4 sm:p-6 space-y-6 overflow-y-auto">
               <div className="bg-stone-50 dark:bg-slate-950 p-4 sm:p-5 rounded-2xl border border-stone-200 dark:border-slate-800">
-                <h4 className="text-xs font-bold text-stone-600 dark:text-slate-300 mb-1 uppercase tracking-wider">Criar / Unir Turmas (2026)</h4>
-                <p className="text-[11px] text-stone-400 dark:text-slate-500 mb-3">Você pode juntar várias séries da mesma matéria no mesmo nome (Ex: 2ª Séries H e L).</p>
+                <h4 className="text-xs font-bold text-stone-600 dark:text-slate-300 mb-3 uppercase tracking-wider">Criar Nova Turma</h4>
+                
+                {/* ESCOLHA ENTRE TURMA ÚNICA OU TURMAS UNIDAS */}
+                <div className="flex gap-2 mb-4 bg-white dark:bg-slate-900 p-1 rounded-xl border border-stone-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setTipoCriacaoTurma("unida")}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                      tipoCriacaoTurma === "unida" 
+                        ? "bg-amber-600 text-white shadow-sm" 
+                        : "text-stone-500 hover:text-stone-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    🤝 Unir Turmas (Ex: 2ª Séries H e L)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoCriacaoTurma("unica")}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                      tipoCriacaoTurma === "unica" 
+                        ? "bg-amber-600 text-white shadow-sm" 
+                        : "text-stone-500 hover:text-stone-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    👤 Turma Única (Ex: 2ª Série C)
+                  </button>
+                </div>
+
                 <form onSubmit={handleCriarTurma} className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">ID da Rota (Único)</label>
-                      <input required placeholder="Ex: 3ab ou 2c-dev" value={novaTurma.id} onChange={e => setNovaTurma({...novaTurma, id: e.target.value})} className={inputBaseClass} />
+                  {tipoCriacaoTurma === "unida" ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Ano / Série</label>
+                        <select value={novaTurma.ano} onChange={e => setNovaTurma({...novaTurma, ano: e.target.value})} className={inputBaseClass}>
+                          <option value="1ª Série">1ª Série (1º Ano)</option>
+                          <option value="2ª Série">2ª Série (2º Ano)</option>
+                          <option value="3ª Série">3ª Série (3º Ano)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Letras / Turmas Unidas</label>
+                        <input required placeholder="Ex: H e L  ou  G e J" value={novaTurma.letras} onChange={e => setNovaTurma({...novaTurma, letras: e.target.value})} className={inputBaseClass} />
+                      </div>
                     </div>
+                  ) : (
                     <div>
-                      <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Nome das Séries Agrupadas</label>
-                      <input required placeholder="Ex: 3ª Séries A e B" value={novaTurma.nome} onChange={e => setNovaTurma({...novaTurma, nome: e.target.value})} className={inputBaseClass} />
+                      <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Nome Completo da Turma</label>
+                      <input required placeholder="Ex: 2ª Série C" value={novaTurma.nomePersonalizado} onChange={e => setNovaTurma({...novaTurma, nomePersonalizado: e.target.value})} className={inputBaseClass} />
                     </div>
-                  </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Disciplina</label>
                       <select required value={novaTurma.disciplina} onChange={e => setNovaTurma({...novaTurma, disciplina: e.target.value})} className={inputBaseClass}>
-                        <option value="">Selecione a Disciplina...</option>
                         <option value="História">História</option>
                         <option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option>
                         <option value="Carreira e Competências">Carreira e Competências</option>
                         <option value="Lógica de Programação">Lógica de Programação</option>
-                        <option value="Outra">+ Digitar Outra Disciplina</option>
+                        <option value="Outra">+ Outra Disciplina</option>
                       </select>
                     </div>
-                    {novaTurma.disciplina === "Outra" && (
-                      <div>
-                        <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Nome da Disciplina</label>
-                        <input required placeholder="Ex: Robótica / Física" value={novaTurma.disciplinaOutra} onChange={e => setNovaTurma({...novaTurma, disciplinaOutra: e.target.value})} className={inputBaseClass} />
-                      </div>
-                    )}
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">ID da Rota (URL)</label>
+                      <input required placeholder="Ex: 2hl-hist  ou  2c-dev" value={novaTurma.idCurto} onChange={e => setNovaTurma({...novaTurma, idCurto: e.target.value})} className={inputBaseClass} />
+                    </div>
                   </div>
 
+                  {novaTurma.disciplina === "Outra" && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Nome da Disciplina</label>
+                      <input required placeholder="Ex: Programação Web" value={novaTurma.disciplinaOutra} onChange={e => setNovaTurma({...novaTurma, disciplinaOutra: e.target.value})} className={inputBaseClass} />
+                    </div>
+                  )}
+
                   <button type="submit" className="w-full bg-amber-600 text-white py-3 rounded-xl font-bold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm shadow-md shadow-amber-600/20">
-                    <Plus className="w-4 h-4"/> Salvar Nova Turma
+                    <Plus className="w-4 h-4"/> Salvar Turma
                   </button>
                 </form>
               </div>
@@ -466,19 +562,28 @@ export default function Admin() {
               <div>
                 <h4 className="text-xs font-bold text-stone-600 dark:text-slate-300 mb-3 uppercase tracking-wider">Turmas Ativas no Sistema</h4>
                 <div className="space-y-2.5">
-                  {Object.entries(bancoDados).map(([id, info]) => (
-                    <div key={id} className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 rounded-xl gap-2">
-                      <div className="min-w-0">
-                        <div className="font-black text-xs sm:text-sm text-stone-800 dark:text-slate-100 truncate">
-                          {info.nome} <span className="text-[10px] font-bold text-stone-400">({id})</span>
+                  {Object.entries(bancoDados).map(([id, info]) => {
+                    const total = info.modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
+                    return (
+                      <div key={id} className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 rounded-xl gap-2">
+                        <div className="min-w-0">
+                          <div className="font-black text-xs sm:text-sm text-stone-800 dark:text-slate-100 truncate">
+                            {info.nome} <span className="text-[10px] font-bold text-stone-400">({id})</span>
+                          </div>
+                          <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400 truncate">
+                            {info.disciplina} • <span className="text-stone-400 dark:text-slate-500">{total} aula(s)</span>
+                          </div>
                         </div>
-                        <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400 truncate">{info.disciplina}</div>
+                        <button 
+                          onClick={() => { if(window.confirm(`CUIDADO: Excluir a turma "${info.nome}" apagará TODAS as aulas vinculadas a ela. Confirmar exclusão?`)) handleExcluirTurma(id) }} 
+                          className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors shrink-0" 
+                          title="Excluir Turma"
+                        >
+                          <Trash2 className="w-4 h-4"/>
+                        </button>
                       </div>
-                      <button onClick={() => { if(window.confirm(`CUIDADO: Excluir a turma "${info.nome}" apagará TODAS as aulas vinculadas a ela. Confirmar exclusão?`)) handleExcluirTurma(id) }} className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors shrink-0" title="Excluir Turma">
-                        <Trash2 className="w-4 h-4"/>
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -562,7 +667,7 @@ export default function Admin() {
       <div className="max-w-6xl mx-auto px-3 sm:px-4">
         {!formAberto ? (
           <>
-            {/* TOPO: TÍTULO E AÇÕES */}
+            {/* TOPO: TÍTULO E AÇÕES PRINCIPAIS */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="min-w-0">
                 <h2 className="text-xl sm:text-2xl font-black text-stone-800 dark:text-slate-100 flex items-center gap-2">
@@ -570,7 +675,7 @@ export default function Admin() {
                   <span>Gerenciador de Aulas</span>
                 </h2>
                 <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-1">
-                  Exibindo {aulasFiltradas.length} de {todasAsAulas.length} aula(s) cadastrada(s)
+                  Mostrando {aulasPaginadas.length} de {aulasFiltradas.length} aula(s) filtrada(s) (Total no banco: {todasAsAulas.length})
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -580,7 +685,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* ─── FILTROS POR TURMA (RESPONSIVO COM WRAP) ─── */}
+            {/* ─── FILTROS DE TURMAS (UNIDAS & INDIVIDUAIS) ─── */}
             <div className="flex flex-wrap gap-2 mb-4">
               <button
                 onClick={() => setFiltroTurma("todas")}
@@ -597,38 +702,37 @@ export default function Admin() {
                 </span>
               </button>
 
-              {Object.entries(bancoDados).map(([id, info]) => {
-                const totalAulasTurma = info.modulos.reduce((acc, m) => acc + (m.aulas?.length || 0), 0);
-                const ativa = filtroTurma === id;
+              {listaTurmasFormatada.map(turma => {
+                const ativa = filtroTurma === turma.id;
                 return (
                   <button
-                    key={id}
-                    onClick={() => setFiltroTurma(id)}
+                    key={turma.id}
+                    onClick={() => setFiltroTurma(turma.id)}
                     className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
                       ativa
                         ? "bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20"
                         : "bg-white dark:bg-slate-900 text-stone-600 dark:text-slate-300 border-stone-200 dark:border-slate-800 hover:bg-stone-100 dark:hover:bg-slate-800"
                     }`}
                   >
-                    <span>{info.nome}</span>
-                    <span className="text-[10px] opacity-75 font-normal">({info.disciplina.split(' ')[0]})</span>
+                    <span>{turma.nome}</span>
+                    <span className="text-[10px] opacity-75 font-normal">({turma.disciplina.split(' ')[0]})</span>
                     <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${ativa ? "bg-white/20 text-white" : "bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400"}`}>
-                      {totalAulasTurma}
+                      {turma.totalAulas}
                     </span>
                   </button>
                 );
               })}
             </div>
 
-            {/* ─── BUSCA E FILTRO DE BIMESTRE ─── */}
-            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-6">
+            {/* ─── BARRA DE PESQUISA, BIMESTRE E ALTERNADOR DE VISUALIZAÇÃO ─── */}
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-6 items-stretch sm:items-center justify-between">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-slate-500" />
                 <input
                   type="text"
                   value={busca}
                   onChange={e => setBusca(e.target.value)}
-                  placeholder="Pesquisar por aula, assunto, semana ou disciplina..."
+                  placeholder="Pesquisar por aula, assunto, semana ou conteúdo..."
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs sm:text-sm text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                 />
                 {busca && (
@@ -638,21 +742,39 @@ export default function Admin() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2">
                 <select
                   value={filtroBimestre}
                   onChange={e => setFiltroBimestre(e.target.value)}
-                  className="w-full sm:w-auto px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs font-bold text-stone-700 dark:text-slate-300 focus:outline-none"
+                  className="flex-1 sm:flex-none px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs font-bold text-stone-700 dark:text-slate-300 focus:outline-none"
                 >
                   <option value="todos">Todos os Bimestres</option>
                   {bimestresDisponiveis.map(b => (
                     <option key={b.id} value={b.id}>{b.titulo}</option>
                   ))}
                 </select>
+
+                {/* BOTÕES: ALTERNAR ENTRE CARDS (GRADE) E LISTA COMPACTA */}
+                <div className="flex bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-xl p-1 shrink-0">
+                  <button
+                    onClick={() => setModoVisualizacao("grade")}
+                    className={`p-1.5 rounded-lg transition-colors ${modoVisualizacao === "grade" ? "bg-amber-600 text-white" : "text-stone-400 hover:text-stone-600 dark:hover:text-slate-200"}`}
+                    title="Visualização em Grade de Cards"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setModoVisualizacao("compacto")}
+                    className={`p-1.5 rounded-lg transition-colors ${modoVisualizacao === "compacto" ? "bg-amber-600 text-white" : "text-stone-400 hover:text-stone-600 dark:hover:text-slate-200"}`}
+                    title="Visualização em Lista Compacta (Encurtada)"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* ─── GRID DE CARDS DE AULAS ─── */}
+            {/* ─── LISTA DE AULAS (GRADE OU COMPACTA) ─── */}
             {aulasFiltradas.length === 0 ? (
               <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-8 sm:p-12 text-center my-6 shadow-sm">
                 <Search className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-stone-300 dark:text-slate-700" />
@@ -669,9 +791,10 @@ export default function Admin() {
                   </button>
                 )}
               </div>
-            ) : (
+            ) : modoVisualizacao === "grade" ? (
+              /* MODO GRADE DE CARDS */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                {aulasFiltradas.map(aula => {
+                {aulasPaginadas.map(aula => {
                   const qtdVideos = aula.videos?.length || (aula.video?.videoId ? 1 : 0);
                   const qtdPdfs = aula.pdfs?.length || (aula.pdf?.url ? 1 : 0);
                   const temTexto = !!aula.materialTexto;
@@ -707,7 +830,7 @@ export default function Admin() {
                         </p>
                       )}
 
-                      {/* BADGES DOS RECURSOS */}
+                      {/* BADGES */}
                       <div className="flex flex-wrap items-center gap-1.5 mb-3 pt-2 border-t border-stone-100 dark:border-slate-800/60 text-[10px] sm:text-[11px] text-stone-400 dark:text-slate-500 font-semibold">
                         {qtdVideos > 0 && (
                           <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">
@@ -744,6 +867,79 @@ export default function Admin() {
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              /* MODO LISTA COMPACTA (ENCURTA A PÁGINA) */
+              <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-stone-100 dark:divide-slate-800">
+                {aulasPaginadas.map(aula => {
+                  const qtdVideos = aula.videos?.length || (aula.video?.videoId ? 1 : 0);
+                  const qtdPdfs = aula.pdfs?.length || (aula.pdf?.url ? 1 : 0);
+                  return (
+                    <div key={aula.id} className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-stone-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="text-xs font-black text-amber-600 dark:text-amber-400">{aula.numeroAula || "Aula"}</span>
+                          <span className="text-[10px] font-black uppercase bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded text-stone-600 dark:text-slate-300">{aula.nomeTurma}</span>
+                          <span className="text-[10px] font-bold text-stone-400 dark:text-slate-500">{aula.nomeModulo} • {aula.semana || '—'}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-stone-800 dark:text-slate-100 truncate">{aula.titulo}</h4>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <div className="hidden md:flex items-center gap-1.5 text-[10px] text-stone-400 mr-2 font-semibold">
+                          {qtdVideos > 0 && <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 px-1.5 py-0.5 rounded">{qtdVideos} V</span>}
+                          {qtdPdfs > 0 && <span className="bg-red-50 dark:bg-red-950/40 text-red-700 px-1.5 py-0.5 rounded">{qtdPdfs} PDF</span>}
+                        </div>
+                        <button onClick={() => editarAula(aula, aula.turmaId, aula.moduloId)} className="p-2 rounded-lg bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-amber-50 hover:text-amber-700 text-xs font-bold flex items-center gap-1"><Edit3 className="w-3.5 h-3.5"/> Editar</button>
+                        <button onClick={() => setExcluindo({ aulaId: aula.id, turmaId: aula.turmaId, moduloId: aula.moduloId })} className="p-2 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-500 hover:bg-red-100" title="Excluir"><Trash2 className="w-3.5 h-3.5"/></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ─── BARRA DE PAGINAÇÃO (ENCURTA A PÁGINA) ─── */}
+            {aulasFiltradas.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-stone-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-slate-400 font-semibold">
+                  <span>Itens por página:</span>
+                  <select 
+                    value={itensPorPagina} 
+                    onChange={e => setItensPorPagina(Number(e.target.value))}
+                    className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-bold outline-none"
+                  >
+                    <option value={6}>6 aulas</option>
+                    <option value={12}>12 aulas</option>
+                    <option value={999}>Todas</option>
+                  </select>
+                </div>
+
+                {itensPorPagina !== 999 && totalPaginas > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPaginaAtual(p => Math.max(p - 1, 1))}
+                      disabled={paginaAtual === 1}
+                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 disabled:opacity-40 hover:bg-stone-50 dark:hover:bg-slate-800 text-stone-600 dark:text-slate-300 font-bold transition-colors"
+                      title="Página Anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    
+                    <span className="text-xs font-bold text-stone-600 dark:text-slate-300 px-2">
+                      Página {paginaAtual} de {totalPaginas}
+                    </span>
+
+                    <button
+                      onClick={() => setPaginaAtual(p => Math.min(p + 1, totalPaginas))}
+                      disabled={paginaAtual === totalPaginas}
+                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 disabled:opacity-40 hover:bg-stone-50 dark:hover:bg-slate-800 text-stone-600 dark:text-slate-300 font-bold transition-colors"
+                      title="Próxima Página"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

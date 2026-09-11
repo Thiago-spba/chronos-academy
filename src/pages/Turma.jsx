@@ -11,7 +11,7 @@ function VideoPlayer({ titulo, videoId, duracao }) {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   
-  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  const [thumbnailUrl, setThumbnailUrl] = useState(`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`);
   const storageKey = `@chronos_video_${videoId}`;
 
   const handlePlay = () => {
@@ -66,10 +66,7 @@ function VideoPlayer({ titulo, videoId, duracao }) {
             alt={titulo}
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500"
             loading="lazy"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-            }}
+            onError={() => setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`)}
           />
           <button onClick={handlePlay} className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform">

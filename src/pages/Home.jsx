@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
+import { db } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const turmas = [
   { id: '2h', serie: '2ª Séries H e L', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
@@ -18,19 +20,39 @@ const frasesPsicologia = [
 ];
 
 export default function Home() {
-  const [fraseAtual, setFraseAtual] = useState(0);
-  const [fade, setFade] = useState(true);
+  // Mensagem motivacional da semana (gerada por IA no painel do professor).
+  // Enquanto não houver uma gerada, mostra uma frase fixa como reserva.
+  const [mensagemSemana, setMensagemSemana] = useState(null);
+  const [textoDigitado, setTextoDigitado] = useState('');
 
   useEffect(() => {
-    const intervalo = setInterval(() => {
-      setFade(false); 
-      setTimeout(() => {
-        setFraseAtual((prev) => (prev + 1) % frasesPsicologia.length);
-        setFade(true); 
-      }, 500); 
-    }, 10000);
-    return () => clearInterval(intervalo);
+    const docRef = doc(db, 'chronos', 'mensagem_semana');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists() && snap.data().texto) {
+        setMensagemSemana(snap.data().texto);
+      } else {
+        setMensagemSemana(frasesPsicologia[Math.floor(Math.random() * frasesPsicologia.length)]);
+      }
+    }, () => {
+      setMensagemSemana(frasesPsicologia[0]);
+    });
+    return () => unsubscribe();
   }, []);
+
+  // Efeito "máquina de escrever": digita a mensagem letra por letra.
+  useEffect(() => {
+    if (!mensagemSemana) return;
+    setTextoDigitado('');
+    let i = 0;
+    const intervalo = setInterval(() => {
+      i += 1;
+      setTextoDigitado(mensagemSemana.slice(0, i));
+      if (i >= mensagemSemana.length) clearInterval(intervalo);
+    }, 35);
+    return () => clearInterval(intervalo);
+  }, [mensagemSemana]);
+
+  const digitando = mensagemSemana ? textoDigitado.length < mensagemSemana.length : false;
 
   return (
     <div className="animate-fade-in pb-12">
@@ -43,7 +65,10 @@ export default function Home() {
           <h2 className="text-3xl sm:text-4xl font-black text-stone-800 dark:text-slate-100 tracking-tight mb-2">Prof. Thiago Fernando</h2>
           <div className="mt-6 sm:mt-8 min-h-[3rem] flex items-start gap-3">
             <Lightbulb className="w-6 h-6 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5 animate-pulse" />
-            <p className={`text-stone-600 dark:text-slate-300 text-sm sm:text-base font-medium italic transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>"{frasesPsicologia[fraseAtual]}"</p>
+            <p className="text-stone-600 dark:text-slate-300 text-sm sm:text-base font-medium italic leading-relaxed">
+              "{textoDigitado}"
+              {digitando && <span className="inline-block w-[2px] h-4 -mb-0.5 ml-0.5 bg-amber-500 dark:bg-amber-400 animate-pulse" />}
+            </p>
           </div>
         </div>
       </div>

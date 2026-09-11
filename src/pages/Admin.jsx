@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
   AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
-  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -84,6 +84,7 @@ export default function Admin() {
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
   const [gerandoIA, setGerandoIA] = useState(false);
+  const [gerandoMensagem, setGerandoMensagem] = useState(false);
   const [formAberto, setFormAberto] = useState(false);
   
   // ─── GERENCIAMENTO DE TURMAS ───
@@ -119,12 +120,53 @@ export default function Admin() {
       if (user) {
         setAutenticado(true);
         carregarFirebase();
+        verificarMensagemSemanal();
       } else {
         navigate("/admin");
       }
     });
     return () => unsubscribe();
   }, [navigate]);
+
+  // ─── MENSAGEM MOTIVACIONAL SEMANAL (IA) ───
+  async function verificarMensagemSemanal() {
+    try {
+      const docRef = doc(db, "chronos", "mensagem_semana");
+      const docSnap = await getDoc(docRef);
+      const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
+      const precisaGerar = !docSnap.exists() || (Date.now() - new Date(docSnap.data().geradaEm).getTime() > seteDiasMs);
+      if (precisaGerar) {
+        await gerarNovaMensagem();
+      }
+    } catch (error) {
+      console.error("Erro ao verificar mensagem semanal:", error);
+    }
+  }
+
+  async function gerarNovaMensagem() {
+    setGerandoMensagem(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const resp = await fetch("/api/gerar-mensagem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        console.error(data.erro || "Erro ao gerar mensagem motivacional.");
+        return;
+      }
+      await setDoc(doc(db, "chronos", "mensagem_semana"), {
+        texto: data.texto,
+        geradaEm: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Erro ao gerar mensagem motivacional:", error);
+    } finally {
+      setGerandoMensagem(false);
+    }
+  }
 
   useEffect(() => {
     setPaginaAtual(1);
@@ -788,9 +830,17 @@ export default function Admin() {
               <p className="text-[11px] sm:text-xs text-stone-500 dark:text-slate-400 font-semibold truncate">Chronos Academy</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0">
-            <LogOut className="w-4 h-4"/> <span>Sair</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={gerarNovaMensagem} disabled={gerandoMensagem} title="Gerar uma nova mensagem motivacional agora (normalmente ela se renova sozinha a cada 7 dias)" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50 transition-colors">
+              <Sparkles className="w-4 h-4"/> <span className="hidden md:inline">{gerandoMensagem ? "Gerando..." : "Nova mensagem"}</span>
+            </button>
+            <a href="/admin/ferramentas" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+              <Wrench className="w-4 h-4"/> <span>Prática</span>
+            </a>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+              <LogOut className="w-4 h-4"/> <span>Sair</span>
+            </button>
+          </div>
         </div>
       </div>
 

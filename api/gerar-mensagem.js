@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ erro: "Nao autorizado." });
   }
 
-  const prompt = `Escreva UMA mensagem motivacional para estudantes do ensino medio de uma escola publica em Sao Paulo que estudam Historia e Tecnologia (Desenvolvimento de Sistemas). Pode ser uma frase unica mais completa ou duas frases curtas encadeadas — nao precisa ser telegrafica, mas mantenha objetividade (no maximo umas 45 palavras no total, para caber bem na tela).
+  const prompt = `Escreva UMA pequena reflexao motivacional (2 a 3 frases encadeadas, formando um pensamento completo) para estudantes do ensino medio de uma escola publica em Sao Paulo que estudam Historia e Tecnologia (Desenvolvimento de Sistemas). Nao seja telegrafica nem curta demais, mas mantenha entre 35 e 60 palavras no total, para caber bem na tela.
 
 O tom deve ser acolhedor, encorajador e conectado ao valor de aprender, persistir e construir o proprio futuro atraves do estudo. Quando fizer sentido, pode citar a ligacao entre entender o passado (Historia) e construir o futuro (Tecnologia), mas isso nao e obrigatorio em toda mensagem — varie os temas.
 

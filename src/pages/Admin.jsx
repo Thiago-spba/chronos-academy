@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
   AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
-  ChevronLeft, ChevronRight, LayoutGrid, List, Users
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -69,6 +69,7 @@ export default function Admin() {
   const [autenticado, setAutenticado] = useState(false);
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
+  const [gerandoIA, setGerandoIA] = useState(false);
   const [formAberto, setFormAberto] = useState(false);
   
   // ─── GERENCIAMENTO DE TURMAS ───
@@ -332,6 +333,47 @@ export default function Admin() {
   const removePdfAntigo = (index) => {
     const newPdfs = form.pdfs.filter((_, i) => i !== index);
     setForm({ ...form, pdfs: newPdfs });
+  };
+
+  const arquivoParaBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const gerarComIA = async () => {
+    setGerandoIA(true);
+    try {
+      let arquivo = arquivosPdf[0];
+      if (!arquivo && form.pdfs.length > 0) {
+        const resp = await fetch(form.pdfs[0].url);
+        const blob = await resp.blob();
+        arquivo = new File([blob], form.pdfs[0].titulo, { type: "application/pdf" });
+      }
+      if (!arquivo) {
+        alert("Anexe um PDF antes de gerar com IA.");
+        return;
+      }
+      const pdfBase64 = await arquivoParaBase64(arquivo);
+      const idToken = await auth.currentUser.getIdToken();
+      const resp = await fetch("/api/gerar-conteudo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, pdfBase64, tituloAula: form.titulo }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        alert(data.erro || "Erro ao gerar conteudo com IA.");
+        return;
+      }
+      setForm(prev => ({ ...prev, introducao: data.introducao, utilidade: data.utilidade, materialTexto: data.materialTexto }));
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao gerar conteudo com IA.");
+    } finally {
+      setGerandoIA(false);
+    }
   };
 
   const salvarAula = async (e) => {
@@ -1100,6 +1142,9 @@ export default function Admin() {
                         {arquivosPdf.length} arquivo(s) novo(s) selecionado(s).
                       </p>
                     )}
+                    <button type="button" onClick={gerarComIA} disabled={gerandoIA || (arquivosPdf.length === 0 && form.pdfs.length === 0)} className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                      <Sparkles className="w-4 h-4"/> {gerandoIA ? "Gerando com IA..." : "Gerar com IA (a partir do PDF)"}
+                    </button>
                   </div>
                 </div>
 

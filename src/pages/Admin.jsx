@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
   AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
-  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -22,6 +22,20 @@ const turmasIniciais = {
 };
 
 function gerarId() { return "aula_" + Date.now().toString(36); }
+
+function formatarAtualizacao(iso) {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "agora mesmo";
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `há ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return "há 1 dia";
+  if (diffD < 30) return `há ${diffD} dias`;
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
 
 function Toast({ mensagem, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
@@ -453,6 +467,8 @@ export default function Admin() {
       } else {
         moduloDestino.aulas.push(novaAula);
       }
+
+      nextDb[tId].ultimaAtualizacao = new Date().toISOString();
     });
     
     try {
@@ -479,6 +495,7 @@ export default function Admin() {
       const modulo = nextDb[tId]?.modulos?.find(m => m.id === excluindo.moduloId);
       if (modulo) {
         modulo.aulas = modulo.aulas.filter(a => a.id !== excluindo.aulaId);
+        nextDb[tId].ultimaAtualizacao = new Date().toISOString();
       }
     });
 
@@ -835,6 +852,20 @@ export default function Admin() {
               })}
             </div>
 
+            {filtroTurma !== "todas" && bancoDados[filtroTurma] && (
+              <div className="flex flex-wrap items-center justify-between gap-2 -mt-2 mb-4 px-1">
+                <span className="text-[11px] text-stone-500 dark:text-slate-400 font-semibold flex items-center gap-1">
+                  <Clock className="w-3 h-3 shrink-0"/>
+                  {bancoDados[filtroTurma].ultimaAtualizacao
+                    ? `Última atualização: ${formatarAtualizacao(bancoDados[filtroTurma].ultimaAtualizacao)}`
+                    : "Nenhuma atualização registrada ainda"}
+                </span>
+                <a href={`/turma/${filtroTurma}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+                  <Eye className="w-3 h-3 shrink-0"/> Ver como aluno
+                </a>
+              </div>
+            )}
+
             {/* ─── BUSCA, BIMESTRE E VISUALIZAÇÃO COMPACTA ─── */}
             <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-6 items-stretch sm:items-center justify-between">
               <div className="relative flex-1">
@@ -1054,9 +1085,24 @@ export default function Admin() {
           </>
         ) : (
           <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6 sm:mb-8 border-b border-stone-100 dark:border-slate-800 pb-4">
-              <h2 className="text-xl sm:text-2xl font-black text-stone-800 dark:text-slate-100">{form.id ? "Editar Aula" : "Publicar Nova Aula"}</h2>
-              <button onClick={() => setFormAberto(false)} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"><X className="w-4 h-4"/></button>
+            <div className="flex justify-between items-start mb-6 sm:mb-8 border-b border-stone-100 dark:border-slate-800 pb-4 gap-3">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-stone-800 dark:text-slate-100">{form.id ? "Editar Aula" : "Publicar Nova Aula"}</h2>
+                {form.turmaId && bancoDados[form.turmaId] && (
+                  <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                    <span className="text-[11px] text-stone-500 dark:text-slate-400 font-semibold flex items-center gap-1">
+                      <Clock className="w-3 h-3 shrink-0"/>
+                      {bancoDados[form.turmaId].ultimaAtualizacao
+                        ? `Turma atualizada ${formatarAtualizacao(bancoDados[form.turmaId].ultimaAtualizacao)}`
+                        : "Turma ainda sem atualizações registradas"}
+                    </span>
+                    <a href={`/turma/${form.turmaId}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+                      <Eye className="w-3 h-3 shrink-0"/> Ver como aluno
+                    </a>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setFormAberto(false)} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors shrink-0"><X className="w-4 h-4"/></button>
             </div>
             
             <form onSubmit={salvarAula} className="space-y-6 sm:space-y-8">

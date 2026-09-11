@@ -55,12 +55,12 @@ export default async function handler(req, res) {
 Leia o PDF e responda APENAS com um JSON valido (sem markdown, sem texto fora do JSON), no seguinte formato exato:
 
 {
-  "introducao": "um paragrafo curto e direto explicando o que e o assunto (para a secao 'O que e isso?')",
-  "utilidade": "um paragrafo curto explicando a utilidade pratica do assunto no dia a dia ou em provas (para a secao 'Para que serve?')",
-  "materialTexto": "um resumo em texto mais completo do conteudo do PDF, organizado em paragrafos, para os alunos estudarem"
+  "introducao": "no maximo 2 frases explicando o que e o assunto, com tom que incentive o estudo e o aprofundamento no tema (para a secao 'O que e isso?')",
+  "utilidade": "no maximo 2 frases explicando a utilidade pratica do assunto, tambem incentivando o estudo e o desenvolvimento do aluno sobre o tema (para a secao 'Para que serve?')",
+  "materialTexto": "no maximo 2 frases com os principais fatos do conteudo do PDF, direto e objetivo"
 }
 
-Escreva em portugues do Brasil, em linguagem clara e direta, adequada para alunos do ensino medio.`;
+Escreva em portugues do Brasil, em linguagem clara e direta, adequada para alunos do ensino medio. Respeite rigorosamente o limite de 2 frases em cada campo.`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {

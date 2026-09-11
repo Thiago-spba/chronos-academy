@@ -297,9 +297,23 @@ export default function Admin() {
 
   const abrirNovoForm = () => {
     const primeiraTurmaId = filtroTurma !== "todas" ? filtroTurma : Object.keys(bancoDados)[0];
-    const primeiroModuloId = bancoDados[primeiraTurmaId]?.modulos[0]?.id || "";
+    const modulosTurma = bancoDados[primeiraTurmaId]?.modulos || [];
+
+    // Bimestre padrao inteligente: usa o mesmo bimestre da ultima aula criada nesta turma,
+    // em vez de sempre voltar pro 1o Bimestre, pra nao precisar reescolher toda vez.
+    let moduloPadraoId = modulosTurma[modulosTurma.length - 1]?.id || "";
+    let ultimoId = "";
+    modulosTurma.forEach(mod => {
+      mod.aulas?.forEach(aula => {
+        if (aula.id > ultimoId) {
+          ultimoId = aula.id;
+          moduloPadraoId = mod.id;
+        }
+      });
+    });
+
     setForm({ 
-      id: "", turmaId: primeiraTurmaId, moduloId: primeiroModuloId, numeroAula: "", titulo: "", semana: "", introducao: "", utilidade: "", materialTexto: "", 
+      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: "", introducao: "", utilidade: "", materialTexto: "", 
       videos: [{ videoId: "", duracao: "" }], pdfs: [] 
     });
     setArquivosPdf([]);
@@ -512,12 +526,15 @@ export default function Admin() {
 
   // ─── FILTRAGEM (TURMA, BIMESTRE, BUSCA) ───
   const aulasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    // Enquanto ha uma busca digitada, ela vale para todas as turmas e bimestres de uma vez,
+    // sem precisar trocar os filtros manualmente pra achar a aula certa.
+    const buscando = termo !== "";
+
     return todasAsAulas.filter(aula => {
-      // Se selecionou 2h, pega 2h e seu par
-      const matchTurma = filtroTurma === "todas" || aula.turmaId === filtroTurma;
-      const matchBimestre = filtroBimestre === "todos" || aula.moduloId === filtroBimestre;
-      
-      const termo = busca.trim().toLowerCase();
+      const matchTurma = buscando || filtroTurma === "todas" || aula.turmaId === filtroTurma;
+      const matchBimestre = buscando || filtroBimestre === "todos" || aula.moduloId === filtroBimestre;
+
       const matchBusca = !termo || 
         aula.titulo?.toLowerCase().includes(termo) ||
         aula.numeroAula?.toLowerCase().includes(termo) ||

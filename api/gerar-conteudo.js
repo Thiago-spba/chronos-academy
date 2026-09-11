@@ -34,11 +34,29 @@ export default async function handler(req, res) {
     return res.status(405).json({ erro: "Metodo nao permitido." });
   }
 
-  const { idToken, pdfBase64, tituloAula } = req.body || {};
+  const { idToken, pdfBase64: pdfBase64Enviado, pdfUrl, tituloAula } = req.body || {};
 
   const autorizado = await verificarToken(idToken);
   if (!autorizado) {
     return res.status(401).json({ erro: "Nao autorizado." });
+  }
+
+  let pdfBase64 = pdfBase64Enviado;
+
+  if (!pdfBase64 && pdfUrl) {
+    try {
+      const respPdf = await fetch(pdfUrl);
+      if (!respPdf.ok) {
+        return res.status(400).json({ erro: "Nao foi possivel baixar o PDF salvo." });
+      }
+      const buffer = await respPdf.arrayBuffer();
+      if (buffer.byteLength > MAX_PDF_BYTES) {
+        return res.status(400).json({ erro: "PDF muito grande (limite de 8MB)." });
+      }
+      pdfBase64 = Buffer.from(buffer).toString("base64");
+    } catch (e) {
+      return res.status(400).json({ erro: "Erro ao baixar o PDF salvo." });
+    }
   }
 
   if (!pdfBase64 || typeof pdfBase64 !== "string") {

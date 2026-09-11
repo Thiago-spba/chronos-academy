@@ -345,23 +345,23 @@ export default function Admin() {
   const gerarComIA = async () => {
     setGerandoIA(true);
     try {
-      let arquivo = arquivosPdf[0];
-      if (!arquivo && form.pdfs.length > 0) {
-        const resp = await fetch(form.pdfs[0].url);
-        const blob = await resp.blob();
-        arquivo = new File([blob], form.pdfs[0].titulo, { type: "application/pdf" });
-      }
-      if (!arquivo) {
-        alert("Anexe um PDF antes de gerar com IA.");
-        return;
-      }
-      const pdfBase64 = await arquivoParaBase64(arquivo);
       const idToken = await auth.currentUser.getIdToken();
-      const resp = await fetch("/api/gerar-conteudo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, pdfBase64, tituloAula: form.titulo }),
-      });
+    const payload = { idToken, tituloAula: form.titulo };
+
+    if (arquivosPdf[0]) {
+      payload.pdfBase64 = await arquivoParaBase64(arquivosPdf[0]);
+    } else if (form.pdfs.length > 0) {
+      payload.pdfUrl = form.pdfs[0].url;
+    } else {
+      alert("Anexe um PDF antes de gerar com IA.");
+      return;
+    }
+
+    const resp = await fetch("/api/gerar-conteudo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
       const data = await resp.json();
       if (!resp.ok) {
         alert(data.erro || "Erro ao gerar conteudo com IA.");

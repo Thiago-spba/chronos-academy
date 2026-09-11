@@ -57,7 +57,7 @@ export default function Pratica() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {ativas.map((f, i) => (
-          
+          <a
             key={f.id}
             href={f.url}
             target="_blank"

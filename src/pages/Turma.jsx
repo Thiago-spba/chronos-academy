@@ -66,6 +66,11 @@ function VideoPlayer({ titulo, videoId, duracao }) {
             alt={titulo}
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500"
             loading="lazy"
+            onLoad={(e) => {
+              if (e.target.naturalWidth <= 120) {
+                setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`);
+              }
+            }}
             onError={() => setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`)}
           />
           <button onClick={handlePlay} className="absolute inset-0 flex items-center justify-center">

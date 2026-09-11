@@ -561,7 +561,9 @@ export default function Admin() {
         aula.nomeTurma?.toLowerCase().includes(termo);
 
       return matchTurma && matchBimestre && matchBusca;
-    });
+    }).sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    // Ordena das aulas mais recentes para as mais antigas (o id guarda o momento da criacao),
+    // assim a ultima aula cadastrada sempre aparece primeiro, na pagina 1.
   }, [todasAsAulas, filtroTurma, filtroBimestre, busca]);
 
   // ─── PAGINAÇÃO (ENCURTA A PÁGINA) ───

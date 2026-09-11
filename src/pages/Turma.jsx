@@ -61,7 +61,16 @@ function VideoPlayer({ titulo, videoId, duracao }) {
     <div ref={videoRef} className="relative aspect-video w-full max-w-xl mx-auto bg-black rounded-xl overflow-hidden shadow-md group transition-all">
       {!ativo ? (
         <div className="absolute inset-0 w-full h-full">
-          <img src={thumbnailUrl} alt={titulo} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500" loading="lazy" />
+          <img
+            src={thumbnailUrl}
+            alt={titulo}
+            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500"
+            loading="lazy"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+            }}
+          />
           <button onClick={handlePlay} className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform">
               <Play className="w-7 h-7 text-amber-700" fill="currentColor" />

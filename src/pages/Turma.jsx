@@ -168,18 +168,43 @@ export default function Turma() {
         <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">{turma.disciplina}</p>
       </div>
 
+      {turma.modulos.length > 1 && (
+        <div className="mb-6 flex items-center gap-2 px-1">
+          {turma.modulos.map((modulo, idx) => (
+            <div key={modulo.id} className="flex-1 flex flex-col items-center gap-1.5">
+              <div className={`w-full h-1.5 rounded-full transition-colors ${modulo.abertoPadrao ? 'bg-amber-500' : 'bg-stone-200 dark:bg-slate-800'}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${modulo.abertoPadrao ? 'text-amber-600 dark:text-amber-400' : 'text-stone-400 dark:text-slate-600'}`}>
+                {idx + 1}º Bim.
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-4">
         {turma.modulos.map((modulo) => {
           const aulasComIndiceOriginal = modulo.aulas.map((aula, idx) => ({ ...aula, originalIndex: idx }));
           const exibirTodas = mostrarTodasAulas[modulo.id];
           const aulasParaExibir = exibirTodas ? aulasComIndiceOriginal : aulasComIndiceOriginal.slice(-2);
 
+          const totalAulasModulo = modulo.aulas.length;
+
           return (
-            <details key={modulo.id} className="group bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden transition-colors">
+            <details key={modulo.id} className={`group bg-white dark:bg-slate-900 border rounded-3xl shadow-sm overflow-hidden transition-colors ${modulo.abertoPadrao ? 'border-amber-400 dark:border-amber-500/60 ring-1 ring-amber-400/30' : 'border-stone-200 dark:border-slate-800'}`}>
               <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 hover:bg-stone-50 dark:hover:bg-slate-800/80 transition-colors list-none">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400 group-open:bg-amber-100 dark:group-open:bg-amber-900/40 group-open:text-amber-700 dark:group-open:text-amber-400 transition-colors"><FolderOpen className="w-5 h-5"/></div>
-                  <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">{modulo.titulo}</h3>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">{modulo.titulo}</h3>
+                      {modulo.abertoPadrao && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase tracking-wider">Em andamento</span>
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-0.5">
+                      {totalAulasModulo === 0 ? 'Nenhum conteúdo ainda' : `${totalAulasModulo} aula${totalAulasModulo > 1 ? 's' : ''} disponível${totalAulasModulo > 1 ? 'is' : ''}`}
+                    </p>
+                  </div>
                 </div>
                 <ChevronDown className="w-5 h-5 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
               </summary>

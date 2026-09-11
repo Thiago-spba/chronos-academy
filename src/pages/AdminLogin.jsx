@@ -1,34 +1,30 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Eye, EyeOff, GraduationCap, AlertCircle } from "lucide-react";
-import { auth } from "../firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { Shield, GraduationCap, AlertCircle } from "lucide-react";
+import { auth, googleProvider } from "../firebase";
+import { signInWithPopup } from "firebase/auth";
+
+const ADMIN_EMAIL = "thiago.rpba@gmail.com"; // único e-mail com acesso ao painel
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     setErro("");
-
-    if (!email.trim() || !senha.trim()) {
-      setErro("Preencha todos os campos.");
-      return;
-    }
-
     setCarregando(true);
-
     try {
-      await signInWithEmailAndPassword(auth, email, senha);
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user.email !== ADMIN_EMAIL) {
+        await auth.signOut();
+        setErro("Esta conta Google não tem acesso à área administrativa.");
+        return;
+      }
       navigate("/admin/painel");
     } catch (error) {
       console.error(error);
-      setErro("Acesso negado. E-mail ou senha incorretos.");
+      setErro("Falha ao autenticar com o Google. Tente novamente.");
     } finally {
       setCarregando(false);
     }
@@ -51,7 +47,7 @@ export default function AdminLogin() {
               Área Administrativa
             </h1>
             <p className="text-sm text-stone-500 dark:text-slate-400 mt-1 transition-colors duration-500">
-              Acesso seguro criptografado
+              Acesso restrito ao professor
             </p>
           </div>
 
@@ -62,30 +58,25 @@ export default function AdminLogin() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-stone-600 dark:text-slate-400 uppercase tracking-wider mb-2 transition-colors duration-500">
-                E-mail
-              </label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Seu e-mail cadastrado" className="w-full px-4 py-3 rounded-xl bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-800 dark:text-slate-100 text-sm placeholder-stone-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 dark:focus:ring-indigo-500/50 transition-all duration-500" autoComplete="email" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-stone-600 dark:text-slate-400 uppercase tracking-wider mb-2 transition-colors duration-500">
-                Senha
-              </label>
-              <div className="relative">
-                <input type={mostrarSenha ? "text" : "password"} value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 pr-12 rounded-xl bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-800 dark:text-slate-100 text-sm placeholder-stone-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 dark:focus:ring-indigo-500/50 transition-all duration-500" autoComplete="current-password" />
-                <button type="button" onClick={() => setMostrarSenha(!mostrarSenha)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-stone-400 dark:text-slate-500 hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors duration-300">
-                  {mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={carregando} className="w-full py-3.5 rounded-xl bg-amber-600 dark:bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-amber-600/25 dark:shadow-indigo-600/30 hover:bg-amber-700 dark:hover:bg-indigo-700 disabled:opacity-60 transition-all duration-500 flex items-center justify-center gap-2">
-              {carregando ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : "Autenticar"}
-            </button>
-          </form>
+          <button
+            onClick={handleLogin}
+            disabled={carregando}
+            className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-800 dark:text-slate-100 font-bold text-sm shadow-sm hover:bg-stone-50 dark:hover:bg-slate-700 disabled:opacity-60 transition-all duration-300"
+          >
+            {carregando ? (
+              <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.1 9 5 12 5z"/>
+                  <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"/>
+                  <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8 0-1.3.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"/>
+                  <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.1-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/>
+                </svg>
+                Entrar com Google
+              </>
+            )}
+          </button>
         </div>
 
         <div className="mt-6 text-center">

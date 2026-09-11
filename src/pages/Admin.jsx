@@ -117,11 +117,12 @@ export default function Admin() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
+      if (user && user.email === "thiago.rpba@gmail.com") {
         setAutenticado(true);
         carregarFirebase();
         verificarMensagemSemanal();
       } else {
+        if (user) signOut(auth); // conta sem permissão — desloga na hora
         navigate("/admin");
       }
     });

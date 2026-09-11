@@ -126,6 +126,17 @@ export default function Admin() {
     return () => unsubscribe();
   }, [navigate]);
 
+  // ─── AVISO DE SEGURANCA: nao deixa sair/fechar/recarregar por acidente com o formulario aberto ───
+  useEffect(() => {
+    if (!formAberto) return;
+    const avisarAntesDeSair = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", avisarAntesDeSair);
+    return () => window.removeEventListener("beforeunload", avisarAntesDeSair);
+  }, [formAberto]);
+
   useEffect(() => {
     setPaginaAtual(1);
   }, [busca, filtroTurma, filtroBimestre, itensPorPagina]);
@@ -209,6 +220,13 @@ export default function Admin() {
   const handleLogout = async () => {
     await signOut(auth);
     navigate("/admin");
+  };
+
+  // Abre a visao do aluno numa janela/aba totalmente separada, sem navegar para fora
+  // do painel admin - assim o formulario que esta sendo preenchido nunca se perde.
+  const abrirPreview = (turmaId) => {
+    if (!turmaId) return;
+    window.open(`/turma/${turmaId}`, "_blank", "noopener,noreferrer");
   };
 
   const handleCriarTurma = async (e) => {
@@ -862,9 +880,9 @@ export default function Admin() {
                     ? `Última atualização: ${formatarAtualizacao(bancoDados[filtroTurma].ultimaAtualizacao)}`
                     : "Nenhuma atualização registrada ainda"}
                 </span>
-                <a href={`/turma/${filtroTurma}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+                <button type="button" onClick={() => abrirPreview(filtroTurma)} className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
                   <Eye className="w-3 h-3 shrink-0"/> Ver como aluno
-                </a>
+                </button>
               </div>
             )}
 
@@ -1098,9 +1116,9 @@ export default function Admin() {
                         ? `Turma atualizada ${formatarAtualizacao(bancoDados[form.turmaId].ultimaAtualizacao)}`
                         : "Turma ainda sem atualizações registradas"}
                     </span>
-                    <a href={`/turma/${form.turmaId}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+                    <button type="button" onClick={() => abrirPreview(form.turmaId)} className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
                       <Eye className="w-3 h-3 shrink-0"/> Ver como aluno
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>

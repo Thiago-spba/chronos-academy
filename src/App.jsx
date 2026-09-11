@@ -1,10 +1,12 @@
 ﻿import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { GraduationCap, Moon, Sun, ArrowLeft, ChevronDown, ChevronUp, Mail, Cpu, BookOpen, Quote, Lock } from 'lucide-react';
+import { GraduationCap, Moon, Sun, ArrowLeft, ChevronDown, ChevronUp, Mail, Cpu, BookOpen, Quote, Lock, Wrench } from 'lucide-react';
 import Home from './pages/Home';
 import Turma from './pages/Turma';
 import AdminLogin from './pages/AdminLogin';
 import Admin from './pages/Admin';
+import Pratica from './pages/Pratica';
+import AdminFerramentas from './pages/AdminFerramentas';
 
 /* =========================================================================
    COMPONENTE: Rodapé Global Interativo (Currículo do Professor)
@@ -107,9 +109,14 @@ export default function App() {
                 <div><h1 className="text-xl font-black text-stone-800 dark:text-slate-100 leading-none">Chronos Academy</h1><p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mt-0.5">História & Tecnologia</p></div>
               </Link>
             </div>
-            <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300">
-              {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-600" />}
-            </button>
+            <div className="flex items-center gap-2">
+              <Link to="/pratica" className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-sm font-bold transition-colors">
+                <Wrench className="w-4 h-4" /> <span className="hidden sm:inline">Prática</span>
+              </Link>
+              <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300">
+                {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+              </button>
+            </div>
           </div>
         </header>
       )}
@@ -120,6 +127,8 @@ export default function App() {
           <Route path="/turma/:id" element={<Turma />} />
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/painel" element={<Admin />} />
+          <Route path="/pratica" element={<Pratica />} />
+          <Route path="/admin/ferramentas" element={<AdminFerramentas />} />
         </Routes>
       </main>
 

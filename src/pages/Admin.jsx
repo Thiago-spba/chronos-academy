@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
   AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
-  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -788,9 +788,14 @@ export default function Admin() {
               <p className="text-[11px] sm:text-xs text-stone-500 dark:text-slate-400 font-semibold truncate">Chronos Academy</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0">
-            <LogOut className="w-4 h-4"/> <span>Sair</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <a href="/admin/ferramentas" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+              <Wrench className="w-4 h-4"/> <span>Prática</span>
+            </a>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+              <LogOut className="w-4 h-4"/> <span>Sair</span>
+            </button>
+          </div>
         </div>
       </div>
 

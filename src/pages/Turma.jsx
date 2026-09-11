@@ -169,14 +169,13 @@ export default function Turma() {
       </div>
 
       {turma.modulos.length > 1 && (
-        <div className="mb-6 flex items-center gap-2 px-1">
-          {turma.modulos.map((modulo, idx) => (
-            <div key={modulo.id} className="flex-1 flex flex-col items-center gap-1.5">
-              <div className={`w-full h-1.5 rounded-full transition-colors ${modulo.abertoPadrao ? 'bg-amber-500' : 'bg-stone-200 dark:bg-slate-800'}`} />
-              <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${modulo.abertoPadrao ? 'text-amber-600 dark:text-amber-400' : 'text-stone-400 dark:text-slate-600'}`}>
-                {idx + 1}º Bim.
-              </span>
-            </div>
+        <div className="mb-8 flex items-center gap-2 px-1">
+          {turma.modulos.map((modulo) => (
+            <div
+              key={modulo.id}
+              title={modulo.titulo}
+              className={`flex-1 h-2 rounded-full transition-colors ${modulo.abertoPadrao ? 'bg-amber-500' : 'bg-stone-200 dark:bg-slate-800'}`}
+            />
           ))}
         </div>
       )}

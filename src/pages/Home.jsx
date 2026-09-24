@@ -1,10 +1,33 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown } from 'lucide-react';
+import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
 import NomesFlutuantes from '../components/NomesFlutuantes';
 import { db } from '../firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+
+// O id de cada aula e "aula_" + Date.now() em base36 (veja gerarId no painel do professor),
+// entao da pra descobrir quando ela foi criada sem precisar de um campo de data separado.
+function quandoFoiCriada(aula) {
+  const m = /^aula_([0-9a-z]+)$/i.exec((aula && aula.id) || '');
+  if (!m) return 0;
+  const t = parseInt(m[1], 36);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function formatarQuando(ms) {
+  if (!ms) return '';
+  const diffMs = Date.now() - ms;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'agora mesmo';
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `há ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return 'há 1 dia';
+  if (diffD < 30) return `há ${diffD} dias`;
+  return new Date(ms).toLocaleDateString('pt-BR');
+}
 
 const turmas = [
   { id: '2h', grupo: 'fgb', serie: '2ª Série H', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
@@ -34,6 +57,29 @@ export default function Home() {
   const [textoDigitado, setTextoDigitado] = useState('');
   const [painelAberto, setPainelAberto] = useState(false);
   const [sobreAberto, setSobreAberto] = useState(false);
+  const [ultimasAulas, setUltimasAulas] = useState([]);
+
+  // Aulas mais recentes de todas as turmas juntas, para sempre aparecer o que foi postado por último.
+  useEffect(() => {
+    let cancelado = false;
+    getDoc(doc(db, 'chronos', 'dados_escola'))
+      .then((snap) => {
+        if (cancelado || !snap.exists()) return;
+        const dados = snap.data() || {};
+        const lista = [];
+        turmas.forEach((turma) => {
+          (dados[turma.id]?.modulos || []).forEach((modulo) => {
+            (modulo.aulas || []).forEach((aula) => {
+              lista.push({ turma, aula, quando: quandoFoiCriada(aula) });
+            });
+          });
+        });
+        lista.sort((a, b) => b.quando - a.quando);
+        setUltimasAulas(lista.slice(0, 6));
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, []);
 
   // Abre o painel sozinho se houver algum aviso ativo (o sininho nao fica escondido).
   useEffect(() => {
@@ -125,6 +171,35 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {ultimasAulas.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-4 px-2">
+            <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+            <h3 className="text-lg font-black text-stone-700 dark:text-slate-200">Aulas mais recentes</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ultimasAulas.map(({ turma, aula, quando }) => (
+              <Link
+                key={aula.id || `${turma.id}-${aula.titulo}`}
+                to={`/turma/${turma.id}`}
+                className="group bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800 hover:shadow-xl hover:border-amber-400 dark:hover:border-amber-500/50 transition-all duration-300 p-5 flex flex-col"
+              >
+                <span className={`self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm mb-3 ${turma.corBadge}`}>
+                  {turma.serie} · {turma.disciplina}
+                </span>
+                <h4 className="text-sm font-black text-stone-800 dark:text-slate-100 leading-snug line-clamp-2 mb-2">{aula.titulo}</h4>
+                <div className="mt-auto pt-3 flex items-center justify-between text-[11px] font-bold text-stone-400 dark:text-slate-500">
+                  <span>{formatarQuando(quando)}</span>
+                  <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Ver aula <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <button
         type="button"

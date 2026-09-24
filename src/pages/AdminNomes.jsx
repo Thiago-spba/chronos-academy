@@ -1,23 +1,30 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, Trash2, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Save, Upload, Trash2, Plus, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
 // Tela para cadastrar os primeiros nomes que aparecem deslizando na pagina inicial.
-// Grava em chronos/nomes_alunos: { ativo, nomes: { turma: [ ... ] }, atualizadoEm }
-// Ao salvar, os nomes passam a aparecer. "Remover todos" desliga o efeito.
+// Grava em chronos/nomes_alunos:
+//   { ativo, turmas: [{ id, nome }], nomes: { [id]: [ ... ] }, atualizadoEm }
+// A pagina inicial le apenas "ativo" e "nomes". As turmas daqui servem so para organizar as listas:
+// nao alteram os cartoes do Painel de Turmas do site.
+// "Remover todos" desliga o efeito.
 
-const TURMAS = [
-  { id: '2h', rotulo: '2ª Série H' },
-  { id: '2l', rotulo: '2ª Série L' },
-  { id: '1g', rotulo: '1ª Série G' },
-  { id: '1j', rotulo: '1ª Série J' },
-  { id: '2c', rotulo: '2ª Série C' },
+const TURMAS_INICIAIS = [
+  { id: '2h', nome: '2ª Série H' },
+  { id: '2l', nome: '2ª Série L' },
+  { id: '1g', nome: '1ª Série G' },
+  { id: '1j', nome: '1ª Série J' },
+  { id: '2c', nome: '2ª Série C' },
 ];
 
+const MAX_TURMAS = 20;
 const MAX_POR_TURMA = 60;
+const MAX_NOME_TURMA = 30;
+
+const novoId = () => 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
 function limpar(texto) {
   const vistos = new Set();
@@ -50,10 +57,11 @@ export default function AdminNomes() {
   const navigate = useNavigate();
   const [autenticado, setAutenticado] = useState(false);
   const [carregando, setCarregando] = useState(true);
-  const [textos, setTextos] = useState({ '2h': '', '2l': '', '1g': '', '1j': '', '2c': '' });
+  const [turmas, setTurmas] = useState(TURMAS_INICIAIS.map((t) => ({ ...t, texto: '' })));
   const [noAr, setNoAr] = useState(0); // quantos nomes estao publicados agora
   const [salvando, setSalvando] = useState(false);
   const [confirmarRemocao, setConfirmarRemocao] = useState(false);
+  const [excluindoId, setExcluindoId] = useState(null);
   const [toast, setToast] = useState(null);
 
   const inputBaseClass = 'w-full p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 outline-none text-xs sm:text-sm transition-colors duration-300';
@@ -76,14 +84,25 @@ export default function AdminNomes() {
       const snap = await getDoc(doc(db, 'chronos', 'nomes_alunos'));
       if (snap.exists()) {
         const dados = snap.data();
-        const novos = { '2h': '', '2l': '', '1g': '', '1j': '', '2c': '' };
+        const nomes = dados.nomes || {};
+        let base;
+        if (Array.isArray(dados.turmas) && dados.turmas.length) {
+          base = dados.turmas.filter((t) => t && t.id).map((t) => ({ id: t.id, nome: t.nome || t.id }));
+        } else {
+          // formato antigo: so { nomes: { id: [...] } }
+          base = Object.keys(nomes).map((id) => ({
+            id,
+            nome: TURMAS_INICIAIS.find((t) => t.id === id)?.nome || id.toUpperCase(),
+          }));
+          if (!base.length) base = TURMAS_INICIAIS;
+        }
         let total = 0;
-        TURMAS.forEach((t) => {
-          const lista = Array.isArray(dados.nomes?.[t.id]) ? dados.nomes[t.id] : [];
-          novos[t.id] = lista.join('\n');
-          total += lista.length;
+        const lista = base.map((t) => {
+          const nomesTurma = Array.isArray(nomes[t.id]) ? nomes[t.id] : [];
+          total += nomesTurma.length;
+          return { ...t, texto: nomesTurma.join('\n') };
         });
-        setTextos(novos);
+        setTurmas(lista);
         setNoAr(dados.ativo ? total : 0);
       }
     } catch (e) {
@@ -97,15 +116,28 @@ export default function AdminNomes() {
     const porTurma = {};
     const suspeitos = [];
     let total = 0;
-    TURMAS.forEach((t) => {
-      const lista = limpar(textos[t.id]);
+    turmas.forEach((t) => {
+      const lista = limpar(t.texto);
       porTurma[t.id] = lista;
       total += lista.length;
       lista.forEach((n) => { if (n.split(' ').length >= 3) suspeitos.push(n); });
     });
-    const excesso = TURMAS.some((t) => porTurma[t.id].length > MAX_POR_TURMA);
-    return { porTurma, total, suspeitos, excesso };
-  }, [textos]);
+    const excesso = turmas.some((t) => porTurma[t.id].length > MAX_POR_TURMA);
+    const semNome = turmas.some((t) => !t.nome.trim());
+    return { porTurma, total, suspeitos, excesso, semNome };
+  }, [turmas]);
+
+  const alterar = (id, campos) => setTurmas((antes) => antes.map((t) => (t.id === id ? { ...t, ...campos } : t)));
+
+  const adicionarTurma = () => {
+    if (turmas.length >= MAX_TURMAS) return;
+    setTurmas((antes) => [...antes, { id: novoId(), nome: '', texto: '' }]);
+  };
+
+  const excluirTurma = (id) => {
+    setTurmas((antes) => antes.filter((t) => t.id !== id));
+    setExcluindoId(null);
+  };
 
   const importarArquivo = (e) => {
     const arquivo = e.target.files?.[0];
@@ -115,18 +147,19 @@ export default function AdminNomes() {
     leitor.onload = () => {
       try {
         const dados = JSON.parse(leitor.result);
-        const novos = { '2h': [], '2l': [], '1g': [], '1j': [], '2c': [] };
+        const porId = {};
         Object.entries(dados).forEach(([chave, lista]) => {
           if (!Array.isArray(lista)) return;
           const id = chave.startsWith('2c') ? '2c' : chave;
-          if (novos[id]) novos[id].push(...lista.filter((n) => typeof n === 'string'));
+          porId[id] = [...(porId[id] || []), ...lista.filter((n) => typeof n === 'string')];
         });
-        setTextos({
-          '2h': novos['2h'].join('\n'),
-          '2l': novos['2l'].join('\n'),
-          '1g': novos['1g'].join('\n'),
-          '1j': novos['1j'].join('\n'),
-          '2c': novos['2c'].join('\n'),
+        setTurmas((antes) => {
+          const atualizadas = antes.map((t) => (porId[t.id] ? { ...t, texto: porId[t.id].join('\n') } : t));
+          const existentes = new Set(antes.map((t) => t.id));
+          const novas = Object.keys(porId)
+            .filter((id) => !existentes.has(id))
+            .map((id) => ({ id, nome: TURMAS_INICIAIS.find((t) => t.id === id)?.nome || id.toUpperCase(), texto: porId[id].join('\n') }));
+          return [...atualizadas, ...novas].slice(0, MAX_TURMAS);
         });
         setToast({ mensagem: 'Arquivo lido. Confira os nomes e clique em Salvar.' });
       } catch (err) {
@@ -156,31 +189,31 @@ export default function AdminNomes() {
     }
   };
 
+  const meta = () => turmas.map((t) => ({ id: t.id, nome: t.nome.trim() }));
+
   const salvar = async () => {
-    if (analise.suspeitos.length || analise.excesso || !analise.total) return;
+    if (analise.suspeitos.length || analise.excesso || analise.semNome || !analise.total) return;
     const nomes = {};
-    TURMAS.forEach((t) => { if (analise.porTurma[t.id].length) nomes[t.id] = analise.porTurma[t.id]; });
-    const ok = await gravar({ ativo: true, nomes }, `Salvo! ${analise.total} nomes no ar.`);
+    turmas.forEach((t) => { if (analise.porTurma[t.id].length) nomes[t.id] = analise.porTurma[t.id]; });
+    const ok = await gravar({ ativo: true, turmas: meta(), nomes }, `Salvo! ${analise.total} nomes no ar.`);
     if (ok) {
       setNoAr(analise.total);
-      const novos = {};
-      TURMAS.forEach((t) => { novos[t.id] = analise.porTurma[t.id].join('\n'); });
-      setTextos(novos);
+      setTurmas((antes) => antes.map((t) => ({ ...t, nome: t.nome.trim(), texto: analise.porTurma[t.id].join('\n') })));
     }
   };
 
   const removerTodos = async () => {
-    const ok = await gravar({ ativo: false, nomes: {} }, 'Nomes removidos. O efeito saiu do ar.');
+    const ok = await gravar({ ativo: false, turmas: meta(), nomes: {} }, 'Nomes removidos. O efeito saiu do ar.');
     setConfirmarRemocao(false);
     if (ok) {
       setNoAr(0);
-      setTextos({ '2h': '', '2l': '', '1g': '', '1j': '', '2c': '' });
+      setTurmas((antes) => antes.map((t) => ({ ...t, texto: '' })));
     }
   };
 
   if (!autenticado) return null;
 
-  const bloqueado = salvando || !analise.total || analise.suspeitos.length > 0 || analise.excesso;
+  const bloqueado = salvando || !analise.total || analise.suspeitos.length > 0 || analise.excesso || analise.semNome;
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
@@ -206,7 +239,7 @@ export default function AdminNomes() {
       <div>
         <h1 className="text-xl sm:text-2xl font-black text-stone-800 dark:text-slate-100">Nomes na página inicial</h1>
         <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400 mt-1 leading-relaxed">
-          Só o primeiro nome de cada aluno, um por linha. Ao salvar, os nomes passam a deslizar na página inicial, na área entre o Painel de Turmas fechado e o rodapé.
+          Só o primeiro nome de cada aluno, um por linha. Ao salvar, os nomes passam a deslizar na página inicial, na área entre o Painel de Turmas fechado e o rodapé. Você pode criar, renomear e excluir turmas aqui; as mudanças só valem depois de Salvar e publicar.
         </p>
         <p className={`inline-block mt-3 px-3 py-1 rounded-full text-xs font-bold ${noAr ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400'}`}>
           {carregando ? 'Carregando...' : noAr ? `No ar agora: ${noAr} nomes` : 'Fora do ar (nenhum nome publicado)'}
@@ -220,25 +253,62 @@ export default function AdminNomes() {
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {TURMAS.map((t) => (
-          <div key={t.id}>
-            <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor={`nomes-${t.id}`} className="text-xs sm:text-sm font-bold text-stone-700 dark:text-slate-200">{t.rotulo}</label>
-              <span className="text-[11px] font-semibold text-stone-400 dark:text-slate-500">{analise.porTurma[t.id].length} nomes</span>
+        {turmas.map((t, i) => (
+          <div key={t.id} className="p-3 rounded-2xl border border-stone-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40">
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                value={t.nome}
+                maxLength={MAX_NOME_TURMA}
+                onChange={(e) => alterar(t.id, { nome: e.target.value })}
+                placeholder={`Nome da turma ${i + 1}`}
+                aria-label={`Nome da turma ${i + 1}`}
+                className={`${inputBaseClass} font-bold !py-2`}
+              />
+              {excluindoId === t.id ? (
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => excluirTurma(t.id)} className="px-2.5 py-2 rounded-lg bg-red-600 text-white text-[11px] font-bold hover:bg-red-700 transition-colors">Excluir</button>
+                  <button onClick={() => setExcluindoId(null)} className="px-2.5 py-2 rounded-lg bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 text-[11px] font-bold transition-colors">Não</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setExcluindoId(t.id)}
+                  title="Excluir esta turma"
+                  aria-label={`Excluir a turma ${t.nome || i + 1}`}
+                  className="shrink-0 p-2 rounded-lg text-stone-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <textarea
-              id={`nomes-${t.id}`}
               rows={7}
-              value={textos[t.id]}
-              onChange={(e) => setTextos((antes) => ({ ...antes, [t.id]: e.target.value }))}
+              value={t.texto}
+              onChange={(e) => alterar(t.id, { texto: e.target.value })}
               placeholder={'Ana\nBruno\nCarla'}
+              aria-label={`Nomes da turma ${t.nome || i + 1}`}
               className={`${inputBaseClass} resize-y font-medium`}
               spellCheck={false}
             />
+            <p className="text-[11px] font-semibold text-stone-400 dark:text-slate-500 mt-1.5 text-right">{analise.porTurma[t.id].length} nomes</p>
           </div>
         ))}
       </div>
 
+      <button
+        onClick={adicionarTurma}
+        disabled={turmas.length >= MAX_TURMAS}
+        className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-stone-100 dark:bg-slate-800 text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50 transition-colors"
+      >
+        <Plus className="w-4 h-4" /> {turmas.length >= MAX_TURMAS ? `Limite de ${MAX_TURMAS} turmas` : 'Adicionar turma'}
+      </button>
+
+      {analise.semNome && (
+        <div className="flex gap-2 p-3 rounded-xl border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs sm:text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>Dê um nome a cada turma (ou exclua as que não vai usar) para poder salvar.</span>
+        </div>
+      )}
       {analise.suspeitos.length > 0 && (
         <div className="flex gap-2 p-3 rounded-xl border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs sm:text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -262,7 +332,7 @@ export default function AdminNomes() {
           </div>
         ) : (
           <button onClick={() => setConfirmarRemocao(true)} disabled={salvando || !noAr} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-red-600 dark:text-red-400 text-xs sm:text-sm font-bold hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40 disabled:hover:bg-transparent transition-colors">
-            <Trash2 className="w-4 h-4" /> Remover todos (tira do ar)
+            <Trash2 className="w-4 h-4" /> Remover todos os nomes (tira do ar)
           </button>
         )}
         <button

@@ -109,7 +109,7 @@ export default function Home() {
       >
         <div>
           <h3 className="text-2xl font-black text-stone-800 dark:text-slate-100">Painel de Turmas</h3>
-          <p className="text-sm text-stone-500 dark:text-slate-400 mt-1">Selecione sua disciplina para acessar materiais e videoaulas.</p>
+          <p className="text-sm text-stone-500 dark:text-slate-400 mt-1">Selecione sua disciplina para acessar materiais e vídeos.</p>
         </div>
         <span className="shrink-0 w-11 h-11 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 flex items-center justify-center text-stone-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:border-amber-400 dark:group-hover:border-amber-500/50 transition-colors">
           <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${painelAberto ? 'rotate-180' : ''}`} />

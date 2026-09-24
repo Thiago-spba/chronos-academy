@@ -299,7 +299,7 @@ export default function Turma() {
 
               {temVideo && (
                 <div className="mb-8 border-t border-stone-100 dark:border-slate-800 pt-8">
-                  <h5 className="text-sm font-bold text-stone-800 dark:text-slate-200 mb-6 uppercase">Videoaula(s)</h5>
+                  <h5 className="text-sm font-bold text-stone-800 dark:text-slate-200 mb-6 uppercase">Vídeo(s)</h5>
                   <div className="space-y-6">
                     {aulaAtiva.video && !aulaAtiva.videos && (
                       <VideoPlayer key={aulaAtiva.video.videoId} titulo={aulaAtiva.titulo} videoId={aulaAtiva.video.videoId} duracao={aulaAtiva.video.duracao} />

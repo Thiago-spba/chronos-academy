@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
+import NomesFlutuantes from '../components/NomesFlutuantes';
 import { db } from '../firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 
@@ -87,6 +88,7 @@ export default function Home() {
     <div className="animate-fade-in pb-12">
       <div className="mb-10 relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-amber-50 to-stone-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 p-8 sm:p-12 shadow-xl border border-stone-200 dark:border-slate-800 transition-colors duration-500">
         <div className="absolute top-0 right-0 w-[30rem] h-[30rem] bg-gradient-to-bl from-amber-400/20 via-orange-500/10 to-transparent dark:from-amber-500/10 dark:via-orange-500/5 dark:to-transparent rounded-full blur-3xl -translate-y-1/4 translate-x-1/4 pointer-events-none"></div>
+        <NomesFlutuantes />
         <div className="relative z-10 flex flex-col items-start">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-amber-700 dark:text-amber-400 text-xs font-black uppercase tracking-widest mb-6 shadow-sm">
             <Award className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Portal do Professor

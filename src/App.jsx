@@ -7,6 +7,7 @@ import AdminLogin from './pages/AdminLogin';
 import Admin from './pages/Admin';
 import Pratica from './pages/Pratica';
 import AdminFerramentas from './pages/AdminFerramentas';
+import AdminNomes from './pages/AdminNomes';
 
 /* =========================================================================
    COMPONENTE: Rodapé Global Interativo (Currículo do Professor)
@@ -128,6 +129,7 @@ export default function App() {
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/painel" element={<Admin />} />
           <Route path="/pratica" element={<Pratica />} />
+          <Route path="/admin/nomes" element={<AdminNomes />} />
           <Route path="/admin/ferramentas" element={<AdminFerramentas />} />
         </Routes>
       </main>

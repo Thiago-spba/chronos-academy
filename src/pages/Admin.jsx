@@ -346,7 +346,8 @@ export default function Admin() {
           tipo: formAviso.tipo, 
           mensagem: formAviso.mensagem, 
           duracao: Number(formAviso.duracao) || 0, 
-          ativo: typeof publicar === 'boolean' ? publicar : formAviso.ativo 
+          ativo: typeof publicar === 'boolean' ? publicar : formAviso.ativo,
+          publicadoEm: publicar === true ? Date.now() : (todosAvisos?.[formAviso.alvo]?.publicadoEm || null)
         } 
       };
       await setDoc(doc(db, 'chronos', 'config'), { avisos: avisosAtualizados }, { merge: true });

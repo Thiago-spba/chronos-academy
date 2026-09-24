@@ -6,6 +6,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 export default function AnuncioPopup({ turmaId }) {
   const [mostrar, setMostrar] = useState(false);
   const [aviso, setAviso] = useState(null);
+  const [lida, setLida] = useState(false);
 
   // 1. ESCUTA O BANCO DE DADOS
   useEffect(() => {
@@ -58,6 +59,19 @@ export default function AnuncioPopup({ turmaId }) {
     }
   }, [mostrar, aviso]);
 
+  // Sino pisca ate o aluno abrir o aviso uma vez neste aparelho; depois fica parado (continua clicavel).
+  // Se a mensagem mudar (ou for publicada de novo), volta a piscar.
+  const assinatura = aviso ? `${aviso.tipo}|${aviso.mensagem}|${aviso.publicadoEm || ''}` : '';
+  const chaveLida = `@chronos_aviso_lido_${turmaId}`;
+  useEffect(() => {
+    if (!assinatura) { setLida(false); return; }
+    try { setLida(localStorage.getItem(chaveLida) === assinatura); } catch (e) { setLida(false); }
+  }, [assinatura, chaveLida]);
+  const marcarComoLida = () => {
+    try { localStorage.setItem(chaveLida, assinatura); } catch (e) { /* sem armazenamento: so continua piscando */ }
+    setLida(true);
+  };
+
   // VARIÁVEIS DE CONTROLE DO VISUAL
   const temAviso = !!aviso;
   const isParabens = aviso?.tipo === 'parabens';
@@ -71,7 +85,7 @@ export default function AnuncioPopup({ turmaId }) {
           e.preventDefault(); 
           e.stopPropagation(); 
           // Só permite abrir se tiver um aviso ativo
-          if (temAviso) setMostrar(!mostrar); 
+          if (temAviso) { setMostrar(!mostrar); marcarComoLida(); } 
         }}
         className={`flex items-center justify-center p-3.5 rounded-2xl transition-all duration-300 border ${
           temAviso 
@@ -85,7 +99,7 @@ export default function AnuncioPopup({ turmaId }) {
       >
         {temAviso ? (
           // Com Aviso: Animações de piscar/pulsar
-          isParabens ? <Trophy className="w-6 h-6 animate-bounce" /> : <Bell className="w-6 h-6 animate-pulse" />
+          isParabens ? <Trophy className={`w-6 h-6 ${lida ? '' : 'animate-bounce'}`} /> : <Bell className={`w-6 h-6 ${lida ? '' : 'animate-pulse'}`} />
         ) : (
           // Sem Aviso: Apenas a imagem do sino parada e na cor cinza
           <Bell className="w-6 h-6" /> 

@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb } from 'lucide-react';
+import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
 import { db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 
 const turmas = [
-  { id: '2h', serie: '2ª Séries H e L', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
-  { id: '1g', serie: '1ª Séries G e J', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
-  { id: '2c-dev', serie: '2ª Série C', disciplina: 'Desenvolvimento de Sistemas', curso: 'Novo Ensino Médio (Hab. Profissional)', icone: MonitorPlay, corBadge: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800' },
-  { id: '2c-carr', serie: '2ª Série C', disciplina: 'Carreira e Competências', curso: 'Novo Ensino Médio (Hab. Profissional)', icone: Target, corBadge: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' }
+  { id: '2h', grupo: 'fgb', serie: '2ª Série H', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
+  { id: '2l', grupo: 'fgb', serie: '2ª Série L', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
+  { id: '1g', grupo: 'fgb', serie: '1ª Série G', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
+  { id: '1j', grupo: 'fgb', serie: '1ª Série J', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
+  { id: '2c-dev', grupo: 'ftp', serie: '2ª Série C', disciplina: 'Desenvolvimento de Sistemas', curso: 'Novo Ensino Médio (Hab. Profissional)', icone: MonitorPlay, corBadge: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800' },
+  { id: '2c-carr', grupo: 'ftp', serie: '2ª Série C', disciplina: 'Carreira e Competências', curso: 'Novo Ensino Médio (Hab. Profissional)', icone: Target, corBadge: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' }
+];
+
+const grupos = [
+  { id: 'fgb', sigla: 'FGB', titulo: 'Formação Geral Básica' },
+  { id: 'ftp', sigla: 'FTP', titulo: 'Formação Técnica e Profissional' }
 ];
 
 const frasesPsicologia = [
@@ -24,6 +31,27 @@ export default function Home() {
   // Enquanto não houver uma gerada, mostra uma frase fixa como reserva.
   const [mensagemSemana, setMensagemSemana] = useState(null);
   const [textoDigitado, setTextoDigitado] = useState('');
+  const [painelAberto, setPainelAberto] = useState(false);
+
+  // Abre o painel sozinho se houver algum aviso ativo (o sininho nao fica escondido).
+  useEffect(() => {
+    let cancelado = false;
+    getDoc(doc(db, 'chronos', 'config'))
+      .then((snap) => {
+        if (cancelado || !snap.exists()) return;
+        const data = snap.data();
+        const avisosDb = data.avisos || data.aviso;
+        if (!avisosDb) return;
+        const ids = turmas.map((t) => t.id);
+        const ativo =
+          ids.some((id) => avisosDb[id]?.ativo) ||
+          !!avisosDb['global']?.ativo ||
+          !!(avisosDb.ativo && (ids.includes(avisosDb.alvo) || avisosDb.alvo === 'global'));
+        if (ativo) setPainelAberto(true);
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, []);
 
   useEffect(() => {
     const docRef = doc(db, 'chronos', 'mensagem_semana');
@@ -73,13 +101,31 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="mb-8 px-2">
-        <h3 className="text-2xl font-black text-stone-800 dark:text-slate-100">Painel de Turmas</h3>
-        <p className="text-sm text-stone-500 dark:text-slate-400 mt-1">Selecione sua disciplina para acessar materiais e videoaulas.</p>
-      </div>
+      <button
+        type="button"
+        onClick={() => setPainelAberto((v) => !v)}
+        aria-expanded={painelAberto}
+        className="w-full mb-8 px-2 flex items-center justify-between gap-4 text-left group"
+      >
+        <div>
+          <h3 className="text-2xl font-black text-stone-800 dark:text-slate-100">Painel de Turmas</h3>
+          <p className="text-sm text-stone-500 dark:text-slate-400 mt-1">Selecione sua disciplina para acessar materiais e videoaulas.</p>
+        </div>
+        <span className="shrink-0 w-11 h-11 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 flex items-center justify-center text-stone-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:border-amber-400 dark:group-hover:border-amber-500/50 transition-colors">
+          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${painelAberto ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {turmas.map((turma) => {
+      {painelAberto && (
+        <div className="animate-fade-in space-y-10">
+          {grupos.map((grupo) => (
+            <section key={grupo.id}>
+              <div className="flex items-center gap-3 mb-4 px-2">
+                <span className="px-3 py-1 rounded-lg text-[11px] font-black tracking-widest bg-stone-800 text-white dark:bg-slate-100 dark:text-slate-900">{grupo.sigla}</span>
+                <h4 className="text-lg font-black text-stone-700 dark:text-slate-200">{grupo.titulo}</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {turmas.filter((t) => t.grupo === grupo.id).map((turma) => {
           const Icon = turma.icone;
           return (
             /* ATENÇÃO AQUI: Retirei o overflow-hidden para o balão poder sair do card */
@@ -111,7 +157,11 @@ export default function Home() {
             </div>
           );
         })}
-      </div>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

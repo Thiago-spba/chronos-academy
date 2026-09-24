@@ -15,20 +15,6 @@ function quandoFoiCriada(aula) {
   return Number.isFinite(t) ? t : 0;
 }
 
-function formatarQuando(ms) {
-  if (!ms) return '';
-  const diffMs = Date.now() - ms;
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'agora mesmo';
-  if (diffMin < 60) return `há ${diffMin} min`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `há ${diffH}h`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD === 1) return 'há 1 dia';
-  if (diffD < 30) return `há ${diffD} dias`;
-  return new Date(ms).toLocaleDateString('pt-BR');
-}
-
 const turmas = [
   { id: '2h', grupo: 'fgb', serie: '2ª Série H', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
   { id: '2l', grupo: 'fgb', serie: '2ª Série L', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
@@ -58,6 +44,7 @@ export default function Home() {
   const [painelAberto, setPainelAberto] = useState(false);
   const [sobreAberto, setSobreAberto] = useState(false);
   const [ultimasAulas, setUltimasAulas] = useState([]);
+  const [recentesAberto, setRecentesAberto] = useState(true);
 
   // Aulas mais recentes de todas as turmas juntas, para sempre aparecer o que foi postado por último.
   useEffect(() => {
@@ -174,30 +161,46 @@ export default function Home() {
 
       {ultimasAulas.length > 0 && (
         <section className="mb-10">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-            <h3 className="text-lg font-black text-stone-700 dark:text-slate-200">Aulas mais recentes</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ultimasAulas.map(({ turma, aula, quando }) => (
-              <Link
-                key={aula.id || `${turma.id}-${aula.titulo}`}
-                to={`/turma/${turma.id}`}
-                className="group bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800 hover:shadow-xl hover:border-amber-400 dark:hover:border-amber-500/50 transition-all duration-300 p-5 flex flex-col"
-              >
-                <span className={`self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm mb-3 ${turma.corBadge}`}>
-                  {turma.serie} · {turma.disciplina}
-                </span>
-                <h4 className="text-sm font-black text-stone-800 dark:text-slate-100 leading-snug line-clamp-2 mb-2">{aula.titulo}</h4>
-                <div className="mt-auto pt-3 flex items-center justify-between text-[11px] font-bold text-stone-400 dark:text-slate-500">
-                  <span>{formatarQuando(quando)}</span>
-                  <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Ver aula <ArrowRight className="w-3 h-3" />
+          <button
+            type="button"
+            onClick={() => setRecentesAberto((v) => !v)}
+            aria-expanded={recentesAberto}
+            className="w-full mb-4 px-2 flex items-center justify-between gap-4 text-left group"
+          >
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/50 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              </span>
+              <div>
+                <h3 className="text-lg font-black text-stone-700 dark:text-slate-200">Aulas mais recentes</h3>
+                <p className="text-xs text-stone-400 dark:text-slate-500 mt-0.5">As últimas aulas postadas, de todas as turmas.</p>
+              </div>
+            </div>
+            <span className="shrink-0 w-10 h-10 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 flex items-center justify-center text-stone-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:border-amber-400 dark:group-hover:border-amber-500/50 transition-colors">
+              <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${recentesAberto ? 'rotate-180' : ''}`} />
+            </span>
+          </button>
+          {recentesAberto && (
+            <div className="animate-fade-in grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {ultimasAulas.map(({ turma, aula }) => (
+                <Link
+                  key={aula.id || `${turma.id}-${aula.titulo}`}
+                  to={`/turma/${turma.id}`}
+                  className="group bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800 hover:shadow-xl hover:border-amber-400 dark:hover:border-amber-500/50 transition-all duration-300 p-5 flex flex-col"
+                >
+                  <span className={`self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm mb-3 ${turma.corBadge}`}>
+                    {turma.serie} · {turma.disciplina}
                   </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <h4 className="text-sm font-black text-stone-800 dark:text-slate-100 leading-snug line-clamp-2 mb-4">{aula.titulo}</h4>
+                  <div className="flex items-center pt-3 mt-auto border-t border-stone-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 group-hover:gap-3 transition-all">
+                      Ver aula <ArrowRight className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

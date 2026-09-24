@@ -103,16 +103,16 @@ export default function Home() {
           </button>
           {sobreAberto && (
             <div className="mt-4 max-w-xl space-y-4 animate-fade-in text-sm sm:text-base text-stone-600 dark:text-slate-300 leading-relaxed">
-              <p>Sou o professor Thiago Fernando. Ensino e também programo, e gosto de mostrar que História e tecnologia caminham juntas.</p>
+              <p>Sou o professor Thiago Fernando. Minha missão é mostrar que História e tecnologia caminham juntas.</p>
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1">Formação</h4>
-                <p>Licenciado em Matemática e em História, com pós-graduação em Metodologia da Educação. Atualmente curso Engenharia da Computação.</p>
+                <p>Licenciado em Matemática, licenciado em História, com pós-graduação em Metodologia da Educação. Hoje curso Engenharia da Computação.</p>
               </div>
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1">Como trabalho</h4>
-                <p>O Chronos Academy reúne em um só lugar os materiais das aulas: PDFs, vídeos do YouTube ligados ao conteúdo e ferramentas de prática, para você estudar no seu ritmo.</p>
+                <p>No Chronos Academy, você encontra os materiais das aulas: PDFs, vídeos do YouTube ligados ao conteúdo, ferramentas de prática. Estude no seu ritmo.</p>
               </div>
-              <p className="italic font-medium text-stone-500 dark:text-slate-400">Aprender é um caminho, e eu estou nele com você.</p>
+              <p className="italic font-medium text-stone-500 dark:text-slate-400">Aprender é um caminho. Estou nele com você.</p>
             </div>
           )}
           <div className="mt-6 sm:mt-8 min-h-[3rem] flex items-start gap-3">

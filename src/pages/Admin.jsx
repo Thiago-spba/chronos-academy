@@ -512,20 +512,29 @@ export default function Admin() {
     }
   };
 
-  // ─── SUGESTAO DE VIDEOS DO YOUTUBE (EM PORTUGUES) ───
-  const buscarVideosYoutube = async (termo) => {
-    const t = String(termo ?? buscaVideo).trim();
-    if (t.length < 3) {
-      setSugestoesVideos({ carregando: false, erro: "Digite pelo menos 3 letras para buscar.", itens: [], buscou: true });
+  // ─── SUGESTAO DE VIDEOS DO YOUTUBE (EM PORTUGUES, COM AJUDA DA IA) ───
+  const buscarVideosYoutube = async (termoManual) => {
+    const t = String(termoManual ?? buscaVideo).trim();
+    if (t && t.length < 3) {
+      setSugestoesVideos({ carregando: false, erro: "Digite pelo menos 3 letras para buscar.", aviso: "", itens: [], buscou: true, ia: false });
       return;
     }
-    setSugestoesVideos({ carregando: true, erro: "", itens: [], buscou: true });
+    const disciplina = bancoDados?.[form.turmaId]?.disciplina || "";
+    setSugestoesVideos({ carregando: true, erro: "", aviso: "", itens: [], buscou: true, ia: false });
     try {
       const idToken = await auth.currentUser.getIdToken();
       const resp = await fetch("/api/sugerir-videos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, busca: t }),
+        body: JSON.stringify({
+          idToken,
+          busca: t || undefined,
+          tituloAula: form.titulo,
+          disciplina,
+          introducao: form.introducao,
+          utilidade: form.utilidade,
+          materialTexto: form.materialTexto,
+        }),
       });
       let data = {};
       try { data = await resp.json(); } catch (e) { data = {}; }
@@ -533,24 +542,23 @@ export default function Admin() {
         const erro = data.erro === "YOUTUBE_API_KEY_AUSENTE"
           ? "A chave do YouTube ainda nao foi configurada na Vercel (nome: YOUTUBE_API_KEY)."
           : (data.erro || "Nao foi possivel buscar videos agora.");
-        setSugestoesVideos({ carregando: false, erro, itens: [], buscou: true });
+        setSugestoesVideos({ carregando: false, erro, aviso: "", itens: [], buscou: true, ia: false });
         return;
       }
-      setSugestoesVideos({ carregando: false, erro: "", itens: data.videos || [], buscou: true });
+      setSugestoesVideos({ carregando: false, erro: "", aviso: data.aviso || "", itens: data.videos || [], buscou: true, ia: !!data.ia });
     } catch (e) {
       console.error(e);
-      setSugestoesVideos({ carregando: false, erro: "Nao foi possivel buscar videos agora.", itens: [], buscou: true });
+      setSugestoesVideos({ carregando: false, erro: "Nao foi possivel buscar videos agora.", aviso: "", itens: [], buscou: true, ia: false });
     }
   };
 
   const abrirSugestoesVideos = () => {
-    const disciplina = bancoDados?.[form.turmaId]?.disciplina || "";
-    const base = form.titulo.trim() ? `${form.titulo.trim()} ${disciplina}`.trim() : "";
-    setBuscaVideo(base);
-    if (base.length >= 3) {
-      buscarVideosYoutube(base);
+    setBuscaVideo("");
+    const temContexto = form.titulo.trim() || form.introducao.trim() || form.materialTexto.trim();
+    if (temContexto) {
+      buscarVideosYoutube("");
     } else {
-      setSugestoesVideos({ carregando: false, erro: "", itens: [], buscou: false });
+      setSugestoesVideos({ carregando: false, erro: "Escreva o título da aula (ou use o campo de busca abaixo) antes de pedir sugestões.", aviso: "", itens: [], buscou: false, ia: false });
     }
   };
 
@@ -1408,10 +1416,16 @@ export default function Admin() {
                         <button type="button" onClick={() => buscarVideosYoutube()} disabled={sugestoesVideos.carregando} className="px-3 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50 shrink-0">Buscar</button>
                         <button type="button" onClick={() => setSugestoesVideos(null)} className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-slate-200 rounded-lg shrink-0" title="Fechar sugestões"><X className="w-4 h-4"/></button>
                       </div>
-                      {sugestoesVideos.carregando && <p className="text-xs font-bold text-stone-400 dark:text-slate-500">Buscando vídeos em português...</p>}
+                      {sugestoesVideos.carregando && <p className="text-xs font-bold text-stone-400 dark:text-slate-500">Buscando vídeos em português{buscaVideo.trim() ? "..." : " (a IA está lendo a aula para escolher os melhores)..."}</p>}
                       {sugestoesVideos.erro && <p className="text-xs font-bold text-red-600 dark:text-red-400">{sugestoesVideos.erro}</p>}
-                      {!sugestoesVideos.carregando && !sugestoesVideos.erro && sugestoesVideos.buscou && sugestoesVideos.itens.length === 0 && (
+                      {!sugestoesVideos.carregando && !sugestoesVideos.erro && sugestoesVideos.aviso && (
+                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">{sugestoesVideos.aviso}</p>
+                      )}
+                      {!sugestoesVideos.carregando && !sugestoesVideos.erro && sugestoesVideos.buscou && sugestoesVideos.itens.length === 0 && !sugestoesVideos.aviso && (
                         <p className="text-xs font-bold text-stone-400 dark:text-slate-500">Nenhum vídeo encontrado. Tente outras palavras.</p>
+                      )}
+                      {!sugestoesVideos.carregando && sugestoesVideos.ia && sugestoesVideos.itens.length > 0 && (
+                        <p className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1"><Sparkles className="w-3 h-3"/> Escolhidos pela IA com base na aula</p>
                       )}
                       {sugestoesVideos.itens.map(v => {
                         const jaTem = form.videos.some(x => x.videoId === v.videoId);
@@ -1421,6 +1435,7 @@ export default function Admin() {
                             <div className="flex-1 min-w-0">
                               <p title={v.titulo} className="text-xs font-bold text-stone-800 dark:text-slate-100 line-clamp-2">{v.titulo}</p>
                               <p className="text-[11px] text-stone-500 dark:text-slate-400 mt-0.5">{v.canal} · {v.duracao}{v.visualizacoes > 0 ? ` · ${v.visualizacoes.toLocaleString("pt-BR")} visualizações` : ""}</p>
+                              {v.motivo && <p className="text-[11px] italic text-indigo-600 dark:text-indigo-400 mt-0.5">{v.motivo}</p>}
                               <div className="flex gap-2 mt-1.5">
                                 <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-800 text-[11px] font-bold text-stone-700 dark:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors">Assistir</a>
                                 <button type="button" disabled={jaTem} onClick={() => usarVideoSugerido(v)} className="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 disabled:bg-stone-200 disabled:text-stone-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-500 transition-colors">{jaTem ? "Adicionado" : "Usar"}</button>

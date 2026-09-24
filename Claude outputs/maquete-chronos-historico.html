@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquete - Histórico de aulas e turmas editáveis</title>
+<style>
+  :root {
+    --bg:#f8f7f4; --card:#ffffff; --card2:#faf9f7; --txt:#292524; --mut:#78716c; --line:#e7e5e4;
+    --amber:#d97706; --amberSoft:#fef3c7; --amberTxt:#92400e; --ok:#059669; --okSoft:#d1fae5; --chip:#f5f5f4;
+    --danger:#dc2626; --shadow:0 1px 2px rgba(0,0,0,.06);
+  }
+  body.dark {
+    --bg:#020617; --card:#0f172a; --card2:#0b1222; --txt:#f1f5f9; --mut:#94a3b8; --line:#1e293b;
+    --amber:#818cf8; --amberSoft:#312e81; --amberTxt:#c7d2fe; --ok:#34d399; --okSoft:#064e3b; --chip:#1e293b;
+    --danger:#f87171; --shadow:none;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.45; }
+  .topo { position:sticky; top:0; z-index:10; background:var(--card); border-bottom:1px solid var(--line); padding:10px 16px; }
+  .topo .linha { display:flex; align-items:center; gap:10px; flex-wrap:wrap; max-width:980px; margin:0 auto; }
+  .aviso { font-size:12px; color:var(--mut); }
+  .abas { display:flex; gap:6px; flex-wrap:wrap; max-width:980px; margin:8px auto 0; }
+  .aba { border:1px solid var(--line); background:var(--chip); color:var(--txt); border-radius:999px; padding:7px 14px; font-size:13px; font-weight:700; cursor:pointer; }
+  .aba.ativa { background:var(--amber); color:#fff; border-color:var(--amber); }
+  .tema { margin-left:auto; border:1px solid var(--line); background:var(--chip); color:var(--txt); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; font-weight:700; }
+  main { max-width:980px; margin:0 auto; padding:18px 16px 60px; }
+  .tela { display:none; } .tela.ativa { display:block; }
+  h1 { font-size:26px; margin:0 0 2px; font-weight:900; }
+  h2 { font-size:18px; margin:0 0 8px; }
+  .sub { color:var(--amber); font-weight:800; letter-spacing:.08em; text-transform:uppercase; font-size:12px; }
+  .nota { background:var(--amberSoft); color:var(--amberTxt); border-radius:12px; padding:10px 14px; font-size:13px; margin:12px 0; }
+  .nota.ok { background:var(--okSoft); color:var(--ok); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
+  .btn { border:0; border-radius:10px; padding:9px 16px; font-weight:800; font-size:13px; cursor:pointer; background:var(--chip); color:var(--txt); }
+  .btn.pri { background:var(--amber); color:#fff; }
+  .btn.peq { padding:6px 10px; font-size:12px; }
+  .btn.perigo { color:var(--danger); }
+  label { display:block; font-size:12px; font-weight:800; margin:10px 0 4px; }
+  input, select { width:100%; padding:9px 11px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--txt); font-size:14px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
+  .chip { border:1px solid var(--line); background:var(--chip); color:var(--txt); border-radius:999px; padding:7px 16px; font-weight:800; font-size:14px; cursor:pointer; }
+  .chip.ativa { background:var(--amber); color:#fff; border-color:var(--amber); }
+  .mod { margin-bottom:12px; overflow:hidden; }
+  .mod summary { list-style:none; cursor:pointer; padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .mod summary::-webkit-details-marker { display:none; }
+  .mod h3 { margin:0; font-size:16px; }
+  .mod .qtd { font-size:12px; color:var(--mut); font-weight:700; }
+  .mod .corpo { padding:12px 18px 18px; border-top:1px solid var(--line); background:var(--card2); }
+  .badge { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; background:var(--amberSoft); color:var(--amberTxt); padding:2px 8px; border-radius:999px; margin-left:8px; }
+  .badge.cinza { background:var(--chip); color:var(--mut); }
+  .aula { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:14px; background:var(--card); margin-bottom:8px; font-size:14px; font-weight:700; }
+  .aula .n { width:34px; height:34px; border-radius:50%; background:var(--chip); display:flex; align-items:center; justify-content:center; font-weight:900; flex:none; }
+  .vazio { color:var(--mut); font-size:14px; text-align:center; padding:10px; }
+  .sim { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
+  .grupo { margin:18px 0 8px; display:flex; align-items:center; gap:10px; font-weight:900; }
+  .sigla { background:var(--amber); color:#fff; border-radius:8px; padding:3px 9px; font-size:12px; letter-spacing:.06em; }
+  .cardTurma { padding:16px; }
+  .cardTurma b { font-size:16px; }
+  .cardTurma small { display:block; color:var(--mut); font-weight:700; }
+  .linhaTurma { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .linhaTurma:last-child { border-bottom:0; }
+  .linhaTurma .nome { flex:1; min-width:180px; }
+  .off { opacity:.5; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; overflow:auto; font-size:12.5px; line-height:1.5; }
+  .rot { font-size:12px; color:var(--mut); font-weight:700; margin:0 0 6px; }
+  .duas { display:grid; gap:14px; grid-template-columns:1fr 1fr; } @media(max-width:760px){ .duas{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <div class="linha">
+    <strong>MAQUETE</strong>
+    <span class="aviso">Só um desenho para você testar. Nada aqui grava no seu site nem no Firebase.</span>
+    <button class="tema" id="btnTema">Modo escuro</button>
+  </div>
+  <div class="abas" id="abas">
+    <button class="aba ativa" data-tela="home">1 · Página inicial</button>
+    <button class="aba" data-tela="turma">2 · Página da turma (aluno)</button>
+    <button class="aba" data-tela="aula">3 · Painel: Nova aula</button>
+    <button class="aba" data-tela="turmas">4 · Painel: Turmas e disciplinas</button>
+    <button class="aba" data-tela="fire">5 · Como fica no Firebase</button>
+  </div>
+</div>
+
+<main>
+
+<!-- 1 HOME -->
+<section class="tela ativa" id="tela-home">
+  <h1>Painel de Turmas</h1>
+  <p class="aviso">Os cartões agora vêm da lista de turmas do banco de dados. Se você criar, renomear ou desativar uma turma na aba 4, ela muda aqui.</p>
+  <div id="homeCards"></div>
+</section>
+
+<!-- 2 TURMA -->
+<section class="tela" id="tela-turma">
+  <div class="sub" id="turmaDisc">História</div>
+  <h1 id="turmaNome">2ª Séries H e L</h1>
+
+  <div class="rot" style="margin-top:14px">Em andamento</div>
+  <div id="listaMod"></div>
+
+  <details class="card" id="historico" style="padding:0;margin-top:22px">
+    <summary style="padding:16px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><h2 style="margin:0">Histórico de aulas</h2>
+      <p class="aviso" style="margin:2px 0 0">Toque para escolher outro ano ou bimestre.</p></div><span>▾</span>
+    </summary>
+    <div style="padding:0 18px 18px">
+      <div class="rot" style="margin-top:4px">Ano</div>
+      <div class="chips" id="histAnos" style="margin:4px 0 10px"></div>
+      <div class="rot">Bimestre</div>
+      <div class="chips" id="histBims" style="margin:4px 0 12px"></div>
+      <div id="histResultado"></div>
+    </div>
+  </details>
+</section>
+
+<!-- 3 NOVA AULA -->
+<section class="tela" id="tela-aula">
+  <h1>Nova aula</h1>
+  <p class="aviso">Só muda o início do formulário. O restante (título, vídeos, PDF, gerar com IA) continua como hoje.</p>
+  <div class="card" style="padding:16px 18px;margin-bottom:14px;border-color:var(--amber)">
+    <div class="rot" style="margin-top:0">Bimestre em andamento (o que os alunos veem em destaque)</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <strong id="andTxt" style="font-size:16px"></strong>
+      <button class="btn pri peq" id="btnAvancar"></button>
+      <span class="aviso" id="msgAnd"></span>
+    </div>
+    <div class="aviso" style="margin-top:8px">Ele só muda quando você clicar no botão. Enquanto isso, todas as aulas novas aparecem nele. <a href="#" id="linkOutro">Escolher outro bimestre manualmente</a></div>
+    <div id="boxOutro" style="display:none;margin-top:10px" class="duas">
+      <div><label>Ano</label><select id="oAno"></select></div>
+      <div><label>Bimestre</label><select id="oBim"><option value="1">1º Bimestre</option><option value="2">2º Bimestre</option><option value="3">3º Bimestre</option><option value="4">4º Bimestre</option></select></div>
+      <button class="btn peq" id="btnDefinir" style="align-self:end">Definir</button>
+    </div>
+  </div>
+  <div class="card" style="padding:18px">
+    <div class="duas">
+      <div><label>Turma</label><select id="fTurma"></select></div>
+      <div><label>Ano</label><select id="fAno"></select></div>
+    </div>
+    <div class="duas">
+      <div><label>Bimestre</label>
+        <select id="fBim">
+          <option value="1">1º Bimestre</option><option value="2">2º Bimestre</option>
+          <option value="3">3º Bimestre</option><option value="4">4º Bimestre</option>
+        </select>
+      </div>
+      <div><label>Título da aula</label><input id="fTitulo" placeholder="Ex.: A Era Vargas"></div>
+    </div>
+    <div id="avisoMod" class="nota"></div>
+    <button class="btn pri" id="btnSalvarAula">Salvar aula</button>
+    <span class="aviso" id="msgAula"></span>
+  </div>
+</section>
+
+<!-- 4 TURMAS -->
+<section class="tela" id="tela-turmas">
+  <h1>Turmas e disciplinas</h1>
+  <p class="aviso">Crie, renomeie, mude a disciplina ou desative. Desativar só esconde da página inicial: todas as aulas continuam guardadas.</p>
+  <div class="card" id="listaTurmas" style="margin:12px 0"></div>
+  <div class="card" style="padding:16px">
+    <h2>Nova turma</h2>
+    <div class="duas">
+      <div><label>Nome da turma</label><input id="nNome" placeholder="Ex.: 3ª Série H"></div>
+      <div><label>Disciplina</label><input id="nDisc" placeholder="Ex.: História"></div>
+    </div>
+    <div class="duas">
+      <div><label>Grupo</label>
+        <select id="nGrupo"><option value="fgb">FGB · Formação Geral Básica</option><option value="ftp">FTP · Formação Técnica e Profissional</option></select>
+      </div>
+      <div><label>&nbsp;</label><button class="btn pri" id="btnNovaTurma" style="width:100%">Criar turma</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 FIREBASE -->
+<section class="tela" id="tela-fire">
+  <h1>Como fica no Firebase</h1>
+  <p class="aviso">Tudo continua no mesmo banco. As suas aulas de hoje não são movidas nem alteradas. Só entra um documento pequeno novo.</p>
+<pre>chronos/
+ ├─ dados_escola      ← as aulas (CONTINUA IGUAL, nada é migrado)
+ │    └─ 2h: { nome, disciplina, modulos: [
+ │         { id:"b3",      titulo:"3º Bimestre - 2026", aulas:[ ...8 aulas... ] },
+ │         { id:"b4-2026", titulo:"4º Bimestre - 2026", aulas:[] },
+ │         { id:"b1-2027", titulo:"1º Bimestre - 2027", aulas:[] }   ← criado sozinho
+ │       ] }
+ ├─ turmas            ← NOVO, pequeno: quem aparece na página inicial
+ │    └─ itens: [ { id:"2h", nome:"2ª Séries H e L", disciplina:"História",
+ │                  grupo:"fgb", ativa:true, ordem:1 }, ... ]
+ ├─ nomes_alunos      (já existe)
+ ├─ config            (avisos, já existe) + NOVO campo pequeno:
+ │    └─ bimestreAtual: { ano: 2026, bim: 3 }   ← o "em andamento"
+ └─ mensagem_semana   (já existe)</pre>
+
+  <h2 style="margin-top:18px">O que grava em cada ação</h2>
+<pre>Salvar aula em "4º Bimestre - 2027"
+   → se o bimestre não existe, cria o módulo b4-2027 dentro da turma
+   → adiciona a aula nele. Nada mais é tocado.
+
+Renomear turma / mudar disciplina / desativar
+   → altera só o documento "turmas" e o nome/disciplina da turma
+     (as aulas ficam intactas)
+
+Clicar "Passar para o 4º Bimestre"
+   → muda só config.bimestreAtual. Os alunos veem o novo bimestre em
+     destaque; o anterior continua no Histórico.
+
+Virar o ano
+   → o mesmo botão: do 4º Bimestre passa para o 1º do ano seguinte.
+     O módulo b1-2027 é criado sozinho quando você salvar a 1ª aula.</pre>
+
+  <div class="nota ok">Segurança: antes de mexer no projeto eu faço um backup novo das aulas e só publico depois de testar com uma cópia dos seus dados.</div>
+</section>
+
+</main>
+
+<script>
+/* ---------- dados de exemplo (baseados nas suas turmas reais) ---------- */
+let turmas = [
+  {id:'2h',  nome:'2ª Séries H e L', disciplina:'História',                 grupo:'fgb', ativa:true},
+  {id:'1g',  nome:'1ª Séries G e J', disciplina:'História',                 grupo:'fgb', ativa:true},
+  {id:'2c-dev',  nome:'2ª Série C',  disciplina:'Desenvolvimento de Sistemas', grupo:'ftp', ativa:true},
+  {id:'2c-carr', nome:'2ª Série C',  disciplina:'Carreira e Competências',     grupo:'ftp', ativa:true},
+];
+/* aulas por turma: chave "ano-bim" -> lista de títulos */
+const aulas = {
+  '2h': {
+    '2026-3':['As Fissuras da República Oligárquica e a Força do Tenentismo (1922–1929)','Restauração da legalidade com espírito conservador','Reconstitucionalização ao Estado Novo','Estado Novo: propaganda e repressão','Os trabalhadores e a CLT','A política externa de Vargas','O fim do Estado Novo','Revisão do bimestre'],
+  },
+  '1g': { '2026-3':['O encontro entre portugueses e os povos originários das Américas','O Brasil indígena pelos olhos do colonizador','Quem governava as Américas antes dos europeus?','Aula 4','Aula 5','Aula 6','Aula 7','Aula 8'] },
+  '2c-dev': { '2026-1':['Como documentar seu código no jeito certo?'], '2026-3':['Como fazer uma chamada de funções','O poder do código limpo e sem repetição','Parâmetros, retorno e escopo de variáveis'] },
+  '2c-carr': { '2026-3':['Desvendando a hierarquia no trabalho','O poder da colaboração intergeracional','O poder da sinergia e do trabalho em equipe'] },
+};
+let andamento = {ano:2026, bim:3};   // bimestre em andamento (você troca manualmente)
+let turmaAluno = '2h';
+const $ = s => document.querySelector(s);
+
+/* ---------- abas ---------- */
+document.querySelectorAll('.aba').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.aba').forEach(x => x.classList.remove('ativa'));
+  document.querySelectorAll('.tela').forEach(x => x.classList.remove('ativa'));
+  b.classList.add('ativa'); $('#tela-'+b.dataset.tela).classList.add('ativa');
+  if (b.dataset.tela==='aula') montarFormAula();
+  if (b.dataset.tela==='turma') desenharTurma();
+});
+$('#btnTema').onclick = () => { document.body.classList.toggle('dark'); $('#btnTema').textContent = document.body.classList.contains('dark') ? 'Modo claro' : 'Modo escuro'; };
+
+/* ---------- 1. HOME ---------- */
+function desenharHome() {
+  const grupos = [{id:'fgb',sigla:'FGB',t:'Formação Geral Básica'},{id:'ftp',sigla:'FTP',t:'Formação Técnica e Profissional'}];
+  let html = '';
+  grupos.forEach(g => {
+    const lista = turmas.filter(t => t.ativa && t.grupo === g.id);
+    if (!lista.length) return;
+    html += `<div class="grupo"><span class="sigla">${g.sigla}</span>${g.t}</div><div class="grid">` +
+      lista.map(t => `<div class="card cardTurma" style="cursor:pointer" onclick="abrirTurma('${t.id}')"><b>${t.nome}</b><small>${t.disciplina}</small></div>`).join('') + `</div>`;
+  });
+  $('#homeCards').innerHTML = html || '<p class="vazio">Nenhuma turma ativa.</p>';
+}
+function abrirTurma(id) {
+  turmaAluno = id; histAno = null; histBim = 'todos'; document.getElementById('historico').open = false;
+  document.querySelector('[data-tela="turma"]').click(); desenharTurma();
+}
+
+/* ---------- 2. TURMA (aluno) ---------- */
+function anosDaTurma(id) {
+  const s = new Set([andamento.ano]);
+  Object.keys(aulas[id] || {}).forEach(k => s.add(+k.split('-')[0]));
+  return [...s].sort((a,b)=>b-a);
+}
+let histAno = null, histBim = 'todos';   // escolha do aluno no Histórico
+const nomesBim = ['1º','2º','3º','4º'];
+
+function listaAulas(lista) {
+  return lista.map((l,i)=>`<div class="aula"><span class="n">${i+1}</span>${l}</div>`).join('');
+}
+function desenharTurma() {
+  const t = turmas.find(x => x.id === turmaAluno);
+  $('#turmaNome').textContent = t.nome; $('#turmaDisc').textContent = t.disciplina;
+
+  /* --- destaque: o bimestre em andamento (aberto, como hoje) --- */
+  const lista = (aulas[turmaAluno] || {})[andamento.ano+'-'+andamento.bim] || [];
+  const corpo = lista.length ? listaAulas(lista) : '<p class="vazio">Nenhum conteúdo publicado neste bimestre ainda.</p>';
+  $('#listaMod').innerHTML = `<details class="card mod" open style="border-color:var(--amber)"><summary><div><h3>${nomesBim[andamento.bim-1]} Bimestre - ${andamento.ano}<span class="badge">Em andamento</span></h3>
+      <div class="qtd">${lista.length?lista.length+' aulas disponíveis':'Nenhum conteúdo ainda'}</div></div><span>▾</span></summary><div class="corpo">${corpo}</div></details>`;
+
+  /* --- histórico (recolhido): escolher Ano e Bimestre --- */
+  const anos = anosDaTurma(turmaAluno);
+  if (histAno === null || !anos.includes(histAno)) { histAno = andamento.ano; histBim = 'todos'; }
+  $('#histAnos').innerHTML = anos.map(a => `<button class="chip ${a===histAno?'ativa':''}" onclick="histAno=${a};histBim='todos';desenharTurma()">${a}${a===andamento.ano?' (atual)':''}</button>`).join('');
+  const cont = b => ((aulas[turmaAluno]||{})[histAno+'-'+b]||[]).length;
+  const total = [1,2,3,4].reduce((s,b)=>s+cont(b),0);
+  $('#histBims').innerHTML =
+    `<button class="chip ${histBim==='todos'?'ativa':''}" onclick="histBim='todos';desenharTurma()">Todos (${total})</button>` +
+    [1,2,3,4].map(b => `<button class="chip ${histBim===b?'ativa':''}" onclick="histBim=${b};desenharTurma()">${nomesBim[b-1]} (${cont(b)})</button>`).join('');
+  const bims = histBim==='todos' ? [1,2,3,4] : [histBim];
+  let html = '';
+  bims.forEach(b => {
+    const l = (aulas[turmaAluno]||{})[histAno+'-'+b] || [];
+    if (histBim==='todos' && !l.length) return;
+    const emAnd = histAno===andamento.ano && b===andamento.bim;
+    html += `<div class="rot" style="margin-top:10px">${nomesBim[b-1]} Bimestre - ${histAno} · ${l.length} aula(s)${emAnd?' · em andamento':''}</div>` + (l.length ? listaAulas(l) : '<p class="vazio">Nenhum conteúdo publicado neste bimestre.</p>');
+  });
+  $('#histResultado').innerHTML = html || '<p class="vazio">Nenhuma aula registrada neste ano.</p>';
+}
+
+/* ---------- 3. NOVA AULA ---------- */
+function montarFormAula() {
+  $('#fTurma').innerHTML = turmas.filter(t=>t.ativa).map(t=>`<option value="${t.id}">${t.nome} · ${t.disciplina}</option>`).join('');
+  const anos = [2025,2026,2027,2028,2029,2030]; $('#fAno').innerHTML = anos.map(a=>`<option ${a===andamento.ano?'selected':''}>${a}</option>`).join('');
+  $('#fBim').value = andamento.bim;
+  $('#oAno').innerHTML = anos.map(a=>`<option ${a===andamento.ano?'selected':''}>${a}</option>`).join(''); $('#oBim').value = andamento.bim;
+  desenharAndamento(); atualizarAviso();
+}
+function proximo(a){ return a.bim===4 ? {ano:a.ano+1,bim:1} : {ano:a.ano,bim:a.bim+1}; }
+function desenharAndamento() {
+  $('#andTxt').textContent = `${andamento.bim}º Bimestre - ${andamento.ano}`;
+  const p = proximo(andamento);
+  $('#btnAvancar').textContent = `Passar para o ${p.bim}º Bimestre - ${p.ano}`;
+}
+$('#btnAvancar').onclick = () => { andamento = proximo(andamento); $('#msgAnd').textContent = '✔ Feito. Os alunos já veem o novo bimestre em destaque.'; histAno=null; montarFormAula(); desenharTurma(); };
+$('#linkOutro').onclick = e => { e.preventDefault(); const b=$('#boxOutro'); b.style.display = b.style.display==='none'?'grid':'none'; };
+$('#btnDefinir').onclick = () => { andamento = {ano:+$('#oAno').value, bim:+$('#oBim').value}; $('#msgAnd').textContent = '✔ Definido.'; histAno=null; montarFormAula(); desenharTurma(); };
+function atualizarAviso() {
+  const id=$('#fTurma').value, ano=$('#fAno').value, b=$('#fBim').value;
+  const lista = (aulas[id]||{})[ano+'-'+b];
+  const nome = `${b}º Bimestre - ${ano}`;
+  const el = $('#avisoMod'); const emAnd = (+ano===andamento.ano && +b===andamento.bim);
+  if (lista !== undefined && lista.length) { el.className='nota ok'; el.textContent = `✔ ${nome}${emAnd?' (em andamento)':''} já existe nesta turma, com ${lista.length} aula(s). A nova aula entra no fim da lista.`; }
+  else { el.className='nota'; el.textContent = `✨ ${nome} ainda não tem aulas. Se o bimestre não existir, ele é criado automaticamente ao salvar. Você não precisa preparar nada.${emAnd?'':' Atenção: não é o bimestre em andamento, então os alunos a encontram só no Histórico.'}`; }
+}
+['fTurma','fAno','fBim'].forEach(i => document.addEventListener('change', e => { if (e.target.id===i) atualizarAviso(); }));
+$('#btnSalvarAula').onclick = () => {
+  const id=$('#fTurma').value, ano=$('#fAno').value, b=$('#fBim').value, tit=$('#fTitulo').value.trim() || 'Nova aula (exemplo)';
+  aulas[id] = aulas[id] || {}; aulas[id][ano+'-'+b] = aulas[id][ano+'-'+b] || []; aulas[id][ano+'-'+b].push(tit);
+  $('#msgAula').textContent = `  Salva em "${b}º Bimestre - ${ano}". Veja na aba 2.`; $('#fTitulo').value=''; atualizarAviso();
+};
+
+/* ---------- 4. TURMAS ---------- */
+function desenharListaTurmas() {
+  $('#listaTurmas').innerHTML = turmas.map((t,i) => `
+    <div class="linhaTurma ${t.ativa?'':'off'}">
+      <div class="nome"><input value="${t.nome}" onchange="turmas[${i}].nome=this.value;desenharHome()" aria-label="Nome"></div>
+      <div class="nome"><input value="${t.disciplina}" onchange="turmas[${i}].disciplina=this.value;desenharHome()" aria-label="Disciplina"></div>
+      <select style="width:auto" onchange="turmas[${i}].grupo=this.value;desenharHome()"><option value="fgb" ${t.grupo==='fgb'?'selected':''}>FGB</option><option value="ftp" ${t.grupo==='ftp'?'selected':''}>FTP</option></select>
+      <button class="btn peq ${t.ativa?'perigo':''}" onclick="turmas[${i}].ativa=!turmas[${i}].ativa;desenharListaTurmas();desenharHome()">${t.ativa?'Desativar':'Reativar'}</button>
+    </div>`).join('');
+}
+$('#btnNovaTurma').onclick = () => {
+  const nome=$('#nNome').value.trim(), disc=$('#nDisc').value.trim(); if(!nome||!disc) { alert('Preencha nome e disciplina.'); return; }
+  turmas.push({id:'t'+Date.now(), nome, disciplina:disc, grupo:$('#nGrupo').value, ativa:true});
+  $('#nNome').value=''; $('#nDisc').value=''; desenharListaTurmas(); desenharHome();
+};
+
+desenharHome(); desenharTurma(); desenharListaTurmas();
+</script>
+</body>
+</html>

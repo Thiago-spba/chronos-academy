@@ -1,22 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-// Nomes que andam pelo cartao do professor, como formigas, com frases curtas de incentivo.
+// Nomes e frases curtas que andam soltos pela tela, como formigas, na area vazia
+// entre o Painel de Turmas (fechado) e o rodape.
+// - Nomes e frases sao independentes: nenhum nome e ligado a uma frase.
 // - So aparece se o documento chronos/nomes_alunos existir com { ativo: true }.
 // - Para ver o efeito sem nomes reais: abra o site com ?nomes=demo
 // - Movimento so com CSS (transform), poucos itens por vez, desligado se o usuario pede menos animacao.
 
 const FRASES_PADRAO = [
-  '{nome}, você é 10!',
-  'Você é inteligente, {nome}!',
-  '{nome}, você vai chegar lá!',
-  'Acredite em você, {nome}!',
-  'Obrigado por estudar comigo, {nome}!',
-  '{nome}, continue firme!',
-  'Orgulho de você, {nome}!',
-  '{nome}, cada passo conta.',
+  'Você é 10!',
+  'Você é inteligente!',
+  'Você vai chegar lá!',
+  'Acredite em você!',
+  'Obrigado por estudar!',
+  'Continue firme!',
+  'Orgulho de você!',
+  'Cada passo conta.',
 ];
 
 const NOMES_DEMO = [
@@ -29,28 +30,25 @@ const CSS = `
   from { transform: translate3d(var(--x0), var(--y0), 0); }
   to { transform: translate3d(var(--x1), var(--y1), 0); }
 }
-@keyframes nf-bubble {
-  0%, 28% { opacity: 0; transform: translateY(4px); }
-  34%, 62% { opacity: 1; transform: translateY(0); }
-  68%, 100% { opacity: 0; transform: translateY(0); }
-}
 @keyframes nf-wobble {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50% { transform: translateY(-2px) rotate(2deg); }
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-2px) rotate(1.5deg); }
 }
 .nf-walker {
   position: absolute;
   left: 0;
   top: 0;
+  white-space: nowrap;
   animation: nf-walk var(--dur) linear var(--delay) both;
   will-change: transform;
 }
-.nf-bubble { animation: nf-bubble var(--dur) linear var(--delay) both; }
-.nf-chip { animation: nf-wobble 1.4s ease-in-out infinite; }
+.nf-item { display: inline-block; animation: nf-wobble 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .nf-layer { display: none; }
 }
 `;
+
+let cacheNomes = null; // evita ler o Firebase de novo quando o painel fecha e abre
 
 function sortear(lista) {
   return lista[Math.floor(Math.random() * lista.length)];
@@ -61,34 +59,37 @@ function limitar(valor, min, max) {
 }
 
 function criarAndarilho(id, nomes, frases, w, h, inicial) {
-  const nome = sortear(nomes);
-  const dur = 24 + Math.random() * 16;
+  const ehNome = Math.random() < 0.65;
+  const texto = ehNome ? sortear(nomes) : sortear(frases);
+  const largura = ehNome ? 110 : 170; // folga para o texto entrar e sair da area
+
   let x0;
   let y0;
   let x1;
   let y1;
-
-  if (Math.random() < 0.55) {
-    // atravessa na horizontal
+  if (Math.random() < 0.8) {
+    // atravessa na horizontal, com uma leve inclinacao
     const daEsquerda = Math.random() < 0.5;
-    x0 = daEsquerda ? -150 : w + 10;
-    x1 = daEsquerda ? w + 10 : -150;
-    y0 = 24 + Math.random() * Math.max(10, h - 64);
-    y1 = limitar(y0 + (Math.random() - 0.5) * h * 0.5, 24, Math.max(24, h - 40));
+    x0 = daEsquerda ? -largura : w + 10;
+    x1 = daEsquerda ? w + 10 : -largura;
+    y0 = 6 + Math.random() * Math.max(10, h - 34);
+    y1 = limitar(y0 + (Math.random() - 0.5) * h * 0.6, 6, Math.max(6, h - 28));
   } else {
     // atravessa na vertical
     const decendo = Math.random() < 0.5;
-    y0 = decendo ? -50 : h + 10;
-    y1 = decendo ? h + 10 : -50;
-    x0 = 10 + Math.random() * Math.max(10, w - 210);
-    x1 = limitar(x0 + (Math.random() - 0.5) * w * 0.4, 10, Math.max(10, w - 210));
+    y0 = decendo ? -30 : h + 6;
+    y1 = decendo ? h + 6 : -30;
+    x0 = 10 + Math.random() * Math.max(10, w - largura - 20);
+    x1 = limitar(x0 + (Math.random() - 0.5) * w * 0.3, 10, Math.max(10, w - largura - 10));
   }
 
-  const frase = Math.random() < 0.6 ? sortear(frases).replace('{nome}', nome) : null;
+  const distancia = Math.hypot(x1 - x0, y1 - y0);
+  const velocidade = 22 + Math.random() * 16; // pixels por segundo
+  const dur = Math.max(14, distancia / velocidade);
   // No primeiro lote, cada um comeca em um ponto diferente do caminho (delay negativo).
   const atraso = inicial ? -(Math.random() * dur * 0.85) : Math.random() * 3;
 
-  return { id, nome, frase, x0, y0, x1, y1, dur, atraso };
+  return { id, ehNome, texto, x0, y0, x1, y1, dur, atraso };
 }
 
 export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
@@ -118,6 +119,11 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
       return () => { cancelado = true; };
     }
 
+    if (cacheNomes) {
+      aplicar(cacheNomes);
+      return () => { cancelado = true; };
+    }
+
     getDoc(doc(db, 'chronos', 'nomes_alunos'))
       .then((snap) => {
         if (!snap.exists()) return;
@@ -126,6 +132,7 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
         const lista = Object.values(dados.nomes || {})
           .flat()
           .filter((n) => typeof n === 'string' && n.trim() !== '');
+        cacheNomes = lista;
         aplicar(lista);
       })
       .catch(() => {});
@@ -133,14 +140,14 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
     return () => { cancelado = true; };
   }, [reduzir]);
 
-  // 2) Cria o primeiro lote quando ha nomes e a caixa ja tem tamanho
+  // 2) Cria o primeiro lote quando ha nomes e a area ja tem tamanho
   useEffect(() => {
     if (!nomes.length || !camadaRef.current) return;
     const w = camadaRef.current.offsetWidth;
     const h = camadaRef.current.offsetHeight;
     if (!w || !h) return;
     caixaRef.current = { w, h };
-    const quantidade = w < 640 ? 7 : 12;
+    const quantidade = w < 640 ? 8 : 14;
     setAndarilhos(
       Array.from({ length: quantidade }, () =>
         criarAndarilho(++contador.current, nomes, frasesRef.current, w, h, true)
@@ -148,7 +155,7 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
     );
   }, [nomes]);
 
-  // 3) Quando um nome termina o caminho, entra outro sorteado no lugar
+  // 3) Quando um item termina o caminho, entra outro sorteado no lugar
   const reciclar = (id) => {
     const { w, h } = caixaRef.current;
     setAndarilhos((prev) =>
@@ -162,7 +169,7 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
     <div
       ref={camadaRef}
       aria-hidden="true"
-      className="nf-layer absolute inset-0 z-0 overflow-hidden pointer-events-none select-none"
+      className="nf-layer absolute inset-0 overflow-hidden pointer-events-none select-none"
     >
       <style>{CSS}</style>
       {andarilhos.map((a) => (
@@ -181,15 +188,15 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
             if (e.animationName === 'nf-walk') reciclar(a.id);
           }}
         >
-          {a.frase && (
-            <span className="nf-bubble absolute left-0 bottom-full mb-1.5 w-max max-w-[190px] px-2.5 py-1.5 rounded-xl text-[11px] leading-snug font-bold bg-amber-100 text-amber-800 border border-amber-200 dark:bg-slate-800 dark:text-amber-300 dark:border-slate-700 shadow-sm">
-              {a.frase}
-            </span>
-          )}
-          <div className="nf-chip inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap bg-white/60 text-stone-500 border border-stone-200/70 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/70">
-            <Bug className="w-3 h-3 shrink-0 text-amber-500 dark:text-amber-400" />
-            {a.nome}
-          </div>
+          <span
+            className={
+              a.ehNome
+                ? 'nf-item text-[13px] font-semibold text-stone-400 dark:text-slate-500'
+                : 'nf-item text-xs italic font-medium text-amber-600/80 dark:text-amber-400/80'
+            }
+          >
+            {a.texto}
+          </span>
         </div>
       ))}
     </div>

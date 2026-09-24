@@ -86,6 +86,9 @@ export default function Admin() {
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
   const [gerandoIA, setGerandoIA] = useState(false);
+  const [iaExcluidos, setIaExcluidos] = useState({}); // anexos desmarcados: a IA ignora
+  const [sugestoesVideos, setSugestoesVideos] = useState(null); // null = painel fechado
+  const [buscaVideo, setBuscaVideo] = useState("");
   const [gerandoMensagem, setGerandoMensagem] = useState(false);
   const [formAberto, setFormAberto] = useState(false);
   
@@ -179,6 +182,11 @@ export default function Admin() {
   useEffect(() => {
     setMarcarAndamento(null);
   }, [formAberto, form.turmaId, form.moduloId]);
+
+  useEffect(() => {
+    setIaExcluidos({});
+    setSugestoesVideos(null);
+  }, [formAberto]);
 
   async function carregarFirebase() {
     try {
@@ -422,19 +430,66 @@ export default function Admin() {
     reader.readAsDataURL(file);
   });
 
+  // ─── ANEXOS PDF (VARIOS) E ESCOLHA DO QUE A IA LE ───
+  const chaveNovoPdf = (f) => "n:" + f.name + ":" + f.size;
+  const chaveSalvoPdf = (p) => "s:" + p.url;
+  const adicionarAnexos = (lista) => setArquivosPdf(prev => {
+    const ja = new Set(prev.map(chaveNovoPdf));
+    return [...prev, ...lista.filter(f => !ja.has(chaveNovoPdf(f)))];
+  });
+  const removerAnexoNovo = (indice) => setArquivosPdf(prev => prev.filter((_, i) => i !== indice));
+  const alternarIA = (chave) => setIaExcluidos(prev => ({ ...prev, [chave]: !prev[chave] }));
+  const anexosDaIA = () => ({
+    novos: arquivosPdf.filter(f => !iaExcluidos[chaveNovoPdf(f)]),
+    salvos: form.pdfs.filter(p => !iaExcluidos[chaveSalvoPdf(p)]),
+  });
+  const anexosIA = anexosDaIA();
+  const qtdAnexosIA = anexosIA.novos.length + anexosIA.salvos.length;
+  const totalAnexos = form.pdfs.length + arquivosPdf.length;
+
   const gerarComIA = async () => {
     setGerandoIA(true);
     try {
       const idToken = await auth.currentUser.getIdToken();
       const payload = { idToken, tituloAula: form.titulo };
+      const { novos, salvos } = anexosDaIA();
+      const total = novos.length + salvos.length;
+      const LIMITE_BASE64 = 3 * 1024 * 1024; // acima disso, PDFs novos sobem antes para o Storage
 
-      if (arquivosPdf[0]) {
-        payload.pdfBase64 = await arquivoParaBase64(arquivosPdf[0]);
-      } else if (form.pdfs.length > 0) {
-        payload.pdfUrl = form.pdfs[0].url;
-      } else {
-        alert("Anexe um PDF antes de gerar com IA.");
+      if (total === 0) {
+        alert(totalAnexos === 0 ? "Anexe um PDF antes de gerar com IA." : "Marque pelo menos um PDF para a IA ler.");
         return;
+      }
+      if (total > 5) {
+        alert("Marque no maximo 5 PDFs por vez.");
+        return;
+      }
+
+      if (total === 1 && novos.length === 1 && novos[0].size <= LIMITE_BASE64) {
+        payload.pdfBase64 = await arquivoParaBase64(novos[0]);
+      } else if (total === 1 && salvos.length === 1) {
+        payload.pdfUrl = salvos[0].url;
+      } else {
+        const pdfs = salvos.map(p => ({ url: p.url, nome: p.titulo }));
+        const somaNovos = novos.reduce((s, f) => s + f.size, 0);
+        if (somaNovos <= LIMITE_BASE64) {
+          for (const f of novos) {
+            pdfs.push({ base64: await arquivoParaBase64(f), nome: f.name });
+          }
+        } else {
+          // arquivos novos grandes: sobem agora (viram anexos salvos) e a IA le pelo endereco
+          const enviados = [];
+          for (let i = 0; i < novos.length; i++) {
+            const fileRef = ref(storage, `chronos_pdfs/${Date.now()}_${novos[i].name}`);
+            await uploadBytes(fileRef, novos[i]);
+            const url = await getDownloadURL(fileRef);
+            enviados.push({ titulo: novos[i].name, url, tamanho: (novos[i].size / (1024 * 1024)).toFixed(2) + " MB" });
+          }
+          setForm(prev => ({ ...prev, pdfs: [...prev.pdfs, ...enviados] }));
+          setArquivosPdf(prev => prev.filter(f => !novos.includes(f)));
+          enviados.forEach(p => pdfs.push({ url: p.url, nome: p.titulo }));
+        }
+        payload.pdfs = pdfs;
       }
 
       const resp = await fetch("/api/gerar-conteudo", {
@@ -442,9 +497,10 @@ export default function Admin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await resp.json();
+      let data = {};
+      try { data = await resp.json(); } catch (e) { data = {}; }
       if (!resp.ok) {
-        alert(data.erro || "Erro ao gerar conteudo com IA.");
+        alert(data.erro || (resp.status === 413 ? "Os PDFs sao grandes demais para enviar de uma vez. Marque menos arquivos." : "Erro ao gerar conteudo com IA."));
         return;
       }
       setForm(prev => ({ ...prev, introducao: data.introducao, utilidade: data.utilidade, materialTexto: data.materialTexto }));
@@ -454,6 +510,62 @@ export default function Admin() {
     } finally {
       setGerandoIA(false);
     }
+  };
+
+  // ─── SUGESTAO DE VIDEOS DO YOUTUBE (EM PORTUGUES) ───
+  const buscarVideosYoutube = async (termo) => {
+    const t = String(termo ?? buscaVideo).trim();
+    if (t.length < 3) {
+      setSugestoesVideos({ carregando: false, erro: "Digite pelo menos 3 letras para buscar.", itens: [], buscou: true });
+      return;
+    }
+    setSugestoesVideos({ carregando: true, erro: "", itens: [], buscou: true });
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const resp = await fetch("/api/sugerir-videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, busca: t }),
+      });
+      let data = {};
+      try { data = await resp.json(); } catch (e) { data = {}; }
+      if (!resp.ok) {
+        const erro = data.erro === "YOUTUBE_API_KEY_AUSENTE"
+          ? "A chave do YouTube ainda nao foi configurada na Vercel (nome: YOUTUBE_API_KEY)."
+          : (data.erro || "Nao foi possivel buscar videos agora.");
+        setSugestoesVideos({ carregando: false, erro, itens: [], buscou: true });
+        return;
+      }
+      setSugestoesVideos({ carregando: false, erro: "", itens: data.videos || [], buscou: true });
+    } catch (e) {
+      console.error(e);
+      setSugestoesVideos({ carregando: false, erro: "Nao foi possivel buscar videos agora.", itens: [], buscou: true });
+    }
+  };
+
+  const abrirSugestoesVideos = () => {
+    const disciplina = bancoDados?.[form.turmaId]?.disciplina || "";
+    const base = form.titulo.trim() ? `${form.titulo.trim()} ${disciplina}`.trim() : "";
+    setBuscaVideo(base);
+    if (base.length >= 3) {
+      buscarVideosYoutube(base);
+    } else {
+      setSugestoesVideos({ carregando: false, erro: "", itens: [], buscou: false });
+    }
+  };
+
+  const usarVideoSugerido = (v) => {
+    setForm(prev => {
+      if (prev.videos.some(x => x.videoId === v.videoId)) return prev;
+      const novo = { videoId: v.videoId, duracao: v.duracao || "" };
+      const vazio = prev.videos.findIndex(x => !String(x.videoId || "").trim());
+      if (vazio >= 0) {
+        const copia = [...prev.videos];
+        copia[vazio] = novo;
+        return { ...prev, videos: copia };
+      }
+      return { ...prev, videos: [...prev.videos, novo] };
+    });
   };
 
   const salvarAula = async (e) => {
@@ -1286,11 +1398,48 @@ export default function Admin() {
                       </div>
                     ))}
                   </div>
+                  <button type="button" disabled={salvando} onClick={abrirSugestoesVideos} className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 disabled:opacity-50 transition-colors">
+                    <Search className="w-4 h-4"/> Sugerir vídeos no YouTube (em português)
+                  </button>
+                  {sugestoesVideos && (
+                    <div className="mt-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 space-y-3">
+                      <div className="flex gap-2">
+                        <input value={buscaVideo} onChange={e => setBuscaVideo(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); buscarVideosYoutube(); } }} placeholder="O que buscar? (ex.: Era Vargas)" className={`${inputBaseClass} text-xs py-2`} />
+                        <button type="button" onClick={() => buscarVideosYoutube()} disabled={sugestoesVideos.carregando} className="px-3 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50 shrink-0">Buscar</button>
+                        <button type="button" onClick={() => setSugestoesVideos(null)} className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-slate-200 rounded-lg shrink-0" title="Fechar sugestões"><X className="w-4 h-4"/></button>
+                      </div>
+                      {sugestoesVideos.carregando && <p className="text-xs font-bold text-stone-400 dark:text-slate-500">Buscando vídeos em português...</p>}
+                      {sugestoesVideos.erro && <p className="text-xs font-bold text-red-600 dark:text-red-400">{sugestoesVideos.erro}</p>}
+                      {!sugestoesVideos.carregando && !sugestoesVideos.erro && sugestoesVideos.buscou && sugestoesVideos.itens.length === 0 && (
+                        <p className="text-xs font-bold text-stone-400 dark:text-slate-500">Nenhum vídeo encontrado. Tente outras palavras.</p>
+                      )}
+                      {sugestoesVideos.itens.map(v => {
+                        const jaTem = form.videos.some(x => x.videoId === v.videoId);
+                        return (
+                          <div key={v.videoId} className="flex gap-3 items-start">
+                            <img src={v.miniatura} alt="" loading="lazy" className="w-28 h-16 object-cover rounded-lg bg-stone-200 dark:bg-slate-800 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p title={v.titulo} className="text-xs font-bold text-stone-800 dark:text-slate-100 line-clamp-2">{v.titulo}</p>
+                              <p className="text-[11px] text-stone-500 dark:text-slate-400 mt-0.5">{v.canal} · {v.duracao}{v.visualizacoes > 0 ? ` · ${v.visualizacoes.toLocaleString("pt-BR")} visualizações` : ""}</p>
+                              <div className="flex gap-2 mt-1.5">
+                                <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-800 text-[11px] font-bold text-stone-700 dark:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors">Assistir</a>
+                                <button type="button" disabled={jaTem} onClick={() => usarVideoSugerido(v)} className="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 disabled:bg-stone-200 disabled:text-stone-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-500 transition-colors">{jaTem ? "Adicionado" : "Usar"}</button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><UploadCloud className="w-4 h-4"/> Material PDF</h3>
+                    <label className={`text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 hover:text-amber-700 transition-colors cursor-pointer ${salvando ? "opacity-50 pointer-events-none" : ""}`}>
+                      <Plus className="w-3 h-3"/> Novo anexo
+                      <input type="file" multiple accept="application/pdf" disabled={salvando} className="hidden" onChange={e => { adicionarAnexos(Array.from(e.target.files)); e.target.value = ""; }} />
+                    </label>
                   </div>
                   <div className="space-y-3 p-3 sm:p-4 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-stone-300 dark:border-slate-700">
                     {form.pdfs.length > 0 && (
@@ -1298,32 +1447,42 @@ export default function Admin() {
                         <p className="text-[10px] font-black text-stone-400 dark:text-slate-500 uppercase tracking-widest border-b border-stone-100 dark:border-slate-800 pb-1">Arquivos salvos</p>
                         {form.pdfs.map((pdf, idx) => (
                           <div key={idx} className="flex items-center justify-between bg-stone-50 dark:bg-slate-950 border border-stone-100 dark:border-slate-800 p-2 rounded-lg gap-2">
+                            {totalAnexos > 1 && (
+                              <input type="checkbox" title="A IA vai ler este arquivo" checked={!iaExcluidos[chaveSalvoPdf(pdf)]} onChange={() => alternarIA(chaveSalvoPdf(pdf))} className="accent-indigo-600 shrink-0" />
+                            )}
                             <span className="text-xs font-bold text-amber-700 dark:text-amber-400 truncate flex-1">{pdf.titulo}</span>
                             <button type="button" disabled={salvando} onClick={() => removePdfAntigo(idx)} className="text-stone-300 dark:text-slate-600 hover:text-red-500 p-1 rounded transition-colors shrink-0 disabled:opacity-50" title="Apagar anexo"><Trash2 className="w-4 h-4"/></button>
                           </div>
                         ))}
                       </div>
                     )}
-                    <input 
-                      type="file" 
-                      multiple 
-                      accept="application/pdf" 
-                      disabled={salvando}
-                      onChange={e => setArquivosPdf(Array.from(e.target.files))} 
-                      className="w-full text-xs text-stone-500 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-50 dark:file:bg-amber-950/50 file:text-amber-700 dark:file:text-amber-400 hover:file:bg-amber-100 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                    />
                     {arquivosPdf.length > 0 && (
-                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-2 bg-emerald-50 dark:bg-emerald-950/50 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
-                        {arquivosPdf.length} arquivo(s) novo(s) selecionado(s).
-                      </p>
+                      <div className="mb-3 space-y-2">
+                        <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border-b border-stone-100 dark:border-slate-800 pb-1">Novos anexos (enviados ao publicar)</p>
+                        {arquivosPdf.map((f, idx) => (
+                          <div key={chaveNovoPdf(f)} className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2 rounded-lg gap-2">
+                            {totalAnexos > 1 && (
+                              <input type="checkbox" title="A IA vai ler este arquivo" checked={!iaExcluidos[chaveNovoPdf(f)]} onChange={() => alternarIA(chaveNovoPdf(f))} className="accent-indigo-600 shrink-0" />
+                            )}
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 truncate flex-1">{f.name}</span>
+                            <button type="button" disabled={salvando} onClick={() => removerAnexoNovo(idx)} className="text-stone-300 dark:text-slate-600 hover:text-red-500 p-1 rounded transition-colors shrink-0 disabled:opacity-50" title="Remover anexo"><Trash2 className="w-4 h-4"/></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {totalAnexos === 0 && (
+                      <p className="text-xs text-stone-400 dark:text-slate-500 text-center py-2">Nenhum anexo ainda. Toque em "+ Novo anexo".</p>
+                    )}
+                    {totalAnexos > 1 && (
+                      <p className="text-[10px] text-stone-400 dark:text-slate-500 font-bold">Marque os PDFs que a IA deve ler (até 5).</p>
                     )}
                     <button 
                       type="button" 
                       onClick={gerarComIA} 
-                      disabled={gerandoIA || salvando || (arquivosPdf.length === 0 && form.pdfs.length === 0)} 
+                      disabled={gerandoIA || salvando || qtdAnexosIA === 0} 
                       className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                     >
-                      <Sparkles className="w-4 h-4"/> {gerandoIA ? "Gerando com IA..." : "Gerar com IA (a partir do PDF)"}
+                      <Sparkles className="w-4 h-4"/> {gerandoIA ? "Gerando com IA..." : (qtdAnexosIA > 1 ? `Gerar com IA (a partir de ${qtdAnexosIA} PDFs)` : "Gerar com IA (a partir do PDF)")}
                     </button>
                   </div>
                 </div>

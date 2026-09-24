@@ -1,6 +1,8 @@
 ﻿const FIREBASE_API_KEY = "AIzaSyBg2AEb82yO5Sk2TPuITfdPRscoDr-P2P8";
 const MODEL = "claude-haiku-4-5-20251001";
 const MAX_PDF_BYTES = 8 * 1024 * 1024; // 8MB
+const MAX_PDFS = 5;
+const MAX_TOTAL_BYTES = 20 * 1024 * 1024; // 20MB somados
 
 export const config = {
   api: {
@@ -34,13 +36,63 @@ export default async function handler(req, res) {
     return res.status(405).json({ erro: "Metodo nao permitido." });
   }
 
-  const { idToken, pdfBase64: pdfBase64Enviado, pdfUrl, tituloAula } = req.body || {};
+  const { idToken, pdfBase64: pdfBase64Enviado, pdfUrl, tituloAula, pdfs: pdfsEnviados } = req.body || {};
 
   const autorizado = await verificarToken(idToken);
   if (!autorizado) {
     return res.status(401).json({ erro: "Nao autorizado." });
   }
 
+  const documentos = []; // PDFs (base64) que a IA vai ler
+
+  if (Array.isArray(pdfsEnviados) && pdfsEnviados.length > 0) {
+    if (pdfsEnviados.length > MAX_PDFS) {
+      return res.status(400).json({ erro: `Envie no maximo ${MAX_PDFS} PDFs por vez.` });
+    }
+    let totalBytes = 0;
+    for (const item of pdfsEnviados) {
+      let b64 = typeof item?.base64 === "string" ? item.base64 : null;
+      if (!b64 && typeof item?.url === "string") {
+        let host = "";
+        try {
+          const u = new URL(item.url);
+          host = u.protocol === "https:" ? u.hostname : "";
+        } catch {}
+        const hostOk =
+          host === "firebasestorage.googleapis.com" ||
+          host === "storage.googleapis.com" ||
+          host.endsWith(".firebasestorage.app");
+        if (!hostOk) {
+          return res.status(400).json({ erro: "Endereco de PDF nao permitido." });
+        }
+        try {
+          const respPdf = await fetch(item.url);
+          if (!respPdf.ok) {
+            return res.status(400).json({ erro: "Nao foi possivel baixar um dos PDFs salvos." });
+          }
+          const buffer = await respPdf.arrayBuffer();
+          if (buffer.byteLength > MAX_PDF_BYTES) {
+            return res.status(400).json({ erro: "PDF muito grande (limite de 8MB por arquivo)." });
+          }
+          b64 = Buffer.from(buffer).toString("base64");
+        } catch (e) {
+          return res.status(400).json({ erro: "Erro ao baixar um dos PDFs salvos." });
+        }
+      }
+      if (!b64) {
+        return res.status(400).json({ erro: "PDF nao enviado." });
+      }
+      const bytes = Math.ceil((b64.length * 3) / 4);
+      if (bytes > MAX_PDF_BYTES) {
+        return res.status(400).json({ erro: "PDF muito grande (limite de 8MB por arquivo)." });
+      }
+      totalBytes += bytes;
+      if (totalBytes > MAX_TOTAL_BYTES) {
+        return res.status(400).json({ erro: "Os PDFs juntos passam de 20MB. Marque menos arquivos." });
+      }
+      documentos.push(b64);
+    }
+  } else {
   let pdfBase64 = pdfBase64Enviado;
 
   if (!pdfBase64 && pdfUrl) {
@@ -68,7 +120,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ erro: "PDF muito grande (limite de 8MB)." });
   }
 
-  const prompt = `Voce e um professor do ensino medio criando material didatico a partir do PDF anexado${tituloAula ? ` para a aula "${tituloAula}"` : ""}.
+  documentos.push(pdfBase64);
+  }
+
+  const prompt = `Voce e um professor do ensino medio criando material didatico ${documentos.length > 1 ? `a partir dos ${documentos.length} PDFs anexados (junte o conteudo de todos em um unico resumo coerente)` : "a partir do PDF anexado"}${tituloAula ? ` para a aula "${tituloAula}"` : ""}.
 
 Leia o PDF e responda APENAS com um JSON valido (sem markdown, sem texto fora do JSON), no seguinte formato exato:
 
@@ -95,14 +150,10 @@ Escreva em portugues do Brasil, em linguagem clara e direta, adequada para aluno
           {
             role: "user",
             content: [
-              {
+              ...documentos.map((data) => ({
                 type: "document",
-                source: {
-                  type: "base64",
-                  media_type: "application/pdf",
-                  data: pdfBase64,
-                },
-              },
+                source: { type: "base64", media_type: "application/pdf", data },
+              })),
               { type: "text", text: prompt },
             ],
           },

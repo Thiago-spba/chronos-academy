@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
   AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
-  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -78,6 +78,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const [bancoDados, setBancoDados] = useState(null);
   const [salvando, setSalvando] = useState(false);
+  const [statusEnvio, setStatusEnvio] = useState("");
   const [toast, setToast] = useState(null);
   const [excluindo, setExcluindo] = useState(null);
   const [autenticado, setAutenticado] = useState(false);
@@ -225,7 +226,6 @@ export default function Admin() {
             const aulasP = dados[principal].modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
             const aulasS = dados[secundaria].modulos?.reduce((acc, m) => acc + (m.aulas?.length || 0), 0) || 0;
             
-            // Se uma tem aulas e a outra está com 0, sincroniza para que ambas tenham o mesmo conteúdo
             if (aulasP > 0 && aulasS === 0) {
               dados[secundaria].modulos = JSON.parse(JSON.stringify(dados[principal].modulos));
               precisaAtualizar = true;
@@ -356,8 +356,6 @@ export default function Admin() {
     const primeiraTurmaId = filtroTurma !== "todas" ? filtroTurma : Object.keys(bancoDados)[0];
     const modulosTurma = bancoDados[primeiraTurmaId]?.modulos || [];
 
-    // Bimestre padrao inteligente: usa o mesmo bimestre da ultima aula criada nesta turma,
-    // em vez de sempre voltar pro 1o Bimestre, pra nao precisar reescolher toda vez.
     let moduloPadraoId = modulosTurma[modulosTurma.length - 1]?.id || "";
     let ultimoId = "";
     modulosTurma.forEach(mod => {
@@ -374,6 +372,7 @@ export default function Admin() {
       videos: [{ videoId: "", duracao: "" }], pdfs: [] 
     });
     setArquivosPdf([]);
+    setStatusEnvio("");
     setFormAberto(true);
   };
 
@@ -381,12 +380,13 @@ export default function Admin() {
     const videosMigrados = aula.videos ? [...aula.videos] : (aula.video ? [aula.video] : [{ videoId: "", duracao: "" }]);
     const pdfsMigrados = aula.pdfs ? [...aula.pdfs] : (aula.pdf ? [aula.pdf] : []);
 
-    setForm({
-      id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "",
-      videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }],
-      pdfs: pdfsMigrados
+    setForm({ 
+      id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "", 
+      videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }], 
+      pdfs: pdfsMigrados 
     });
     setArquivosPdf([]);
+    setStatusEnvio("");
     setFormAberto(true);
   };
 
@@ -408,7 +408,7 @@ export default function Admin() {
 
   const arquivoParaBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onload = () => resolve(reader.result.split(","));
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -417,22 +417,22 @@ export default function Admin() {
     setGerandoIA(true);
     try {
       const idToken = await auth.currentUser.getIdToken();
-    const payload = { idToken, tituloAula: form.titulo };
+      const payload = { idToken, tituloAula: form.titulo };
 
-    if (arquivosPdf[0]) {
-      payload.pdfBase64 = await arquivoParaBase64(arquivosPdf[0]);
-    } else if (form.pdfs.length > 0) {
-      payload.pdfUrl = form.pdfs[0].url;
-    } else {
-      alert("Anexe um PDF antes de gerar com IA.");
-      return;
-    }
+      if (arquivosPdf[0]) {
+        payload.pdfBase64 = await arquivoParaBase64(arquivosPdf[0]);
+      } else if (form.pdfs.length > 0) {
+        payload.pdfUrl = form.pdfs[0].url;
+      } else {
+        alert("Anexe um PDF antes de gerar com IA.");
+        return;
+      }
 
-    const resp = await fetch("/api/gerar-conteudo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const resp = await fetch("/api/gerar-conteudo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await resp.json();
       if (!resp.ok) {
         alert(data.erro || "Erro ao gerar conteudo com IA.");
@@ -449,13 +449,16 @@ export default function Admin() {
 
   const salvarAula = async (e) => {
     e.preventDefault();
+    if (salvando) return;
     setSalvando(true);
     
     let pdfsFinais = [...form.pdfs];
 
     if (arquivosPdf.length > 0) {
       try {
-        for (const file of arquivosPdf) {
+        for (let i = 0; i < arquivosPdf.length; i++) {
+          const file = arquivosPdf[i];
+          setStatusEnvio(`Enviando PDF (${i + 1}/${arquivosPdf.length})...`);
           const fileRef = ref(storage, `chronos_pdfs/${Date.now()}_${file.name}`);
           await uploadBytes(fileRef, file);
           const url = await getDownloadURL(fileRef);
@@ -466,9 +469,12 @@ export default function Admin() {
         console.error("Erro no upload", error);
         alert("Ocorreu um erro ao enviar os PDFs. Verifique a conexão.");
         setSalvando(false);
+        setStatusEnvio("");
         return;
       }
     }
+
+    setStatusEnvio("Gravando dados da aula...");
 
     const videosFinais = form.videos.filter(v => v.videoId.trim() !== "");
 
@@ -478,9 +484,9 @@ export default function Admin() {
       titulo: form.titulo, 
       semana: form.semana, 
       introducao: form.introducao, 
-      utilidade: form.utilidade,
-      videos: videosFinais.length > 0 ? videosFinais : null,
-      pdfs: pdfsFinais.length > 0 ? pdfsFinais : null,
+      utilidade: form.utilidade, 
+      videos: videosFinais.length > 0 ? videosFinais : null, 
+      pdfs: pdfsFinais.length > 0 ? pdfsFinais : null, 
       materialTexto: form.materialTexto || null
     };
 
@@ -523,6 +529,7 @@ export default function Admin() {
       alert("Erro de permissão ao salvar os dados.");
     } finally {
       setSalvando(false);
+      setStatusEnvio("");
     }
   };
 
@@ -552,7 +559,6 @@ export default function Admin() {
   const todasAsAulas = useMemo(() => {
     if (!bancoDados) return [];
     let lista = [];
-    // Ignoramos '2l' e '1j' na listagem geral para não duplicar o mesmo card na tela
     const turmasExibir = Object.keys(bancoDados).filter(id => id !== "2l" && id !== "1j");
 
     turmasExibir.forEach(turmaId => {
@@ -564,7 +570,7 @@ export default function Admin() {
             turmaId, 
             moduloId: modulo.id, 
             nomeTurma: turmaInfo.nome, 
-            disciplina: turmaInfo.disciplina,
+            disciplina: turmaInfo.disciplina, 
             nomeModulo: modulo.titulo 
           });
         });
@@ -587,8 +593,6 @@ export default function Admin() {
   // ─── FILTRAGEM (TURMA, BIMESTRE, BUSCA) ───
   const aulasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    // Enquanto ha uma busca digitada, ela vale para todas as turmas e bimestres de uma vez,
-    // sem precisar trocar os filtros manualmente pra achar a aula certa.
     const buscando = termo !== "";
 
     return todasAsAulas.filter(aula => {
@@ -605,8 +609,6 @@ export default function Admin() {
 
       return matchTurma && matchBimestre && matchBusca;
     }).sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
-    // Ordena das aulas mais recentes para as mais antigas (o id guarda o momento da criacao),
-    // assim a ultima aula cadastrada sempre aparece primeiro, na pagina 1.
   }, [todasAsAulas, filtroTurma, filtroBimestre, busca]);
 
   // ─── PAGINAÇÃO (ENCURTA A PÁGINA) ───
@@ -866,7 +868,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* ─── FILTROS DE TURMAS (UNIDAS, SEM DUPLICATAS DE ZERO) ─── */}
+            {/* ─── FILTROS DE TURMAS ─── */}
             <div className="flex flex-wrap gap-2 mb-4">
               <button
                 onClick={() => setFiltroTurma("todas")}
@@ -949,7 +951,6 @@ export default function Admin() {
                   ))}
                 </select>
 
-                {/* BOTÕES: ALTERNAR ENTRE CARDS (GRADE) E LISTA COMPACTA */}
                 <div className="flex bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-xl p-1 shrink-0">
                   <button
                     onClick={() => setModoVisualizacao("grade")}
@@ -961,7 +962,7 @@ export default function Admin() {
                   <button
                     onClick={() => setModoVisualizacao("compacto")}
                     className={`p-1.5 rounded-lg transition-colors ${modoVisualizacao === "compacto" ? "bg-amber-600 text-white" : "text-stone-400 hover:text-stone-600 dark:hover:text-slate-200"}`}
-                    title="Visualização em Lista Compacta (Encurtada)"
+                    title="Visualização em Lista Compacta"
                   >
                     <List className="w-4 h-4" />
                   </button>
@@ -969,7 +970,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* ─── LISTAGEM DAS AULAS (GRADE OU COMPACTA) ─── */}
+            {/* ─── LISTAGEM DAS AULAS ─── */}
             {aulasFiltradas.length === 0 ? (
               <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-8 sm:p-12 text-center my-6 shadow-sm">
                 <Search className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-stone-300 dark:text-slate-700" />
@@ -1024,7 +1025,6 @@ export default function Admin() {
                         </p>
                       )}
 
-                      {/* BADGES */}
                       <div className="flex flex-wrap items-center gap-1.5 mb-3 pt-2 border-t border-stone-100 dark:border-slate-800/60 text-[10px] sm:text-[11px] text-stone-400 dark:text-slate-500 font-semibold">
                         {qtdVideos > 0 && (
                           <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">
@@ -1052,7 +1052,7 @@ export default function Admin() {
                         </button>
                         <button 
                           onClick={() => setExcluindo({ aulaId: aula.id, turmaId: aula.turmaId, moduloId: aula.moduloId })} 
-                          className="p-2 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                          className="p-2 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors" 
                           title="Excluir aula"
                         >
                           <Trash2 className="w-4 h-4"/>
@@ -1155,7 +1155,7 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-              <button onClick={() => setFormAberto(false)} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors shrink-0"><X className="w-4 h-4"/></button>
+              <button onClick={() => !salvando && setFormAberto(false)} disabled={salvando} className="p-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors shrink-0 disabled:opacity-50"><X className="w-4 h-4"/></button>
             </div>
             
             <form onSubmit={salvarAula} className="space-y-6 sm:space-y-8">
@@ -1166,13 +1166,14 @@ export default function Admin() {
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Turma de Destino</label>
                     <select 
+                      disabled={salvando}
                       value={form.turmaId} 
                       onChange={e => {
                         const newTurmaId = e.target.value;
                         const newModuloId = bancoDados[newTurmaId]?.modulos[0]?.id || "";
                         setForm({...form, turmaId: newTurmaId, moduloId: newModuloId});
                       }} 
-                      className={inputBaseClass}
+                      className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`}
                     >
                       {listaTurmasFormatada.map(t => <option key={t.id} value={t.id}>{t.nome} - {t.disciplina}</option>)}
                     </select>
@@ -1180,7 +1181,7 @@ export default function Admin() {
                   
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Bimestre / Módulo</label>
-                    <select value={form.moduloId} onChange={e => setForm({...form, moduloId: e.target.value})} className={inputBaseClass}>
+                    <select disabled={salvando} value={form.moduloId} onChange={e => setForm({...form, moduloId: e.target.value})} className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`}>
                       {bancoDados[form.turmaId]?.modulos?.map(m => (
                         <option key={m.id} value={m.id}>{m.titulo}</option>
                       ))}
@@ -1189,15 +1190,15 @@ export default function Admin() {
 
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Identificação da Aula</label>
-                    <input required value={form.numeroAula} onChange={e => setForm({...form, numeroAula: e.target.value})} placeholder="Ex: Aula 01" className={inputBaseClass} />
+                    <input required disabled={salvando} value={form.numeroAula} onChange={e => setForm({...form, numeroAula: e.target.value})} placeholder="Ex: Aula 01" className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`} />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Semana de Referência</label>
-                    <input required value={form.semana} onChange={e => setForm({...form, semana: e.target.value})} placeholder="Ex: 1ª Semana de Agosto de 2026" className={inputBaseClass} />
+                    <input required disabled={salvando} value={form.semana} onChange={e => setForm({...form, semana: e.target.value})} placeholder="Ex: 1ª Semana de Agosto de 2026" className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`} />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Assunto / Título da Aula</label>
-                    <input required value={form.titulo} onChange={e => setForm({...form, titulo: e.target.value})} placeholder="Ex: A Greve Geral de 1917" className={inputBaseClass} />
+                    <input required disabled={salvando} value={form.titulo} onChange={e => setForm({...form, titulo: e.target.value})} placeholder="Ex: A Greve Geral de 1917" className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`} />
                   </div>
                 </div>
               </div>
@@ -1205,11 +1206,11 @@ export default function Admin() {
               <div className="bg-stone-50 dark:bg-slate-950 p-4 sm:p-6 rounded-2xl border border-stone-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400 uppercase mb-3 flex items-center gap-2"><Target className="w-4 h-4"/> O que é isso?</h3>
-                  <textarea required rows={4} value={form.introducao} onChange={e => setForm({...form, introducao: e.target.value})} placeholder="Introdução direta..." className={`${inputBaseClass} resize-none`} />
+                  <textarea required disabled={salvando} rows={4} value={form.introducao} onChange={e => setForm({...form, introducao: e.target.value})} placeholder="Introdução direta..." className={`${inputBaseClass} resize-none disabled:opacity-60 disabled:cursor-not-allowed`} />
                 </div>
                 <div>
                   <h3 className="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400 uppercase mb-3 flex items-center gap-2"><Rocket className="w-4 h-4"/> Para que serve?</h3>
-                  <textarea required rows={4} value={form.utilidade} onChange={e => setForm({...form, utilidade: e.target.value})} placeholder="A utilidade prática..." className={`${inputBaseClass} resize-none`} />
+                  <textarea required disabled={salvando} rows={4} value={form.utilidade} onChange={e => setForm({...form, utilidade: e.target.value})} placeholder="A utilidade prática..." className={`${inputBaseClass} resize-none disabled:opacity-60 disabled:cursor-not-allowed`} />
                 </div>
               </div>
 
@@ -1217,21 +1218,21 @@ export default function Admin() {
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><Video className="w-4 h-4"/> Vídeo(s) (YouTube)</h3>
-                    <button type="button" onClick={addVideo} className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 hover:text-amber-700 transition-colors"><Plus className="w-3 h-3"/> Novo Vídeo</button>
+                    <button type="button" disabled={salvando} onClick={addVideo} className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 hover:text-amber-700 transition-colors disabled:opacity-50"><Plus className="w-3 h-3"/> Novo Vídeo</button>
                   </div>
                   <div className="space-y-3">
                     {form.videos.map((vid, idx) => (
                       <div key={idx} className="flex gap-2 items-start relative bg-white dark:bg-slate-900 p-3 rounded-xl border border-stone-200 dark:border-slate-800">
                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <div className="sm:col-span-2">
-                            <input value={vid.videoId} onChange={e => updateVideo(idx, 'videoId', e.target.value)} placeholder="ID Youtube (Ex: 9EfJyt5HJU0)" className={`${inputBaseClass} font-mono text-xs py-2`} />
+                            <input disabled={salvando} value={vid.videoId} onChange={e => updateVideo(idx, 'videoId', e.target.value)} placeholder="ID Youtube (Ex: 9EfJyt5HJU0)" className={`${inputBaseClass} font-mono text-xs py-2 disabled:opacity-60`} />
                           </div>
                           <div>
-                            <input value={vid.duracao} onChange={e => updateVideo(idx, 'duracao', e.target.value)} placeholder="Duração (15:30)" className={`${inputBaseClass} text-xs py-2`} />
+                            <input disabled={salvando} value={vid.duracao} onChange={e => updateVideo(idx, 'duracao', e.target.value)} placeholder="Duração (15:30)" className={`${inputBaseClass} text-xs py-2 disabled:opacity-60`} />
                           </div>
                         </div>
                         {form.videos.length > 1 && (
-                          <button type="button" onClick={() => removeVideo(idx)} className="mt-1 p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors shrink-0" title="Remover vídeo"><Trash2 className="w-4 h-4"/></button>
+                          <button type="button" disabled={salvando} onClick={() => removeVideo(idx)} className="mt-1 p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors shrink-0 disabled:opacity-50" title="Remover vídeo"><Trash2 className="w-4 h-4"/></button>
                         )}
                       </div>
                     ))}
@@ -1239,7 +1240,9 @@ export default function Admin() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase mb-3 flex items-center gap-2"><UploadCloud className="w-4 h-4"/> Material PDF</h3>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><UploadCloud className="w-4 h-4"/> Material PDF</h3>
+                  </div>
                   <div className="space-y-3 p-3 sm:p-4 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-stone-300 dark:border-slate-700">
                     {form.pdfs.length > 0 && (
                       <div className="mb-3 space-y-2">
@@ -1247,18 +1250,30 @@ export default function Admin() {
                         {form.pdfs.map((pdf, idx) => (
                           <div key={idx} className="flex items-center justify-between bg-stone-50 dark:bg-slate-950 border border-stone-100 dark:border-slate-800 p-2 rounded-lg gap-2">
                             <span className="text-xs font-bold text-amber-700 dark:text-amber-400 truncate flex-1">{pdf.titulo}</span>
-                            <button type="button" onClick={() => removePdfAntigo(idx)} className="text-stone-300 dark:text-slate-600 hover:text-red-500 p-1 rounded transition-colors shrink-0" title="Apagar anexo"><Trash2 className="w-4 h-4"/></button>
+                            <button type="button" disabled={salvando} onClick={() => removePdfAntigo(idx)} className="text-stone-300 dark:text-slate-600 hover:text-red-500 p-1 rounded transition-colors shrink-0 disabled:opacity-50" title="Apagar anexo"><Trash2 className="w-4 h-4"/></button>
                           </div>
                         ))}
                       </div>
                     )}
-                    <input type="file" multiple accept="application/pdf" onChange={e => setArquivosPdf(Array.from(e.target.files))} className="w-full text-xs text-stone-500 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-50 dark:file:bg-amber-950/50 file:text-amber-700 dark:file:text-amber-400 hover:file:bg-amber-100 cursor-pointer transition-colors" />
+                    <input 
+                      type="file" 
+                      multiple 
+                      accept="application/pdf" 
+                      disabled={salvando}
+                      onChange={e => setArquivosPdf(Array.from(e.target.files))} 
+                      className="w-full text-xs text-stone-500 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-50 dark:file:bg-amber-950/50 file:text-amber-700 dark:file:text-amber-400 hover:file:bg-amber-100 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                    />
                     {arquivosPdf.length > 0 && (
                       <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-2 bg-emerald-50 dark:bg-emerald-950/50 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
                         {arquivosPdf.length} arquivo(s) novo(s) selecionado(s).
                       </p>
                     )}
-                    <button type="button" onClick={gerarComIA} disabled={gerandoIA || (arquivosPdf.length === 0 && form.pdfs.length === 0)} className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                    <button 
+                      type="button" 
+                      onClick={gerarComIA} 
+                      disabled={gerandoIA || salvando || (arquivosPdf.length === 0 && form.pdfs.length === 0)} 
+                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
                       <Sparkles className="w-4 h-4"/> {gerandoIA ? "Gerando com IA..." : "Gerar com IA (a partir do PDF)"}
                     </button>
                   </div>
@@ -1266,13 +1281,36 @@ export default function Admin() {
 
                 <div className="md:col-span-2">
                   <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase mb-3 flex items-center gap-2"><AlignLeft className="w-4 h-4"/> Resumo em Texto (Opcional)</h3>
-                  <textarea rows={5} value={form.materialTexto} onChange={e => setForm({...form, materialTexto: e.target.value})} placeholder="Digite as anotações..." className={`${inputBaseClass} resize-y`} />
+                  <textarea rows={5} disabled={salvando} value={form.materialTexto} onChange={e => setForm({...form, materialTexto: e.target.value})} placeholder="Digite as anotações..." className={`${inputBaseClass} resize-y disabled:opacity-60 disabled:cursor-not-allowed`} />
                 </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-2">
-                <button type="button" onClick={() => setFormAberto(false)} disabled={salvando} className="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-stone-500 dark:text-slate-400 hover:bg-stone-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs sm:text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvando} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-white bg-amber-600 shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2 hover:bg-amber-700 disabled:opacity-50 text-xs sm:text-sm transition-colors"><Save className="w-4 h-4"/> {salvando ? "Enviando..." : "Publicar Aula"}</button>
+                <button 
+                  type="button" 
+                  onClick={() => setFormAberto(false)} 
+                  disabled={salvando} 
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-stone-500 dark:text-slate-400 hover:bg-stone-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={salvando} 
+                  className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-white bg-amber-600 shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-xs sm:text-sm transition-all"
+                >
+                  {salvando ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{statusEnvio || "Enviando..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>{form.id ? "Salvar Alterações" : "Publicar Aula"}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>

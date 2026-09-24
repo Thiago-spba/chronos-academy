@@ -32,6 +32,7 @@ export default function Home() {
   const [mensagemSemana, setMensagemSemana] = useState(null);
   const [textoDigitado, setTextoDigitado] = useState('');
   const [painelAberto, setPainelAberto] = useState(false);
+  const [sobreAberto, setSobreAberto] = useState(false);
 
   // Abre o painel sozinho se houver algum aviso ativo (o sininho nao fica escondido).
   useEffect(() => {
@@ -91,6 +92,29 @@ export default function Home() {
             <Award className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Portal do Professor
           </div>
           <h2 className="text-3xl sm:text-4xl font-black text-stone-800 dark:text-slate-100 tracking-tight mb-2">Prof. Thiago Fernando</h2>
+          <button
+            type="button"
+            onClick={() => setSobreAberto((v) => !v)}
+            aria-expanded={sobreAberto}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-stone-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+          >
+            Conheça o professor
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${sobreAberto ? 'rotate-180' : ''}`} />
+          </button>
+          {sobreAberto && (
+            <div className="mt-4 max-w-xl space-y-4 animate-fade-in text-sm sm:text-base text-stone-600 dark:text-slate-300 leading-relaxed">
+              <p>Sou o professor Thiago Fernando. Ensino e também programo, e gosto de mostrar que História e tecnologia caminham juntas.</p>
+              <div>
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1">Formação</h4>
+                <p>Licenciado em Matemática e em História, com pós-graduação em Metodologia da Educação. Atualmente curso Engenharia da Computação.</p>
+              </div>
+              <div>
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1">Como trabalho</h4>
+                <p>O Chronos Academy reúne em um só lugar os materiais das aulas: PDFs, vídeos do YouTube ligados ao conteúdo e ferramentas de prática, para você estudar no seu ritmo.</p>
+              </div>
+              <p className="italic font-medium text-stone-500 dark:text-slate-400">Aprender é um caminho, e eu estou nele com você.</p>
+            </div>
+          )}
           <div className="mt-6 sm:mt-8 min-h-[3rem] flex items-start gap-3">
             <Lightbulb className="w-6 h-6 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5 animate-pulse" />
             <p className="text-stone-600 dark:text-slate-300 text-sm sm:text-base font-medium italic leading-relaxed">

@@ -1,48 +1,83 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-// Nomes e frases curtas que andam soltos pela tela, como formigas, na area vazia
+// Nomes e frases curtas que deslizam em "esteiras" horizontais, na area vazia
 // entre o Painel de Turmas (fechado) e o rodape.
+// - Cada esteira ocupa uma linha propria: itens de linhas diferentes nunca se sobrepoem.
+// - Dentro da mesma esteira todos andam na mesma velocidade e com espaco fixo: nunca se chocam.
 // - Nomes e frases sao independentes: nenhum nome e ligado a uma frase.
 // - So aparece se o documento chronos/nomes_alunos existir com { ativo: true }.
 // - Para ver o efeito sem nomes reais: abra o site com ?nomes=demo
-// - Movimento so com CSS (transform), poucos itens por vez, desligado se o usuario pede menos animacao.
+// - Somente CSS (transform), poucos elementos animados, pausa fora da tela,
+//   e desligado se o usuario pede menos animacao.
 
 const FRASES_PADRAO = [
-  'Você é 10!',
-  'Você é inteligente!',
-  'Você vai chegar lá!',
-  'Acredite em você!',
-  'Obrigado por estudar!',
-  'Continue firme!',
-  'Orgulho de você!',
-  'Cada passo conta.',
+  'Errar faz parte de aprender.',
+  'Um dia de cada vez.',
+  'Pergunte sem medo.',
+  'Sem pressa, com const\u00e2ncia.',
+  'Que bom ter voc\u00ea aqui.',
+  'Cada d\u00favida \u00e9 um come\u00e7o.',
+  'Sua curiosidade importa.',
+  'Voc\u00ea j\u00e1 aprendeu muito.',
+  'Bom estudo!',
+  'O que voc\u00ea estuda hoje abre portas amanh\u00e3.',
+  'Uma p\u00e1gina por vez.',
+  'Persistir tamb\u00e9m \u00e9 aprender.',
+  'Sua dedica\u00e7\u00e3o faz diferen\u00e7a.',
+  'Todo esfor\u00e7o conta.',
+  'Aprender leva tempo, e tudo bem.',
+  'Boas aulas, bons estudos!',
+  'Orgulho da sua caminhada.',
+  'Aqui voc\u00ea pode recome\u00e7ar.',
+  'Voc\u00ea est\u00e1 no caminho certo.',
+  'A Hist\u00f3ria se faz de pequenos passos.',
 ];
 
 const NOMES_DEMO = [
   'Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Felipe', 'Gabi', 'Heitor',
-  'Isabela', 'Joana', 'Lucas', 'Marina', 'Nina', 'Otávio', 'Paulo', 'Rafaela',
+  'Isabela', 'Joana', 'Lucas', 'Marina', 'Nina', 'Ot\u00e1vio', 'Paulo', 'Rafaela',
 ];
 
+const ALTURA_FAIXA = 48; // altura de cada esteira, em pixels
+
 const CSS = `
-@keyframes nf-walk {
-  from { transform: translate3d(var(--x0), var(--y0), 0); }
-  to { transform: translate3d(var(--x1), var(--y1), 0); }
+.nf-layer {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
 }
-@keyframes nf-wobble {
-  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
-  50% { transform: translateY(-2px) rotate(1.5deg); }
-}
-.nf-walker {
+.nf-lane {
   position: absolute;
   left: 0;
-  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  animation: nf-bob var(--bob) ease-in-out infinite;
+  animation-delay: var(--bobdelay);
+}
+.nf-strip {
+  display: flex;
+  flex: none;
+  width: max-content;
   white-space: nowrap;
-  animation: nf-walk var(--dur) linear var(--delay) both;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
   will-change: transform;
 }
-.nf-item { display: inline-block; animation: nf-wobble 1.6s ease-in-out infinite; }
+.nf-half {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--gap);
+  padding-right: var(--gap);
+}
+@keyframes nf-esq { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
+@keyframes nf-dir { from { transform: translate3d(-50%, 0, 0); } to { transform: translate3d(0, 0, 0); } }
+@keyframes nf-bob {
+  0%, 100% { transform: translateY(-3px); }
+  50% { transform: translateY(3px); }
+}
 @media (prefers-reduced-motion: reduce) {
   .nf-layer { display: none; }
 }
@@ -50,60 +85,74 @@ const CSS = `
 
 let cacheNomes = null; // evita ler o Firebase de novo quando o painel fecha e abre
 
-function sortear(lista) {
-  return lista[Math.floor(Math.random() * lista.length)];
-}
-
-function limitar(valor, min, max) {
-  return Math.max(min, Math.min(max, valor));
-}
-
-function criarAndarilho(id, nomes, frases, w, h, inicial) {
-  const ehNome = Math.random() < 0.65;
-  const texto = ehNome ? sortear(nomes) : sortear(frases);
-  const largura = ehNome ? 110 : 170; // folga para o texto entrar e sair da area
-
-  let x0;
-  let y0;
-  let x1;
-  let y1;
-  if (Math.random() < 0.8) {
-    // atravessa na horizontal, com uma leve inclinacao
-    const daEsquerda = Math.random() < 0.5;
-    x0 = daEsquerda ? -largura : w + 10;
-    x1 = daEsquerda ? w + 10 : -largura;
-    y0 = 6 + Math.random() * Math.max(10, h - 34);
-    y1 = limitar(y0 + (Math.random() - 0.5) * h * 0.6, 6, Math.max(6, h - 28));
-  } else {
-    // atravessa na vertical
-    const decendo = Math.random() < 0.5;
-    y0 = decendo ? -30 : h + 6;
-    y1 = decendo ? h + 6 : -30;
-    x0 = 10 + Math.random() * Math.max(10, w - largura - 20);
-    x1 = limitar(x0 + (Math.random() - 0.5) * w * 0.3, 10, Math.max(10, w - largura - 10));
+function embaralhar(lista) {
+  const a = [...lista];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
+  return a;
+}
 
-  const distancia = Math.hypot(x1 - x0, y1 - y0);
-  const velocidade = 22 + Math.random() * 16; // pixels por segundo
-  const dur = Math.max(14, distancia / velocidade);
-  // No primeiro lote, cada um comeca em um ponto diferente do caminho (delay negativo).
-  const atraso = inicial ? -(Math.random() * dur * 0.85) : Math.random() * 3;
+// Sorteia sem repetir ate que todos tenham sido usados
+function criarFila(lista) {
+  let fila = [];
+  return () => {
+    if (!fila.length) fila = embaralhar(lista);
+    return fila.pop();
+  };
+}
 
-  return { id, ehNome, texto, x0, y0, x1, y1, dur, atraso };
+function larguraEstimada(texto, ehNome) {
+  return texto.length * (ehNome ? 7.8 : 7.2) + 6;
+}
+
+function montarEsteiras(qtd, nomes, frases, larguraCaixa) {
+  const proximoNome = criarFila(nomes);
+  const proximaFrase = criarFila(frases);
+  const alvo = Math.max(larguraCaixa, 360) * 1.5; // cada metade da esteira precisa cobrir a caixa
+
+  return Array.from({ length: qtd }, (_, i) => {
+    const gap = 120 + Math.floor(Math.random() * 5) * 24;
+    const velocidade = 18 + Math.random() * 12; // pixels por segundo
+    const itens = [];
+    let total = 0;
+    let nomesSeguidos = 0;
+    let limite = 2 + Math.floor(Math.random() * 2);
+
+    while (total < alvo || itens.length < 3) {
+      const ehNome = nomesSeguidos < limite;
+      const texto = ehNome ? proximoNome() : proximaFrase();
+      itens.push({ texto, ehNome });
+      total += larguraEstimada(texto, ehNome) + gap;
+      if (ehNome) {
+        nomesSeguidos += 1;
+      } else {
+        nomesSeguidos = 0;
+        limite = 2 + Math.floor(Math.random() * 2);
+      }
+      if (itens.length > 60) break;
+    }
+
+    const dur = total / velocidade;
+    return {
+      itens,
+      gap,
+      dur,
+      fase: Math.random() * dur, // cada esteira comeca em um ponto diferente
+      sentido: i % 2 === 0 ? 'nf-esq' : 'nf-dir',
+    };
+  });
 }
 
 export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
   const camadaRef = useRef(null);
-  const caixaRef = useRef({ w: 0, h: 0 });
-  const frasesRef = useRef(frases);
-  const contador = useRef(0);
   const [nomes, setNomes] = useState([]);
-  const [andarilhos, setAndarilhos] = useState([]);
+  const [caixa, setCaixa] = useState({ w: 0, h: 0 });
+  const [visivel, setVisivel] = useState(true);
   const [reduzir] = useState(
     () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   );
-
-  frasesRef.current = frases;
 
   // 1) Carrega os nomes (ou os de exemplo, se o endereco tiver ?nomes=demo)
   useEffect(() => {
@@ -140,30 +189,52 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
     return () => { cancelado = true; };
   }, [reduzir]);
 
-  // 2) Cria o primeiro lote quando ha nomes e a area ja tem tamanho
+  // 2) Mede a area e acompanha mudancas de tamanho da janela
   useEffect(() => {
-    if (!nomes.length || !camadaRef.current) return;
-    const w = camadaRef.current.offsetWidth;
-    const h = camadaRef.current.offsetHeight;
-    if (!w || !h) return;
-    caixaRef.current = { w, h };
-    const quantidade = w < 640 ? 8 : 14;
-    setAndarilhos(
-      Array.from({ length: quantidade }, () =>
-        criarAndarilho(++contador.current, nomes, frasesRef.current, w, h, true)
-      )
-    );
-  }, [nomes]);
+    if (reduzir || !camadaRef.current) return undefined;
+    const el = camadaRef.current;
+    const medir = () => {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setCaixa((atual) => {
+        const qtdAtual = Math.floor(atual.h / ALTURA_FAIXA);
+        const qtdNova = Math.floor(h / ALTURA_FAIXA);
+        if (!atual.w || qtdAtual !== qtdNova || w > atual.w * 1.25) return { w, h };
+        return atual;
+      });
+    };
+    medir();
+    let t;
+    const aoRedimensionar = () => {
+      clearTimeout(t);
+      t = setTimeout(medir, 200);
+    };
+    window.addEventListener('resize', aoRedimensionar);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', aoRedimensionar);
+    };
+  }, [reduzir, nomes.length]);
 
-  // 3) Quando um item termina o caminho, entra outro sorteado no lugar
-  const reciclar = (id) => {
-    const { w, h } = caixaRef.current;
-    setAndarilhos((prev) =>
-      prev.map((a) => (a.id === id ? criarAndarilho(++contador.current, nomes, frasesRef.current, w, h, false) : a))
-    );
-  };
+  // 3) Pausa as animacoes quando a area sai da tela
+  useEffect(() => {
+    if (reduzir || !camadaRef.current || typeof IntersectionObserver === 'undefined') return undefined;
+    const obs = new IntersectionObserver(([entrada]) => setVisivel(entrada.isIntersecting));
+    obs.observe(camadaRef.current);
+    return () => obs.disconnect();
+  }, [reduzir]);
+
+  const qtdFaixas = Math.max(0, Math.min(8, Math.floor(caixa.h / ALTURA_FAIXA)));
+  const esteiras = useMemo(
+    () => (nomes.length && qtdFaixas ? montarEsteiras(qtdFaixas, nomes, frases, caixa.w) : []),
+    // caixa.w entra so pelo valor inicial; ver medir()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nomes, frases, qtdFaixas, caixa.w]
+  );
 
   if (reduzir) return null;
+
+  const folga = qtdFaixas ? (caixa.h - qtdFaixas * ALTURA_FAIXA) / 2 : 0;
 
   return (
     <div
@@ -172,31 +243,44 @@ export default function NomesFlutuantes({ frases = FRASES_PADRAO }) {
       className="nf-layer absolute inset-0 overflow-hidden pointer-events-none select-none"
     >
       <style>{CSS}</style>
-      {andarilhos.map((a) => (
+      {esteiras.map((e, i) => (
         <div
-          key={a.id}
-          className="nf-walker"
+          key={i}
+          className="nf-lane"
           style={{
-            '--x0': `${a.x0}px`,
-            '--y0': `${a.y0}px`,
-            '--x1': `${a.x1}px`,
-            '--y1': `${a.y1}px`,
-            '--dur': `${a.dur}s`,
-            '--delay': `${a.atraso}s`,
-          }}
-          onAnimationEnd={(e) => {
-            if (e.animationName === 'nf-walk') reciclar(a.id);
+            top: folga + i * ALTURA_FAIXA,
+            height: ALTURA_FAIXA,
+            '--bob': `${5 + (i % 3)}s`,
+            '--bobdelay': `-${(i * 1.7).toFixed(1)}s`,
           }}
         >
-          <span
-            className={
-              a.ehNome
-                ? 'nf-item text-[13px] font-semibold text-stone-400 dark:text-slate-500'
-                : 'nf-item text-xs italic font-medium text-amber-600/80 dark:text-amber-400/80'
-            }
+          <div
+            className="nf-strip"
+            style={{
+              '--gap': `${e.gap}px`,
+              animationName: e.sentido,
+              animationDuration: `${e.dur.toFixed(1)}s`,
+              animationDelay: `-${e.fase.toFixed(1)}s`,
+              animationPlayState: visivel ? 'running' : 'paused',
+            }}
           >
-            {a.texto}
-          </span>
+            {[0, 1].map((copia) => (
+              <div key={copia} className="nf-half">
+                {e.itens.map((it, k) => (
+                  <span
+                    key={k}
+                    className={
+                      it.ehNome
+                        ? 'text-[13px] font-semibold text-stone-400 dark:text-slate-500'
+                        : 'text-xs italic font-medium text-amber-600/80 dark:text-amber-400/80'
+                    }
+                  >
+                    {it.texto}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>

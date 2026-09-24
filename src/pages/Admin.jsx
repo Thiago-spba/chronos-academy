@@ -337,7 +337,7 @@ export default function Admin() {
     setModalAviso(true);
   };
 
-  const salvarAviso = async () => {
+  const salvarAviso = async (publicar) => {
     setSalvandoAviso(true);
     try {
       const avisosAtualizados = { 
@@ -346,12 +346,12 @@ export default function Admin() {
           tipo: formAviso.tipo, 
           mensagem: formAviso.mensagem, 
           duracao: Number(formAviso.duracao) || 0, 
-          ativo: formAviso.ativo 
+          ativo: typeof publicar === 'boolean' ? publicar : formAviso.ativo 
         } 
       };
       await setDoc(doc(db, 'chronos', 'config'), { avisos: avisosAtualizados }, { merge: true });
       setTodosAvisos(avisosAtualizados);
-      setToast({ mensagem: 'Aviso atualizado com sucesso!' });
+      setToast({ mensagem: publicar === true ? 'Aviso PUBLICADO! Os alunos já veem o sininho aceso.' : publicar === false ? 'Aviso ocultado.' : 'Aviso atualizado com sucesso!' });
       setModalAviso(false);
     } catch(e) { 
       alert('Erro ao salvar aviso.'); 
@@ -813,7 +813,7 @@ export default function Admin() {
                   className={inputBaseClass}
                 >
                   <option value="global">🌍 Todas as Turmas (Global)</option>
-                  {Object.entries(bancoDados || {}).map(([id, info]) => (
+                  {Object.entries(bancoDados || {}).filter(([id]) => id !== "2l" && id !== "1j").map(([id, info]) => (
                     <option key={id} value={id}>🎯 Apenas {info.nome} ({info.disciplina})</option>
                   ))}
                 </select>
@@ -836,13 +836,16 @@ export default function Admin() {
                 </div>
                 <div className="flex flex-col justify-end">
                   <label className="block text-[11px] font-bold text-stone-600 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Status do Aviso</label>
-                  <button type="button" onClick={() => setFormAviso({...formAviso, ativo: !formAviso.ativo})} className={`w-full p-3 rounded-2xl font-bold text-xs sm:text-sm transition-all border ${formAviso.ativo ? 'bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 border-stone-200 dark:border-slate-700'}`}>{formAviso.ativo ? '✅ Publicado' : '⏸️ Oculto'}</button>
+                  <div className={`w-full p-3 rounded-2xl font-bold text-xs sm:text-sm text-center border ${todosAvisos?.[formAviso.alvo]?.ativo ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 border-stone-200 dark:border-slate-700'}`}>{todosAvisos?.[formAviso.alvo]?.ativo ? '✅ Publicado agora' : '⏸️ Não publicado'}</div>
                 </div>
               </div>
               
               <div className="flex gap-3 pt-3 border-t border-stone-100 dark:border-slate-800">
                 <button onClick={() => setModalAviso(false)} className="flex-1 py-3 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 font-bold hover:bg-stone-200 dark:hover:bg-slate-700 text-xs sm:text-sm transition-colors">Fechar</button>
-                <button onClick={salvarAviso} disabled={salvandoAviso} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold flex items-center justify-center gap-2 hover:bg-amber-700 disabled:opacity-50 text-xs sm:text-sm transition-all shadow-md"><Save className="w-4 h-4"/> {salvandoAviso ? 'Salvando...' : 'Salvar Alterações'}</button>
+                {todosAvisos?.[formAviso.alvo]?.ativo && (
+                  <button onClick={() => salvarAviso(false)} disabled={salvandoAviso} className="flex-1 py-3 rounded-xl bg-stone-200 dark:bg-slate-700 text-stone-700 dark:text-slate-200 font-bold hover:bg-stone-300 dark:hover:bg-slate-600 disabled:opacity-50 text-xs sm:text-sm transition-colors">Ocultar aviso</button>
+                )}
+                <button onClick={() => salvarAviso(true)} disabled={salvandoAviso || !formAviso.mensagem.trim()} className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 disabled:opacity-50 text-xs sm:text-sm transition-all shadow-md"><Megaphone className="w-4 h-4"/> {salvandoAviso ? 'Salvando...' : 'Publicar aviso'}</button>
               </div>
             </div>
           </div>

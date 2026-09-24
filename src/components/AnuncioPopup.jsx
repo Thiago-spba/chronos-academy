@@ -18,9 +18,13 @@ export default function AnuncioPopup({ turmaId }) {
         if (avisosDb) {
           let avisoAtivo = null;
 
+          const irma = { '2h': '2l', '2l': '2h', '1g': '1j', '1j': '1g' }[turmaId];
           if (avisosDb[turmaId]?.ativo) {
             avisoAtivo = avisosDb[turmaId];
           } 
+          else if (irma && avisosDb[irma]?.ativo) {
+            avisoAtivo = avisosDb[irma];
+          }
           else if (avisosDb['global']?.ativo) {
             avisoAtivo = avisosDb['global'];
           }

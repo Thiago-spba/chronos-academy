@@ -196,7 +196,7 @@ export default function Turma() {
                       )}
                     </div>
                     <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-0.5">
-                      {totalAulasModulo === 0 ? 'Nenhum conteúdo ainda' : `${totalAulasModulo} aula${totalAulasModulo > 1 ? 's' : ''} disponível${totalAulasModulo > 1 ? 'is' : ''}`}
+                      {totalAulasModulo === 0 ? 'Nenhum conteúdo ainda' : `${totalAulasModulo} aula${totalAulasModulo > 1 ? 's' : ''} disponíve${totalAulasModulo > 1 ? 'is' : 'l'}`}
                     </p>
                   </div>
                 </div>

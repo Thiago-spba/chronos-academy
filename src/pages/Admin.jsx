@@ -11,6 +11,7 @@ import { db, auth, storage } from "../firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 
 const turmasIniciais = {
   "2h": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
@@ -107,6 +108,7 @@ export default function Admin() {
   const [modoVisualizacao, setModoVisualizacao] = useState("grade");
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(6);
+  const [marcarAndamento, setMarcarAndamento] = useState(null); // null = usa a sugestao automatica
 
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
@@ -174,6 +176,10 @@ export default function Admin() {
     setPaginaAtual(1);
   }, [busca, filtroTurma, filtroBimestre, itensPorPagina]);
 
+  useEffect(() => {
+    setMarcarAndamento(null);
+  }, [formAberto, form.turmaId, form.moduloId]);
+
   async function carregarFirebase() {
     try {
       const docRef = doc(db, "chronos", "dados_escola");
@@ -201,7 +207,9 @@ export default function Admin() {
             { id: `b4-${ano}`, titulo: `4º Bimestre - ${ano}` }
           ];
 
+          const temAnoLegado = turma.modulos.some(m => lerModulo(m).ano === Number(ano));
           bimestres.forEach(req => {
+            if (!temAnoLegado) return;
             const existe = turma.modulos.find(m => m.id === req.id || (m.id === "b3" && req.id === "b3"));
             if (!existe) {
               turma.modulos.push({ id: req.id, titulo: req.titulo, abertoPadrao: false, aulas: [] });
@@ -209,7 +217,7 @@ export default function Admin() {
             }
           });
           
-          turma.modulos.sort((a, b) => a.id.localeCompare(b.id));
+          turma.modulos = ordenarModulos(turma.modulos);
         });
 
         // ─── SINCRONIZAÇÃO AUTOMÁTICA DE TURMAS IRMÃS (H/L e G/J) ───
@@ -256,7 +264,7 @@ export default function Admin() {
 
   const handleCriarTurma = async (e) => {
     e.preventDefault();
-    const ano = "2026";
+    const ano = String(new Date().getFullYear());
     const nextDb = { ...bancoDados };
 
     let nomeFinal = "";
@@ -292,7 +300,7 @@ export default function Admin() {
       modulos: [
         { id: `b1-${ano}`, titulo: `1º Bimestre - ${ano}`, abertoPadrao: false, aulas: [] },
         { id: `b2-${ano}`, titulo: `2º Bimestre - ${ano}`, abertoPadrao: false, aulas: [] },
-        { id: `b3-${ano}`, titulo: `3º Bimestre - ${ano}`, abertoPadrao: true, aulas: [] },
+        { id: `b3-${ano}`, titulo: `3º Bimestre - ${ano}`, abertoPadrao: false, aulas: [] },
         { id: `b4-${ano}`, titulo: `4º Bimestre - ${ano}`, abertoPadrao: false, aulas: [] }
       ]
     };
@@ -499,9 +507,29 @@ export default function Admin() {
     if (form.turmaId === "1g" && nextDb["1j"]) turmasAlvo.push("1j");
     if (form.turmaId === "1j" && nextDb["1g"]) turmasAlvo.push("1g");
 
+    const marcarEfetivo = marcarAndamento ?? deveMarcarAndamento(bancoDados[form.turmaId]?.modulos, form.moduloId);
+    const moduloNovo = String(form.moduloId).match(/^novo:(\d{4}):(\d)$/);
+
     turmasAlvo.forEach(tId => {
-      const moduloDestino = nextDb[tId]?.modulos?.find(m => m.id === form.moduloId);
+      if (!nextDb[tId]) return;
+      if (!nextDb[tId].modulos) nextDb[tId].modulos = [];
+      let moduloDestino;
+      if (moduloNovo) {
+        const anoN = Number(moduloNovo[1]);
+        const bimN = Number(moduloNovo[2]);
+        moduloDestino = acharModulo(nextDb[tId].modulos, anoN, bimN);
+        if (!moduloDestino) {
+          moduloDestino = { id: idModulo(anoN, bimN), titulo: tituloModulo(anoN, bimN), abertoPadrao: false, aulas: [] };
+          nextDb[tId].modulos.push(moduloDestino);
+          nextDb[tId].modulos = ordenarModulos(nextDb[tId].modulos);
+        }
+      } else {
+        moduloDestino = nextDb[tId].modulos.find(m => m.id === form.moduloId);
+      }
       if (!moduloDestino) return;
+      if (marcarEfetivo) {
+        nextDb[tId].modulos.forEach(m => { m.abertoPadrao = (m === moduloDestino); });
+      }
 
       if (form.id) {
         const indexExistente = moduloDestino.aulas.findIndex(a => a.id === form.id);
@@ -629,7 +657,7 @@ export default function Admin() {
         }
       });
     });
-    return Array.from(setBim.entries()).map(([id, titulo]) => ({ id, titulo }));
+    return Array.from(setBim.entries()).map(([id, titulo]) => ({ id, titulo })).sort((x, y) => chaveModulo(x) - chaveModulo(y));
   }, [bancoDados]);
 
   if (!autenticado || !bancoDados) return <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-slate-950 font-bold text-stone-700 dark:text-slate-300">Verificando credenciais...</div>;
@@ -1173,7 +1201,7 @@ export default function Admin() {
                       value={form.turmaId} 
                       onChange={e => {
                         const newTurmaId = e.target.value;
-                        const newModuloId = bancoDados[newTurmaId]?.modulos[0]?.id || "";
+                        const newModuloId = moduloPadraoId(bancoDados[newTurmaId]?.modulos);
                         setForm({...form, turmaId: newTurmaId, moduloId: newModuloId});
                       }} 
                       className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`}
@@ -1185,10 +1213,24 @@ export default function Admin() {
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Bimestre / Módulo</label>
                     <select disabled={salvando} value={form.moduloId} onChange={e => setForm({...form, moduloId: e.target.value})} className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`}>
-                      {bancoDados[form.turmaId]?.modulos?.map(m => (
-                        <option key={m.id} value={m.id}>{m.titulo}</option>
+                      {[...new Set(opcoesModulos(bancoDados[form.turmaId]?.modulos, new Date().getFullYear()).map(o => o.ano))].map(anoOp => (
+                        <optgroup key={anoOp} label={String(anoOp)}>
+                          {opcoesModulos(bancoDados[form.turmaId]?.modulos, new Date().getFullYear()).filter(o => o.ano === anoOp).map(o => (
+                            <option key={o.valor} value={o.valor}>{o.rotulo}{o.andamento ? ' (em andamento)' : ''}{o.novo ? ' (novo)' : ''}</option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
+                    <label className="mt-2 flex items-start gap-2 text-xs font-bold text-stone-600 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        disabled={salvando}
+                        checked={marcarAndamento ?? deveMarcarAndamento(bancoDados[form.turmaId]?.modulos, form.moduloId)}
+                        onChange={e => setMarcarAndamento(e.target.checked)}
+                        className="mt-0.5 accent-amber-600"
+                      />
+                      <span>Definir como bimestre em andamento<span className="block font-medium text-stone-400 dark:text-slate-500">Os alunos veem em destaque até você passar para o próximo.</span></span>
+                    </label>
                   </div>
 
                   <div>

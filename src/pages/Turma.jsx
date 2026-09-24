@@ -1,10 +1,11 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus } from 'lucide-react';
+import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History } from 'lucide-react';
 import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { lerModulo, ordenarModulos, anoAtualDaTurma, buscarAulas } from '../utils/bimestres';
 
 function VideoPlayer({ titulo, videoId, duracao }) {
   const [ativo, setAtivo] = useState(false);
@@ -105,6 +106,7 @@ export default function Turma() {
   };
 
   const [mostrarTodasAulas, setMostrarTodasAulas] = useState({});
+  const [busca, setBusca] = useState('');
   
   const toggleMostrarAulas = (moduloId) => {
     setMostrarTodasAulas((prev) => ({ ...prev, [moduloId]: !prev[moduloId] }));
@@ -161,27 +163,20 @@ export default function Turma() {
   const temVideo = aulaAtiva ? (aulaAtiva.video || (aulaAtiva.videos && aulaAtiva.videos.length > 0)) : false;
   const temMaterial = aulaAtiva ? (aulaAtiva.pdf || (aulaAtiva.pdfs && aulaAtiva.pdfs.length > 0) || aulaAtiva.materialTexto) : false;
 
-  return (
-    <div className="animate-fade-in relative pb-12">
-      <div className="mb-10 text-center sm:text-left">
-        <h2 className="text-3xl font-black text-stone-800 dark:text-slate-100">{turma.nome}</h2>
-        <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">{turma.disciplina}</p>
-      </div>
+  const modulosOrd = ordenarModulos(turma.modulos);
+  const anoAtual = anoAtualDaTurma(turma.modulos);
+  const temAulas = (m) => (m.aulas || []).length > 0;
+  const modulosPrincipais = modulosOrd.filter((m) => {
+    const a = lerModulo(m).ano;
+    return a === anoAtual || (a > anoAtual && temAulas(m));
+  });
+  const modulosHistorico = modulosOrd.filter((m) => lerModulo(m).ano < anoAtual && temAulas(m));
+  const anosHistorico = [...new Set(modulosHistorico.map((m) => lerModulo(m).ano))].sort((a, b) => b - a);
+  const termoBusca = busca.trim();
+  const buscando = termoBusca.length >= 2;
+  const resultados = buscando ? buscarAulas(turma.modulos, termoBusca) : [];
 
-      {turma.modulos.length > 1 && (
-        <div className="mb-8 flex items-center gap-2 px-1">
-          {turma.modulos.map((modulo) => (
-            <div
-              key={modulo.id}
-              title={modulo.titulo}
-              className={`flex-1 h-2 rounded-full transition-colors ${modulo.abertoPadrao ? 'bg-amber-500' : 'bg-stone-200 dark:bg-slate-800'}`}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {turma.modulos.map((modulo) => {
+  const renderModulo = (modulo) => {
           const aulasComIndiceOriginal = modulo.aulas.map((aula, idx) => ({ ...aula, originalIndex: idx }));
           const exibirTodas = mostrarTodasAulas[modulo.id];
           const aulasParaExibir = exibirTodas ? aulasComIndiceOriginal : aulasComIndiceOriginal.slice(-2);
@@ -250,8 +245,101 @@ export default function Turma() {
               </div>
             </details>
           );
-        })}
+  };
+
+  return (
+    <div className="animate-fade-in relative pb-12">
+      <div className="mb-10 text-center sm:text-left">
+        <h2 className="text-3xl font-black text-stone-800 dark:text-slate-100">{turma.nome}</h2>
+        <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">{turma.disciplina}</p>
       </div>
+
+      <div className="mb-8 relative">
+        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 dark:text-slate-500 pointer-events-none" />
+        <input
+          type="text"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar aula (assunto, palavra, bimestre ou ano)"
+          aria-label="Buscar aula"
+          className="w-full pl-11 pr-11 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-sm font-semibold text-stone-800 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-colors"
+        />
+        {busca && (
+          <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-stone-400 dark:text-slate-500 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors" title="Limpar busca" aria-label="Limpar busca">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {!buscando && modulosPrincipais.length > 1 && (
+        <div className="mb-8 flex items-center gap-2 px-1">
+          {modulosPrincipais.map((modulo) => (
+            <div
+              key={modulo.id}
+              title={modulo.titulo}
+              className={`flex-1 h-2 rounded-full transition-colors ${modulo.abertoPadrao ? 'bg-amber-500' : 'bg-stone-200 dark:bg-slate-800'}`}
+            />
+          ))}
+        </div>
+      )}
+
+      {buscando ? (
+        <div>
+          <p className="mb-4 text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-slate-500">
+            {resultados.length === 0
+              ? 'Nenhuma aula encontrada'
+              : `${resultados.length} aula${resultados.length > 1 ? 's' : ''} encontrada${resultados.length > 1 ? 's' : ''}`}
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {resultados.slice(0, 40).map((r) => (
+              <button
+                key={r.aula.id}
+                onClick={() => setAulaAtiva(r.aula)}
+                className="text-left flex items-center gap-4 p-4 bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 rounded-2xl hover:border-amber-500 dark:hover:border-amber-500 transition-all shadow-sm group"
+              >
+                <div className="w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center bg-stone-100 dark:bg-slate-900 text-stone-600 dark:text-slate-400 font-black group-hover:bg-amber-100 dark:group-hover:bg-amber-900/40 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                  {obterNumeroAula(r.aula, r.indice)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-stone-800 dark:text-slate-100 text-sm line-clamp-2">{r.aula.titulo}</h4>
+                  <div className="mt-1 text-amber-700 dark:text-amber-500 text-[11px] font-black uppercase tracking-wide">{r.modulo.titulo}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-4">
+            {modulosPrincipais.map(renderModulo)}
+          </div>
+
+          {anosHistorico.length > 0 && (
+            <details className="group mt-8 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+              <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 hover:bg-stone-50 dark:hover:bg-slate-800/80 transition-colors list-none">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400"><History className="w-5 h-5" /></div>
+                  <div>
+                    <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">Histórico de aulas</h3>
+                    <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-0.5">Anos anteriores: {anosHistorico.join(', ')}</p>
+                  </div>
+                </div>
+                <ChevronDown className="w-5 h-5 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="p-4 sm:p-6 border-t border-stone-100 dark:border-slate-800 space-y-6">
+                {anosHistorico.map((ano) => (
+                  <div key={ano}>
+                    <h4 className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-500">{ano}</h4>
+                    <div className="space-y-4">
+                      {modulosHistorico.filter((m) => lerModulo(m).ano === ano).map(renderModulo)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </>
+      )}
 
       {aulaAtiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-900/60 dark:bg-black/80 backdrop-blur-sm" onClick={() => setAulaAtiva(null)}>

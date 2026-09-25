@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles } from 'lucide-react';
+import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles, Bell } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
 import NomesFlutuantes from '../components/NomesFlutuantes';
 import { db } from '../firebase';
@@ -45,6 +45,7 @@ export default function Home() {
   const [sobreAberto, setSobreAberto] = useState(false);
   const [ultimasAulas, setUltimasAulas] = useState([]);
   const [recentesAberto, setRecentesAberto] = useState(false);
+  const [avisoAtivo, setAvisoAtivo] = useState(false);
 
   // Aulas mais recentes de todas as turmas juntas, para sempre aparecer o que foi postado por último.
   useEffect(() => {
@@ -68,7 +69,8 @@ export default function Home() {
     return () => { cancelado = true; };
   }, []);
 
-  // Abre o painel sozinho se houver algum aviso ativo (o sininho nao fica escondido).
+  // Se houver algum aviso ativo, mostra um selo no cabecalho do Painel de Turmas
+  // (o painel continua fechado por padrao; o aluno abre quando quiser).
   useEffect(() => {
     let cancelado = false;
     getDoc(doc(db, 'chronos', 'config'))
@@ -82,7 +84,7 @@ export default function Home() {
           ids.some((id) => avisosDb[id]?.ativo) ||
           !!avisosDb['global']?.ativo ||
           !!(avisosDb.ativo && (ids.includes(avisosDb.alvo) || avisosDb.alvo === 'global'));
-        if (ativo) setPainelAberto(true);
+        if (ativo) setAvisoAtivo(true);
       })
       .catch(() => {});
     return () => { cancelado = true; };
@@ -185,7 +187,7 @@ export default function Home() {
               {ultimasAulas.map(({ turma, aula }) => (
                 <Link
                   key={aula.id || `${turma.id}-${aula.titulo}`}
-                  to={`/turma/${turma.id}`}
+                  to={`/turma/${turma.id}${aula.id ? `?aula=${encodeURIComponent(aula.id)}` : ''}`}
                   className="group bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800 hover:shadow-xl hover:border-amber-400 dark:hover:border-amber-500/50 transition-all duration-300 p-5 flex flex-col"
                 >
                   <span className={`self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm mb-3 ${turma.corBadge}`}>
@@ -211,7 +213,14 @@ export default function Home() {
         className="w-full mb-8 px-2 flex items-center justify-between gap-4 text-left group"
       >
         <div>
-          <h3 className="text-2xl font-black text-stone-800 dark:text-slate-100">Painel de Turmas</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-2xl font-black text-stone-800 dark:text-slate-100">Painel de Turmas</h3>
+            {avisoAtivo && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                <Bell className="w-3 h-3 animate-pulse" /> Aviso
+              </span>
+            )}
+          </div>
           <p className="text-sm text-stone-500 dark:text-slate-400 mt-1">Selecione sua disciplina para acessar materiais e vídeos.</p>
         </div>
         <span className="shrink-0 w-11 h-11 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 flex items-center justify-center text-stone-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:border-amber-400 dark:group-hover:border-amber-500/50 transition-colors">

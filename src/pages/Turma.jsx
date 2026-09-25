@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History } from 'lucide-react';
 import YouTube from 'react-youtube';
 
@@ -96,6 +96,9 @@ function VideoPlayer({ titulo, videoId, duracao }) {
 
 export default function Turma() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const aulaAlvoId = searchParams.get('aula');
+  const aulaAlvoAplicada = useRef(false);
   const [bancoDados, setBancoDados] = useState(null);
   
   const [aulaAtiva, setAulaAtiva] = useState(null);
@@ -145,6 +148,22 @@ export default function Turma() {
     }
     return () => { document.body.style.overflow = 'unset'; };
   }, [aulaAtiva]);
+
+  // Se o link veio de "Aulas mais recentes" (Home) com ?aula=..., abre essa aula
+  // direto, sem o aluno precisar escolher o bimestre manualmente. So faz isso uma vez.
+  useEffect(() => {
+    if (!aulaAlvoId || aulaAlvoAplicada.current || !bancoDados) return;
+    const dadosTurma = bancoDados[id];
+    if (!dadosTurma) return;
+    for (const mod of dadosTurma.modulos || []) {
+      const encontrada = (mod.aulas || []).find((a) => a.id === aulaAlvoId);
+      if (encontrada) {
+        setAulaAtiva(encontrada);
+        break;
+      }
+    }
+    aulaAlvoAplicada.current = true;
+  }, [aulaAlvoId, bancoDados, id]);
 
   const turma = bancoDados ? bancoDados[id] : null;
 

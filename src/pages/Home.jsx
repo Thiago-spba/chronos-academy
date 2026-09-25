@@ -44,7 +44,7 @@ export default function Home() {
   const [painelAberto, setPainelAberto] = useState(false);
   const [sobreAberto, setSobreAberto] = useState(false);
   const [ultimasAulas, setUltimasAulas] = useState([]);
-  const [recentesAberto, setRecentesAberto] = useState(true);
+  const [recentesAberto, setRecentesAberto] = useState(false);
 
   // Aulas mais recentes de todas as turmas juntas, para sempre aparecer o que foi postado por último.
   useEffect(() => {

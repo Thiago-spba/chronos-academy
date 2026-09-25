@@ -2,13 +2,30 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Wrench, Plus, Edit3, Trash2, X, Save, ArrowLeft,
-  AlertTriangle, CheckCircle2, ArrowUp, ArrowDown, Eye, EyeOff, ExternalLink
+  AlertTriangle, CheckCircle2, ArrowUp, ArrowDown, Eye, EyeOff, ExternalLink,
+  FastForward, History, ChevronDown
 } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { ANO_LEGADO, idModulo, tituloModulo, ordenarModulos, moduloEmAndamento, lerModulo } from '../utils/bimestres';
 
 function gerarId() { return 'ferr_' + Date.now().toString(36); }
+
+// Le o documento de ferramentas em qualquer um dos dois formatos:
+// novo (modulos por bimestre) ou antigo (lista unica "itens", de antes dessa funcionalidade existir).
+function lerModulos(data) {
+  if (Array.isArray(data?.modulos)) return data.modulos;
+  if (Array.isArray(data?.itens)) {
+    return [{ id: idModulo(ANO_LEGADO, 3), titulo: tituloModulo(ANO_LEGADO, 3), abertoPadrao: true, itens: data.itens }];
+  }
+  return [];
+}
+
+// Proximo bimestre na sequencia: 1 -> 2 -> 3 -> 4 -> 1 do ano seguinte.
+function proximoBimestre(ano, bim) {
+  return bim >= 4 ? { ano: ano + 1, bim: 1 } : { ano, bim: bim + 1 };
+}
 
 function Toast({ mensagem, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
@@ -20,7 +37,7 @@ function Toast({ mensagem, onClose }) {
   );
 }
 
-function ModalConfirmar({ onConfirmar, onCancelar, titulo }) {
+function ModalConfirmar({ onConfirmar, onCancelar, titulo, mensagem, textoBotao, corBotao }) {
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancelar} />
@@ -29,14 +46,14 @@ function ModalConfirmar({ onConfirmar, onCancelar, titulo }) {
           <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/50 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
           </div>
-          <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">Excluir "{titulo}"?</h3>
+          <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">{titulo}</h3>
         </div>
         <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400 mb-6 leading-relaxed">
-          Essa ferramenta some da página Prática. Não afeta o site original dela, só remove o link daqui.
+          {mensagem}
         </p>
         <div className="flex gap-3">
           <button onClick={onCancelar} className="flex-1 py-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 text-xs sm:text-sm font-bold hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors">Cancelar</button>
-          <button onClick={onConfirmar} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-xs sm:text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-600/20 transition-colors">Excluir</button>
+          <button onClick={onConfirmar} className={`flex-1 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold transition-colors ${corBotao || 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/20'}`}>{textoBotao || 'Excluir'}</button>
         </div>
       </div>
     </div>
@@ -46,11 +63,13 @@ function ModalConfirmar({ onConfirmar, onCancelar, titulo }) {
 export default function AdminFerramentas() {
   const navigate = useNavigate();
   const [autenticado, setAutenticado] = useState(false);
-  const [itens, setItens] = useState(null);
+  const [modulos, setModulos] = useState(null);
   const [toast, setToast] = useState(null);
   const [excluindo, setExcluindo] = useState(null);
+  const [avancando, setAvancando] = useState(false);
   const [formAberto, setFormAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
   const [form, setForm] = useState({ id: '', titulo: '', descricao: '', url: '', ativo: true });
 
   const inputBaseClass = "w-full p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 outline-none text-xs sm:text-sm transition-colors duration-300";
@@ -71,21 +90,27 @@ export default function AdminFerramentas() {
   async function carregar() {
     try {
       const snap = await getDoc(doc(db, 'chronos', 'ferramentas'));
-      if (snap.exists() && Array.isArray(snap.data().itens)) {
-        setItens(snap.data().itens);
-      } else {
-        setItens([]);
+      const lidos = snap.exists() ? lerModulos(snap.data()) : [];
+      // Migracao automatica: se ainda estava no formato antigo (lista unica), grava ja no novo formato.
+      if (snap.exists() && !Array.isArray(snap.data().modulos) && Array.isArray(snap.data().itens)) {
+        await setDoc(doc(db, 'chronos', 'ferramentas'), { modulos: lidos });
       }
+      setModulos(lidos);
     } catch (e) {
       console.error(e);
-      setItens([]);
+      setModulos([]);
     }
   }
 
-  async function salvarLista(novaLista) {
-    await setDoc(doc(db, 'chronos', 'ferramentas'), { itens: novaLista });
-    setItens(novaLista);
+  async function salvarModulos(novaLista) {
+    await setDoc(doc(db, 'chronos', 'ferramentas'), { modulos: novaLista });
+    setModulos(novaLista);
   }
+
+  const ordenados = ordenarModulos(modulos || []);
+  const moduloAtivo = moduloEmAndamento(ordenados) || ordenados[ordenados.length - 1] || null;
+  const itens = moduloAtivo?.itens || [];
+  const modulosAnteriores = ordenados.filter((m) => m.id !== moduloAtivo?.id).reverse();
 
   const abrirNovoForm = () => {
     setForm({ id: '', titulo: '', descricao: '', url: '', ativo: true });
@@ -105,14 +130,22 @@ export default function AdminFerramentas() {
     }
     setSalvando(true);
     try {
-      const novaLista = [...(itens || [])];
-      if (form.id) {
-        const idx = novaLista.findIndex((i) => i.id === form.id);
-        if (idx >= 0) novaLista[idx] = { ...form };
-      } else {
-        novaLista.push({ ...form, id: gerarId(), ordem: novaLista.length });
+      let listaAtual = ordenados;
+      let alvo = moduloAtivo;
+      if (!alvo) {
+        // Nao existe nenhum bimestre ainda: cria o do ano atual como ponto de partida.
+        alvo = { id: idModulo(new Date().getFullYear(), 1), titulo: tituloModulo(new Date().getFullYear(), 1), abertoPadrao: true, itens: [] };
+        listaAtual = [...listaAtual, alvo];
       }
-      await salvarLista(novaLista);
+      const novaListaItens = [...(alvo.itens || [])];
+      if (form.id) {
+        const idx = novaListaItens.findIndex((i) => i.id === form.id);
+        if (idx >= 0) novaListaItens[idx] = { ...form };
+      } else {
+        novaListaItens.push({ ...form, id: gerarId(), ordem: novaListaItens.length });
+      }
+      const novosModulos = listaAtual.map((m) => (m.id === alvo.id ? { ...m, itens: novaListaItens } : m));
+      await salvarModulos(novosModulos);
       setFormAberto(false);
       setToast({ mensagem: 'Ferramenta salva com sucesso!' });
     } catch (e) {
@@ -124,27 +157,40 @@ export default function AdminFerramentas() {
   };
 
   const excluirItem = async () => {
-    const novaLista = (itens || []).filter((i) => i.id !== excluindo.id);
-    await salvarLista(novaLista);
+    const novaListaItens = itens.filter((i) => i.id !== excluindo.id);
+    const novosModulos = ordenados.map((m) => (m.id === moduloAtivo.id ? { ...m, itens: novaListaItens } : m));
+    await salvarModulos(novosModulos);
     setExcluindo(null);
     setToast({ mensagem: 'Ferramenta removida.' });
   };
 
   const alternarAtivo = async (item) => {
-    const novaLista = (itens || []).map((i) => (i.id === item.id ? { ...i, ativo: !i.ativo } : i));
-    await salvarLista(novaLista);
+    const novaListaItens = itens.map((i) => (i.id === item.id ? { ...i, ativo: !i.ativo } : i));
+    const novosModulos = ordenados.map((m) => (m.id === moduloAtivo.id ? { ...m, itens: novaListaItens } : m));
+    await salvarModulos(novosModulos);
   };
 
   const mover = async (index, direcao) => {
-    const novaLista = [...itens];
+    const novaListaItens = [...itens];
     const alvo = index + direcao;
-    if (alvo < 0 || alvo >= novaLista.length) return;
-    [novaLista[index], novaLista[alvo]] = [novaLista[alvo], novaLista[index]];
-    const comOrdem = novaLista.map((item, i) => ({ ...item, ordem: i }));
-    await salvarLista(comOrdem);
+    if (alvo < 0 || alvo >= novaListaItens.length) return;
+    [novaListaItens[index], novaListaItens[alvo]] = [novaListaItens[alvo], novaListaItens[index]];
+    const comOrdem = novaListaItens.map((item, i) => ({ ...item, ordem: i }));
+    const novosModulos = ordenados.map((m) => (m.id === moduloAtivo.id ? { ...m, itens: comOrdem } : m));
+    await salvarModulos(novosModulos);
   };
 
-  if (!autenticado || itens === null) {
+  const confirmarAvancarBimestre = async () => {
+    const base = moduloAtivo ? lerModulo(moduloAtivo) : { ano: new Date().getFullYear(), bim: 0 };
+    const prox = proximoBimestre(base.ano, base.bim || 1);
+    const novoModulo = { id: idModulo(prox.ano, prox.bim), titulo: tituloModulo(prox.ano, prox.bim), abertoPadrao: true, itens: [] };
+    const semAndamento = ordenados.map((m) => ({ ...m, abertoPadrao: false }));
+    await salvarModulos([...semAndamento, novoModulo]);
+    setAvancando(false);
+    setToast({ mensagem: `Agora está no ${novoModulo.titulo}. A lista começou vazia.` });
+  };
+
+  if (!autenticado || modulos === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-slate-950 font-bold text-stone-700 dark:text-slate-300">
         Verificando credenciais...
@@ -156,7 +202,17 @@ export default function AdminFerramentas() {
     <div className="animate-fade-in bg-stone-50 dark:bg-slate-950 min-h-screen pb-20 transition-colors duration-300">
       {toast && <Toast mensagem={toast.mensagem} onClose={() => setToast(null)} />}
       {excluindo && (
-        <ModalConfirmar titulo={excluindo.titulo} onConfirmar={excluirItem} onCancelar={() => setExcluindo(null)} />
+        <ModalConfirmar titulo={`Excluir "${excluindo.titulo}"?`} mensagem="Essa ferramenta some da página Prática. Não afeta o site original dela, só remove o link daqui." onConfirmar={excluirItem} onCancelar={() => setExcluindo(null)} />
+      )}
+      {avancando && (
+        <ModalConfirmar
+          titulo="Avançar de bimestre?"
+          mensagem={`As ferramentas de "${moduloAtivo ? moduloAtivo.titulo : 'agora'}" ficam guardadas e continuam disponíveis pra quem quiser ver. A lista aqui começa vazia de novo.`}
+          textoBotao="Avançar"
+          corBotao="bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-600/20"
+          onConfirmar={confirmarAvancarBimestre}
+          onCancelar={() => setAvancando(false)}
+        />
       )}
 
       <div className="bg-white dark:bg-slate-900 border-b border-stone-200 dark:border-slate-800 p-4 sm:p-6 mb-6 sm:mb-8 transition-colors">
@@ -170,12 +226,19 @@ export default function AdminFerramentas() {
             </div>
             <div className="min-w-0">
               <h1 className="text-base sm:text-xl font-black text-stone-800 dark:text-slate-100 truncate">Ferramentas de Prática</h1>
-              <p className="text-[11px] sm:text-xs text-stone-500 dark:text-slate-400 font-semibold truncate">Gerencie os links que aparecem em /pratica</p>
+              <p className="text-[11px] sm:text-xs text-stone-500 dark:text-slate-400 font-semibold truncate">
+                {moduloAtivo ? moduloAtivo.titulo : 'Nenhum bimestre ainda'} · Gerencie os links que aparecem em /pratica
+              </p>
             </div>
           </div>
-          <button onClick={abrirNovoForm} className="bg-amber-600 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-colors text-xs sm:text-sm shrink-0">
-            <Plus className="w-4 h-4 shrink-0" /> Nova Ferramenta
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setAvancando(true)} title="Avançar bimestre" className="bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-300 px-3 sm:px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 hover:border-amber-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors text-xs sm:text-sm">
+              <FastForward className="w-4 h-4 shrink-0" /> Avançar bimestre
+            </button>
+            <button onClick={abrirNovoForm} className="bg-amber-600 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-colors text-xs sm:text-sm shrink-0">
+              <Plus className="w-4 h-4 shrink-0" /> Nova Ferramenta
+            </button>
+          </div>
         </div>
       </div>
 
@@ -207,7 +270,7 @@ export default function AdminFerramentas() {
         <div className="space-y-3">
           {itens.length === 0 && (
             <p className="text-sm text-stone-400 dark:text-slate-500 text-center py-10">
-              Nenhuma ferramenta cadastrada ainda. Clique em "Nova Ferramenta" pra começar.
+              Nenhuma ferramenta cadastrada ainda neste bimestre. Clique em "Nova Ferramenta" pra começar.
             </p>
           )}
           {itens.map((item, index) => (
@@ -237,6 +300,25 @@ export default function AdminFerramentas() {
             </div>
           ))}
         </div>
+
+        {modulosAnteriores.length > 0 && (
+          <details open={historicoAberto} onToggle={(e) => setHistoricoAberto(e.target.open)} className="group mt-8 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+            <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 hover:bg-stone-50 dark:hover:bg-slate-800/80 transition-colors list-none">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400"><History className="w-5 h-5" /></div>
+                <h3 className="text-sm font-bold text-stone-800 dark:text-slate-100">Bimestres anteriores (só consulta)</h3>
+              </div>
+              <ChevronDown className="w-5 h-5 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="p-4 sm:p-6 border-t border-stone-100 dark:border-slate-800 space-y-3">
+              {modulosAnteriores.map((m) => (
+                <div key={m.id} className="text-sm text-stone-600 dark:text-slate-400">
+                  <strong className="text-stone-800 dark:text-slate-100">{m.titulo}:</strong> {(m.itens || []).length} ferramenta{(m.itens || []).length === 1 ? '' : 's'}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
     </div>
   );

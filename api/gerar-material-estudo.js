@@ -1,7 +1,7 @@
 // "Preencher aula com IA": le o material (PDFs e/ou texto colado) e devolve:
 //  - os campos da aula (identificacao, titulo, "O que e isso?", "Para que serve?", resumo), sempre;
 //  - o "Material de estudo" completo, so no modo "completo" (material bruto da Seduc).
-// Mesmo padrao de seguranca do api/gerar-conteudo.js (so o professor logado pode usar).
+// Seguranca: so o professor (e-mail conferido no servidor) pode usar.
 // Regra principal: a IA so usa o que esta no material; o que vier de fora do material
 // volta marcado como "complemento" para o professor conferir antes de publicar.
 

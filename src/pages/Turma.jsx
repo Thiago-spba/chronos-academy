@@ -1,11 +1,12 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History } from 'lucide-react';
+import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History, BookOpen } from 'lucide-react';
 import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { lerModulo, ordenarModulos, anoAtualDaTurma, buscarAulas } from '../utils/bimestres';
+import MaterialEstudo from '../components/MaterialEstudo';
 
 function VideoPlayer({ titulo, videoId, duracao }) {
   const [ativo, setAtivo] = useState(false);
@@ -148,6 +149,25 @@ export default function Turma() {
     }
     return () => { document.body.style.overflow = 'unset'; };
   }, [aulaAtiva]);
+
+  const [materialEstudo, setMaterialEstudo] = useState({ aulaId: null, dados: null, carregando: false });
+  const aulaComMaterialId = aulaAtiva && aulaAtiva.temMaterialEstudo ? aulaAtiva.id : null;
+  useEffect(() => {
+    if (!aulaComMaterialId) {
+      setMaterialEstudo({ aulaId: null, dados: null, carregando: false });
+      return;
+    }
+    setMaterialEstudo({ aulaId: aulaComMaterialId, dados: null, carregando: true });
+    const unsubscribe = onSnapshot(
+      doc(db, 'chronos', `material_${aulaComMaterialId}`),
+      (snap) => setMaterialEstudo({ aulaId: aulaComMaterialId, dados: snap.exists() ? snap.data() : null, carregando: false }),
+      (error) => {
+        console.error('Erro ao carregar material de estudo:', error);
+        setMaterialEstudo({ aulaId: aulaComMaterialId, dados: null, carregando: false });
+      }
+    );
+    return () => unsubscribe();
+  }, [aulaComMaterialId]);
 
   // Se o link veio de "Aulas mais recentes" (Home) com ?aula=..., abre essa aula
   // direto, sem o aluno precisar escolher o bimestre manualmente. So faz isso uma vez.
@@ -403,6 +423,15 @@ export default function Turma() {
                   </div>
                 </details>
               </div>
+
+              {aulaAtiva.temMaterialEstudo && (materialEstudo.carregando || materialEstudo.dados) && (
+                <div className="mb-8 border-t border-stone-100 dark:border-slate-800 pt-8">
+                  <h5 className="flex items-center gap-2 text-sm font-bold text-stone-800 dark:text-slate-200 mb-6 uppercase"><BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-500" /> Material de Estudo</h5>
+                  {materialEstudo.carregando
+                    ? <p className="text-sm text-stone-400 dark:text-slate-500 font-bold">Carregando material de estudo...</p>
+                    : <MaterialEstudo material={materialEstudo.dados} />}
+                </div>
+              )}
 
               {temVideo && (
                 <div className="mb-8 border-t border-stone-100 dark:border-slate-800 pt-8">

@@ -12,6 +12,8 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
+import RevisaoMaterial from "../components/RevisaoMaterial";
+import { pendenciasMaterial } from "../utils/temasMaterial";
 
 const turmasIniciais = {
   "2h": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
@@ -86,6 +88,10 @@ export default function Admin() {
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
   const [gerandoIA, setGerandoIA] = useState(false);
+  const [gerandoMaterial, setGerandoMaterial] = useState(false);
+  const [carregandoMaterial, setCarregandoMaterial] = useState(false);
+  const [prioridadesIA, setPrioridadesIA] = useState("");
+  const [textoColadoIA, setTextoColadoIA] = useState("");
   const [iaExcluidos, setIaExcluidos] = useState({}); // anexos desmarcados: a IA ignora
   const [sugestoesVideos, setSugestoesVideos] = useState(null); // null = painel fechado
   const [buscaVideo, setBuscaVideo] = useState("");
@@ -116,7 +122,7 @@ export default function Admin() {
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
     introducao: "", utilidade: "", materialTexto: "", 
-    videos: [{ videoId: "", duracao: "" }], pdfs: []
+    videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null
   });
 
   const inputBaseClass = "w-full p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 dark:focus:ring-amber-500/50 outline-none text-xs sm:text-sm transition-colors duration-300";
@@ -386,9 +392,11 @@ export default function Admin() {
 
     setForm({ 
       id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: "", introducao: "", utilidade: "", materialTexto: "", 
-      videos: [{ videoId: "", duracao: "" }], pdfs: [] 
+      videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null
     });
     setArquivosPdf([]);
+    setPrioridadesIA("");
+    setTextoColadoIA("");
     setStatusEnvio("");
     setFormAberto(true);
   };
@@ -400,11 +408,30 @@ export default function Admin() {
     setForm({ 
       id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "", 
       videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }], 
-      pdfs: pdfsMigrados 
+      pdfs: pdfsMigrados,
+      materialEstudo: null
     });
     setArquivosPdf([]);
+    setPrioridadesIA("");
+    setTextoColadoIA("");
     setStatusEnvio("");
     setFormAberto(true);
+    if (aula.temMaterialEstudo) carregarMaterialEstudo(aula.id);
+  };
+
+  const carregarMaterialEstudo = async (aulaId) => {
+    setCarregandoMaterial(true);
+    try {
+      const snap = await getDoc(doc(db, "chronos", `material_${aulaId}`));
+      const m = snap.exists() ? snap.data() : null;
+      setForm(prev => (prev.id === aulaId ? { ...prev, materialEstudo: m, materialEstudoErro: false } : prev));
+    } catch (e) {
+      console.error(e);
+      // Se falhar, a aula continua marcada como "tem material" e o material salvo nao e apagado.
+      setForm(prev => (prev.id === aulaId ? { ...prev, materialEstudoErro: true } : prev));
+    } finally {
+      setCarregandoMaterial(false);
+    }
   };
 
   const addVideo = () => setForm({ ...form, videos: [...form.videos, { videoId: "", duracao: "" }] });
@@ -512,6 +539,81 @@ export default function Admin() {
     }
   };
 
+  // ─── MATERIAL DE ESTUDO (a IA le o material da Seduc; o professor revisa antes de publicar) ───
+  const gerarMaterialEstudo = async () => {
+    const { novos, salvos } = anexosDaIA();
+    const total = novos.length + salvos.length;
+    const texto = textoColadoIA.trim();
+    if (total === 0 && !texto) {
+      alert("Anexe um PDF ou cole o texto do material antes de gerar.");
+      return;
+    }
+    if (total > 5) {
+      alert("Marque no maximo 5 PDFs por vez.");
+      return;
+    }
+    if (form.materialEstudo && !window.confirm("Esta aula ja tem um material de estudo. Gerar de novo vai substituir o atual (e as suas edicoes). Continuar?")) return;
+
+    setGerandoMaterial(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const payload = {
+        idToken,
+        tituloAula: form.titulo,
+        disciplina: bancoDados?.[form.turmaId]?.disciplina || "",
+        prioridades: prioridadesIA.trim(),
+      };
+      if (texto) payload.textoColado = texto;
+
+      if (total > 0) {
+        // limite de envio da Vercel: arquivos novos grandes sobem antes para o Storage
+        const LIMITE_BASE64 = (texto ? 2.5 : 3) * 1024 * 1024;
+        const pdfs = salvos.map(p => ({ url: p.url, nome: p.titulo }));
+        const somaNovos = novos.reduce((s, f) => s + f.size, 0);
+        if (somaNovos <= LIMITE_BASE64) {
+          for (const f of novos) {
+            pdfs.push({ base64: await arquivoParaBase64(f), nome: f.name });
+          }
+        } else {
+          const enviados = [];
+          for (let i = 0; i < novos.length; i++) {
+            const fileRef = ref(storage, `chronos_pdfs/${Date.now()}_${novos[i].name}`);
+            await uploadBytes(fileRef, novos[i]);
+            const url = await getDownloadURL(fileRef);
+            enviados.push({ titulo: novos[i].name, url, tamanho: (novos[i].size / (1024 * 1024)).toFixed(2) + " MB" });
+          }
+          setForm(prev => ({ ...prev, pdfs: [...prev.pdfs, ...enviados] }));
+          setArquivosPdf(prev => prev.filter(f => !novos.includes(f)));
+          enviados.forEach(p => pdfs.push({ url: p.url, nome: p.titulo }));
+        }
+        payload.pdfs = pdfs;
+      }
+
+      const resp = await fetch("/api/gerar-material-estudo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      let data = {};
+      try { data = await resp.json(); } catch (e) { data = {}; }
+      if (!resp.ok || !data.material) {
+        alert(data.erro || (resp.status === 413 ? "O material e grande demais para enviar de uma vez. Marque menos PDFs." : (resp.status === 504 ? "A IA demorou demais. Tente com menos paginas ou menos PDFs." : "Erro ao gerar o material de estudo.")));
+        return;
+      }
+      setForm(prev => ({ ...prev, materialEstudo: data.material, materialEstudoErro: false }));
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao gerar o material de estudo.");
+    } finally {
+      setGerandoMaterial(false);
+    }
+  };
+
+  const removerMaterialEstudo = () => {
+    if (!window.confirm("Remover o material de estudo desta aula? (Os alunos deixam de ver depois que voce salvar a aula.)")) return;
+    setForm(prev => ({ ...prev, materialEstudo: null, materialEstudoErro: false }));
+  };
+
   // ─── SUGESTAO DE VIDEOS DO YOUTUBE (EM PORTUGUES, COM AJUDA DA IA) ───
   const buscarVideosYoutube = async (termoManual) => {
     const t = String(termoManual ?? buscaVideo).trim();
@@ -579,6 +681,12 @@ export default function Admin() {
   const salvarAula = async (e) => {
     e.preventDefault();
     if (salvando) return;
+    if (carregandoMaterial || gerandoMaterial) {
+      alert("Aguarde o material de estudo terminar de carregar.");
+      return;
+    }
+    const pendentesMaterial = pendenciasMaterial(form.materialEstudo);
+    if (pendentesMaterial > 0 && !window.confirm(`O material de estudo ainda tem ${pendentesMaterial} trecho(s) em amarelo sem conferir. Publicar mesmo assim?`)) return;
     setSalvando(true);
     
     let pdfsFinais = [...form.pdfs];
@@ -607,8 +715,28 @@ export default function Admin() {
 
     const videosFinais = form.videos.filter(v => v.videoId.trim() !== "");
 
+    const idAula = form.id || gerarId();
+
+    if (form.materialEstudo && !form.materialEstudoErro) {
+      try {
+        setStatusEnvio("Gravando material de estudo...");
+        await setDoc(doc(db, "chronos", `material_${idAula}`), {
+          ...form.materialEstudo,
+          aulaId: idAula,
+          atualizadoEm: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error("Erro ao gravar material de estudo", error);
+        alert("Erro ao gravar o material de estudo. A aula nao foi salva; tente de novo.");
+        setSalvando(false);
+        setStatusEnvio("");
+        return;
+      }
+      setStatusEnvio("Gravando dados da aula...");
+    }
+
     const novaAula = {
-      id: form.id || gerarId(), 
+      id: idAula, 
       numeroAula: form.numeroAula, 
       titulo: form.titulo, 
       semana: form.semana, 
@@ -616,7 +744,8 @@ export default function Admin() {
       utilidade: form.utilidade, 
       videos: videosFinais.length > 0 ? videosFinais : null, 
       pdfs: pdfsFinais.length > 0 ? pdfsFinais : null, 
-      materialTexto: form.materialTexto || null
+      materialTexto: form.materialTexto || null,
+      temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo
     };
 
     const nextDb = JSON.parse(JSON.stringify(bancoDados));
@@ -1505,6 +1634,40 @@ export default function Admin() {
                 <div className="md:col-span-2">
                   <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase mb-3 flex items-center gap-2"><AlignLeft className="w-4 h-4"/> Resumo em Texto (Opcional)</h3>
                   <textarea rows={5} disabled={salvando} value={form.materialTexto} onChange={e => setForm({...form, materialTexto: e.target.value})} placeholder="Digite as anotações..." className={`${inputBaseClass} resize-y disabled:opacity-60 disabled:cursor-not-allowed`} />
+                </div>
+
+                <div className="md:col-span-2 space-y-3">
+                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><BookOpen className="w-4 h-4"/> Material de Estudo com IA (Opcional)</h3>
+                  <div className="space-y-2 p-4 rounded-2xl border border-dashed border-stone-300 dark:border-slate-700">
+                    <p className="text-xs text-stone-500 dark:text-slate-400">A IA lê os PDFs marcados acima (e/ou o texto colado aqui) e monta um material de estudo em linguagem simples, com palavras-chave. Ela só usa o que está no material; o que ela acrescentar aparece em amarelo para você conferir antes de publicar. Para PowerPoint, salve como PDF antes.</p>
+                    <input disabled={salvando || gerandoMaterial} value={prioridadesIA} onChange={e => setPrioridadesIA(e.target.value)} placeholder="Tópicos prioritários desta aula (opcional). Ex.: causas da Revolução Industrial; máquina a vapor" className={inputBaseClass} />
+                    <textarea rows={3} disabled={salvando || gerandoMaterial} value={textoColadoIA} onChange={e => setTextoColadoIA(e.target.value)} placeholder="Ou cole aqui o texto do material (opcional)..." className={`${inputBaseClass} resize-y`} />
+                    <button
+                      type="button"
+                      onClick={gerarMaterialEstudo}
+                      disabled={gerandoMaterial || salvando || carregandoMaterial || (qtdAnexosIA === 0 && !textoColadoIA.trim())}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      {gerandoMaterial
+                        ? <><Loader2 className="w-4 h-4 animate-spin"/> Gerando material (pode levar até 1 minuto)...</>
+                        : <><Sparkles className="w-4 h-4"/> {form.materialEstudo ? "Gerar o material de novo" : "Gerar material de estudo"}</>}
+                    </button>
+                  </div>
+                  {carregandoMaterial && (
+                    <p className="flex items-center gap-2 text-xs font-bold text-stone-500 dark:text-slate-400"><Loader2 className="w-4 h-4 animate-spin"/> Carregando o material de estudo desta aula...</p>
+                  )}
+                  {form.materialEstudoErro && (
+                    <p className="text-xs font-bold text-red-600 dark:text-red-400">Não foi possível carregar o material de estudo desta aula agora. Ele continua salvo e publicado; feche e abra a aula de novo para editar.</p>
+                  )}
+                  {form.materialEstudo && (
+                    <RevisaoMaterial
+                      material={form.materialEstudo}
+                      onChange={m => setForm(prev => ({ ...prev, materialEstudo: m }))}
+                      onRemover={removerMaterialEstudo}
+                      disabled={salvando || gerandoMaterial}
+                      inputClass={inputBaseClass}
+                    />
+                  )}
                 </div>
               </div>
 

@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { 
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
-  AlertTriangle, CheckCircle2, Video, FileText, AlignLeft, Target, 
+  AlertTriangle, Video, FileText, AlignLeft, Target,
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
   ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2
 } from "lucide-react";
@@ -13,6 +13,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 import RevisaoMaterial from "../components/RevisaoMaterial";
+import { Toast } from "../components/Notificacao";
 import { pendenciasMaterial, escolherVisual, visuaisRecentes, visualDoMaterial } from "../utils/temasMaterial";
 import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
 
@@ -39,16 +40,6 @@ function formatarAtualizacao(iso) {
   if (diffD === 1) return "há 1 dia";
   if (diffD < 30) return `há ${diffD} dias`;
   return new Date(iso).toLocaleDateString("pt-BR");
-}
-
-function Toast({ mensagem, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
-  return (
-    <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl border shadow-lg bg-emerald-50 dark:bg-emerald-950/90 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 animate-slide-up max-w-[90vw] sm:max-w-md">
-      <CheckCircle2 className="w-4 h-4 shrink-0" />
-      <span className="text-xs sm:text-sm font-semibold break-words">{mensagem}</span>
-    </div>
-  );
 }
 
 function ModalConfirmar({ onConfirmar, onCancelar }) {

@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, Trash2, Plus, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Save, Upload, Trash2, Plus, AlertTriangle, ExternalLink } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { Toast } from '../components/Notificacao';
 
 // Tela para cadastrar os primeiros nomes que aparecem deslizando na pagina inicial.
 // Grava em chronos/nomes_alunos:
@@ -40,18 +41,6 @@ function limpar(texto) {
   return lista;
 }
 
-function Toast({ mensagem, erro, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, erro ? 6000 : 3000); return () => clearTimeout(t); }, [onClose, erro]);
-  const cor = erro
-    ? 'bg-red-50 dark:bg-red-950/90 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-    : 'bg-emerald-50 dark:bg-emerald-950/90 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300';
-  return (
-    <div className={`fixed top-4 right-4 sm:top-6 sm:right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl border shadow-lg animate-slide-up max-w-[90vw] sm:max-w-md ${cor}`}>
-      {erro ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
-      <span className="text-xs sm:text-sm font-semibold break-words">{mensagem}</span>
-    </div>
-  );
-}
 
 export default function AdminNomes() {
   const navigate = useNavigate();

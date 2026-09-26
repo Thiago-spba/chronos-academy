@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Wrench, Plus, Edit3, Trash2, X, Save, ArrowLeft,
-  AlertTriangle, CheckCircle2, ArrowUp, ArrowDown, Eye, EyeOff, ExternalLink,
+  AlertTriangle, ArrowUp, ArrowDown, Eye, EyeOff, ExternalLink,
   FastForward, History, ChevronDown
 } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ANO_LEGADO, idModulo, tituloModulo, ordenarModulos, moduloEmAndamento, lerModulo } from '../utils/bimestres';
+import { Toast } from '../components/Notificacao';
 
 function gerarId() { return 'ferr_' + Date.now().toString(36); }
 
@@ -25,16 +26,6 @@ function lerModulos(data) {
 // Proximo bimestre na sequencia: 1 -> 2 -> 3 -> 4 -> 1 do ano seguinte.
 function proximoBimestre(ano, bim) {
   return bim >= 4 ? { ano: ano + 1, bim: 1 } : { ano, bim: bim + 1 };
-}
-
-function Toast({ mensagem, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
-  return (
-    <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl border shadow-lg bg-emerald-50 dark:bg-emerald-950/90 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 animate-slide-up max-w-[90vw] sm:max-w-md">
-      <CheckCircle2 className="w-4 h-4 shrink-0" />
-      <span className="text-xs sm:text-sm font-semibold break-words">{mensagem}</span>
-    </div>
-  );
 }
 
 function ModalConfirmar({ onConfirmar, onCancelar, titulo, mensagem, textoBotao, corBotao }) {

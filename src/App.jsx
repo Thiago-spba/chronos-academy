@@ -8,6 +8,7 @@ import Admin from './pages/Admin';
 import Pratica from './pages/Pratica';
 import AdminFerramentas from './pages/AdminFerramentas';
 import AdminNomes from './pages/AdminNomes';
+import AvisoConexao from './components/AvisoConexao';
 
 /* =========================================================================
    COMPONENTE: Rodapé Global Interativo (Currículo do Professor)
@@ -135,6 +136,8 @@ export default function App() {
       </main>
 
       {!isAdminRoute && <GlobalFooter />}
+
+      <AvisoConexao admin={isAdminRoute} />
     </div>
   );
 }

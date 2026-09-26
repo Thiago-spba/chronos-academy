@@ -14,6 +14,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 import RevisaoMaterial from "../components/RevisaoMaterial";
 import { pendenciasMaterial } from "../utils/temasMaterial";
+import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
 
 const turmasIniciais = {
   "2h": { nome: "2ª Séries H e L", disciplina: "História", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
@@ -87,7 +88,8 @@ export default function Admin() {
   const [autenticado, setAutenticado] = useState(false);
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
-  const [gerandoIA, setGerandoIA] = useState(false);
+  const [modoIA, setModoIA] = useState("seduc"); // "seduc" = material bruto da Seduc | "meu" = material que o professor preparou
+  const [avisosIA, setAvisosIA] = useState([]);
   const [gerandoMaterial, setGerandoMaterial] = useState(false);
   const [carregandoMaterial, setCarregandoMaterial] = useState(false);
   const [prioridadesIA, setPrioridadesIA] = useState("");
@@ -391,12 +393,13 @@ export default function Admin() {
     });
 
     setForm({ 
-      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: "", introducao: "", utilidade: "", materialTexto: "", 
+      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "", 
       videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null
     });
     setArquivosPdf([]);
     setPrioridadesIA("");
     setTextoColadoIA("");
+    setAvisosIA([]);
     setStatusEnvio("");
     setFormAberto(true);
   };
@@ -414,6 +417,7 @@ export default function Admin() {
     setArquivosPdf([]);
     setPrioridadesIA("");
     setTextoColadoIA("");
+    setAvisosIA([]);
     setStatusEnvio("");
     setFormAberto(true);
     if (aula.temMaterialEstudo) carregarMaterialEstudo(aula.id);
@@ -474,95 +478,41 @@ export default function Admin() {
   const qtdAnexosIA = anexosIA.novos.length + anexosIA.salvos.length;
   const totalAnexos = form.pdfs.length + arquivosPdf.length;
 
-  const gerarComIA = async () => {
-    setGerandoIA(true);
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-      const payload = { idToken, tituloAula: form.titulo };
-      const { novos, salvos } = anexosDaIA();
-      const total = novos.length + salvos.length;
-      const LIMITE_BASE64 = 3 * 1024 * 1024; // acima disso, PDFs novos sobem antes para o Storage
-
-      if (total === 0) {
-        alert(totalAnexos === 0 ? "Anexe um PDF antes de gerar com IA." : "Marque pelo menos um PDF para a IA ler.");
-        return;
-      }
-      if (total > 5) {
-        alert("Marque no maximo 5 PDFs por vez.");
-        return;
-      }
-
-      if (total === 1 && novos.length === 1 && novos[0].size <= LIMITE_BASE64) {
-        payload.pdfBase64 = await arquivoParaBase64(novos[0]);
-      } else if (total === 1 && salvos.length === 1) {
-        payload.pdfUrl = salvos[0].url;
-      } else {
-        const pdfs = salvos.map(p => ({ url: p.url, nome: p.titulo }));
-        const somaNovos = novos.reduce((s, f) => s + f.size, 0);
-        if (somaNovos <= LIMITE_BASE64) {
-          for (const f of novos) {
-            pdfs.push({ base64: await arquivoParaBase64(f), nome: f.name });
-          }
-        } else {
-          // arquivos novos grandes: sobem agora (viram anexos salvos) e a IA le pelo endereco
-          const enviados = [];
-          for (let i = 0; i < novos.length; i++) {
-            const fileRef = ref(storage, `chronos_pdfs/${Date.now()}_${novos[i].name}`);
-            await uploadBytes(fileRef, novos[i]);
-            const url = await getDownloadURL(fileRef);
-            enviados.push({ titulo: novos[i].name, url, tamanho: (novos[i].size / (1024 * 1024)).toFixed(2) + " MB" });
-          }
-          setForm(prev => ({ ...prev, pdfs: [...prev.pdfs, ...enviados] }));
-          setArquivosPdf(prev => prev.filter(f => !novos.includes(f)));
-          enviados.forEach(p => pdfs.push({ url: p.url, nome: p.titulo }));
-        }
-        payload.pdfs = pdfs;
-      }
-
-      const resp = await fetch("/api/gerar-conteudo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      let data = {};
-      try { data = await resp.json(); } catch (e) { data = {}; }
-      if (!resp.ok) {
-        alert(data.erro || (resp.status === 413 ? "Os PDFs sao grandes demais para enviar de uma vez. Marque menos arquivos." : "Erro ao gerar conteudo com IA."));
-        return;
-      }
-      setForm(prev => ({ ...prev, introducao: data.introducao, utilidade: data.utilidade, materialTexto: data.materialTexto }));
-    } catch (e) {
-      console.error(e);
-      alert("Erro ao gerar conteudo com IA.");
-    } finally {
-      setGerandoIA(false);
-    }
-  };
-
-  // ─── MATERIAL DE ESTUDO (a IA le o material da Seduc; o professor revisa antes de publicar) ───
-  const gerarMaterialEstudo = async () => {
+  // ─── PREENCHER AULA COM IA ───
+  // modo "seduc": preenche os campos e cria o material de estudo (a IA le o material bruto da Seduc)
+  // modo "meu":   so preenche os campos, a partir do material que o professor ja preparou
+  const preencherComIA = async () => {
     const { novos, salvos } = anexosDaIA();
     const total = novos.length + salvos.length;
     const texto = textoColadoIA.trim();
+    const completo = modoIA === "seduc";
     if (total === 0 && !texto) {
-      alert("Anexe um PDF ou cole o texto do material antes de gerar.");
+      alert("Anexe um PDF (ou cole o texto do material) antes de preencher com IA.");
       return;
     }
     if (total > 5) {
       alert("Marque no maximo 5 PDFs por vez.");
       return;
     }
-    if (form.materialEstudo && !window.confirm("Esta aula ja tem um material de estudo. Gerar de novo vai substituir o atual (e as suas edicoes). Continuar?")) return;
+    const camposCheios = ["numeroAula", "titulo", "introducao", "utilidade", "materialTexto"].some(k => String(form[k] || "").trim());
+    const substituir = camposCheios
+      ? window.confirm("Alguns campos ja estao preenchidos.\n\nOK = substituir pelo que a IA gerar\nCancelar = a IA preenche so os campos vazios")
+      : false;
+    if (completo && form.materialEstudo && !window.confirm("Esta aula ja tem um material de estudo. Gerar de novo vai substituir o atual (e as suas edicoes). Continuar?")) return;
 
     setGerandoMaterial(true);
+    setAvisosIA([]);
     try {
       const idToken = await auth.currentUser.getIdToken();
+      const turma = bancoDados?.[form.turmaId];
       const payload = {
         idToken,
+        modo: completo ? "completo" : "campos",
         tituloAula: form.titulo,
-        disciplina: bancoDados?.[form.turmaId]?.disciplina || "",
-        prioridades: prioridadesIA.trim(),
+        disciplina: turma?.disciplina || "",
+        exemplos: exemplosDaTurma(turma),
       };
+      if (completo && prioridadesIA.trim()) payload.prioridades = prioridadesIA.trim();
       if (texto) payload.textoColado = texto;
 
       if (total > 0) {
@@ -595,15 +545,33 @@ export default function Admin() {
         body: JSON.stringify(payload),
       });
       let data = {};
-      try { data = await resp.json(); } catch (e) { data = {}; }
-      if (!resp.ok || !data.material) {
-        alert(data.erro || (resp.status === 413 ? "O material e grande demais para enviar de uma vez. Marque menos PDFs." : (resp.status === 504 ? "A IA demorou demais. Tente com menos paginas ou menos PDFs." : "Erro ao gerar o material de estudo.")));
+      try { data = await resp.json(); } catch { data = {}; }
+      if (!resp.ok || !data.campos || (completo && !data.material)) {
+        alert(data.erro || (resp.status === 413 ? "O material e grande demais para enviar de uma vez. Marque menos PDFs." : (resp.status === 504 ? "A IA demorou demais. Tente com menos paginas ou menos PDFs." : "Erro ao preencher com IA.")));
         return;
       }
-      setForm(prev => ({ ...prev, materialEstudo: data.material, materialEstudoErro: false }));
+
+      const c = data.campos;
+      const numero = c.numero || proximoNumeroAula(turma?.modulos, form.moduloId);
+      const numeroAulaIA = c.nomeAula ? `Aula ${numero} - ${c.nomeAula}` : `Aula ${numero}`;
+      setForm(prev => {
+        const usar = (campo, valor) => (valor && (substituir || !String(prev[campo] || "").trim()) ? valor : prev[campo]);
+        return {
+          ...prev,
+          numeroAula: usar("numeroAula", numeroAulaIA),
+          titulo: usar("titulo", c.titulo),
+          introducao: usar("introducao", c.introducao),
+          utilidade: usar("utilidade", c.utilidade),
+          materialTexto: usar("materialTexto", c.resumo),
+          semana: String(prev.semana || "").trim() ? prev.semana : semanaDeReferencia(),
+          ...(completo ? { materialEstudo: data.material, materialEstudoErro: false } : {}),
+        };
+      });
+      if (!completo) setAvisosIA(data.avisos || []);
+      setToast({ mensagem: completo ? "Campos e material de estudo preenchidos pela IA. Revise antes de publicar." : "Campos preenchidos pela IA. Revise antes de publicar." });
     } catch (e) {
       console.error(e);
-      alert("Erro ao gerar o material de estudo.");
+      alert("Erro ao preencher com IA.");
     } finally {
       setGerandoMaterial(false);
     }
@@ -1620,14 +1588,43 @@ export default function Admin() {
                     {totalAnexos > 1 && (
                       <p className="text-[10px] text-stone-400 dark:text-slate-500 font-bold">Marque os PDFs que a IA deve ler (até 5).</p>
                     )}
-                    <button 
-                      type="button" 
-                      onClick={gerarComIA} 
-                      disabled={gerandoIA || salvando || qtdAnexosIA === 0} 
-                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                    >
-                      <Sparkles className="w-4 h-4"/> {gerandoIA ? "Gerando com IA..." : (qtdAnexosIA > 1 ? `Gerar com IA (a partir de ${qtdAnexosIA} PDFs)` : "Gerar com IA (a partir do PDF)")}
-                    </button>
+                    <div className="mt-3 space-y-2 p-3 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/20">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400">Preencher aula com IA</p>
+                      <p className="text-[11px] font-bold text-stone-500 dark:text-slate-400">O que você anexou?</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {[
+                          { valor: "seduc", titulo: "Material da Seduc", desc: "preenche os campos e cria o material de estudo simplificado" },
+                          { valor: "meu", titulo: "Material que eu preparei", desc: "só preenche os campos a partir do seu material" },
+                        ].map(op => (
+                          <label key={op.valor} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer text-xs ${modoIA === op.valor ? "border-indigo-400 bg-white dark:bg-slate-900" : "border-stone-200 dark:border-slate-800"}`}>
+                            <input type="radio" name="modoIA" value={op.valor} checked={modoIA === op.valor} disabled={gerandoMaterial || salvando} onChange={() => setModoIA(op.valor)} className="accent-indigo-600 mt-0.5" />
+                            <span><strong className="text-stone-800 dark:text-slate-100">{op.titulo}</strong><span className="block text-stone-500 dark:text-slate-400">{op.desc}</span></span>
+                          </label>
+                        ))}
+                      </div>
+                      {modoIA === "seduc" && (
+                        <input disabled={salvando || gerandoMaterial} value={prioridadesIA} onChange={e => setPrioridadesIA(e.target.value)} placeholder="Tópicos prioritários (opcional). Ex.: causas; consequências" className={inputBaseClass} />
+                      )}
+                      <textarea rows={2} disabled={salvando || gerandoMaterial} value={textoColadoIA} onChange={e => setTextoColadoIA(e.target.value)} placeholder="Sem PDF? Cole aqui o texto do material (opcional)" className={`${inputBaseClass} resize-y`} />
+                      <button
+                        type="button"
+                        onClick={preencherComIA}
+                        disabled={gerandoMaterial || salvando || carregandoMaterial || (qtdAnexosIA === 0 && !textoColadoIA.trim())}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        {gerandoMaterial
+                          ? <><Loader2 className="w-4 h-4 animate-spin"/> Preenchendo (pode levar até 1 minuto)...</>
+                          : <><Sparkles className="w-4 h-4"/> Preencher aula com IA</>}
+                      </button>
+                      {avisosIA.length > 0 && (
+                        <div className="p-2 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
+                          <p className="text-[11px] font-black text-amber-800 dark:text-amber-400">A IA pediu para você conferir:</p>
+                          <ul className="list-disc pl-4 text-[11px] text-stone-700 dark:text-slate-300">
+                            {avisosIA.map((a, i) => <li key={i}>{a}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1638,21 +1635,9 @@ export default function Admin() {
 
                 <div className="md:col-span-2 space-y-3">
                   <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><BookOpen className="w-4 h-4"/> Material de Estudo com IA (Opcional)</h3>
-                  <div className="space-y-2 p-4 rounded-2xl border border-dashed border-stone-300 dark:border-slate-700">
-                    <p className="text-xs text-stone-500 dark:text-slate-400">A IA lê os PDFs marcados acima (e/ou o texto colado aqui) e monta um material de estudo em linguagem simples, com palavras-chave. Ela só usa o que está no material; o que ela acrescentar aparece em amarelo para você conferir antes de publicar. Para PowerPoint, salve como PDF antes.</p>
-                    <input disabled={salvando || gerandoMaterial} value={prioridadesIA} onChange={e => setPrioridadesIA(e.target.value)} placeholder="Tópicos prioritários desta aula (opcional). Ex.: causas da Revolução Industrial; máquina a vapor" className={inputBaseClass} />
-                    <textarea rows={3} disabled={salvando || gerandoMaterial} value={textoColadoIA} onChange={e => setTextoColadoIA(e.target.value)} placeholder="Ou cole aqui o texto do material (opcional)..." className={`${inputBaseClass} resize-y`} />
-                    <button
-                      type="button"
-                      onClick={gerarMaterialEstudo}
-                      disabled={gerandoMaterial || salvando || carregandoMaterial || (qtdAnexosIA === 0 && !textoColadoIA.trim())}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                    >
-                      {gerandoMaterial
-                        ? <><Loader2 className="w-4 h-4 animate-spin"/> Gerando material (pode levar até 1 minuto)...</>
-                        : <><Sparkles className="w-4 h-4"/> {form.materialEstudo ? "Gerar o material de novo" : "Gerar material de estudo"}</>}
-                    </button>
-                  </div>
+                  {!form.materialEstudo && !carregandoMaterial && !form.materialEstudoErro && (
+                    <p className="text-xs text-stone-400 dark:text-slate-500">Anexe o PDF da Seduc em "Material PDF" e use <strong>Preencher aula com IA</strong> (opção "Material da Seduc"). O material aparece aqui para você revisar antes de publicar.</p>
+                  )}
                   {carregandoMaterial && (
                     <p className="flex items-center gap-2 text-xs font-bold text-stone-500 dark:text-slate-400"><Loader2 className="w-4 h-4 animate-spin"/> Carregando o material de estudo desta aula...</p>
                   )}

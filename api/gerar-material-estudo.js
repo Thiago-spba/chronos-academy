@@ -25,6 +25,10 @@ export const config = {
   },
 };
 
+// So o professor (e-mail abaixo) pode gastar a cota da IA. Mesma regra que ja
+// existe na tela de Admin, agora tambem conferida no servidor.
+const EMAIL_PROFESSOR = "thiago.rpba@gmail.com";
+
 async function verificarToken(idToken) {
   if (!idToken) return false;
   try {
@@ -38,7 +42,7 @@ async function verificarToken(idToken) {
     );
     if (!resp.ok) return false;
     const data = await resp.json();
-    return Array.isArray(data.users) && data.users.length > 0;
+    return Array.isArray(data.users) && data.users.some((u) => u.email === EMAIL_PROFESSOR);
   } catch {
     return false;
   }

@@ -13,7 +13,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 import RevisaoMaterial from "../components/RevisaoMaterial";
-import { pendenciasMaterial } from "../utils/temasMaterial";
+import { pendenciasMaterial, escolherVisual, visuaisRecentes, visualDoMaterial } from "../utils/temasMaterial";
 import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
 
 const turmasIniciais = {
@@ -412,7 +412,8 @@ export default function Admin() {
       id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "", 
       videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }], 
       pdfs: pdfsMigrados,
-      materialEstudo: null
+      materialEstudo: null,
+      visualMaterial: aula.visualMaterial || null
     });
     setArquivosPdf([]);
     setPrioridadesIA("");
@@ -552,6 +553,9 @@ export default function Admin() {
       }
 
       const c = data.campos;
+      const materialNovo = completo
+        ? { ...data.material, visual: escolherVisual({ sugestoes: data.material.icones, recentes: visuaisRecentes(turma, form.id) }) }
+        : null;
       const numero = c.numero || proximoNumeroAula(turma?.modulos, form.moduloId);
       const numeroAulaIA = c.nomeAula ? `Aula ${numero} - ${c.nomeAula}` : `Aula ${numero}`;
       setForm(prev => {
@@ -564,7 +568,7 @@ export default function Admin() {
           utilidade: usar("utilidade", c.utilidade),
           materialTexto: usar("materialTexto", c.resumo),
           semana: String(prev.semana || "").trim() ? prev.semana : semanaDeReferencia(),
-          ...(completo ? { materialEstudo: data.material, materialEstudoErro: false } : {}),
+          ...(completo ? { materialEstudo: materialNovo, materialEstudoErro: false } : {}),
         };
       });
       if (!completo) setAvisosIA(data.avisos || []);
@@ -575,6 +579,16 @@ export default function Admin() {
     } finally {
       setGerandoMaterial(false);
     }
+  };
+
+  const trocarVisualMaterial = () => {
+    setForm(prev => {
+      if (!prev.materialEstudo) return prev;
+      const atual = visualDoMaterial(prev.materialEstudo);
+      const recentes = [...visuaisRecentes(bancoDados?.[prev.turmaId], prev.id), { icone: atual.icone, cor: atual.cor.id, layout: atual.layout }];
+      const sugestoes = prev.materialEstudo.icones?.length ? prev.materialEstudo.icones : [atual.icone];
+      return { ...prev, materialEstudo: { ...prev.materialEstudo, visual: escolherVisual({ sugestoes, recentes }) } };
+    });
   };
 
   const removerMaterialEstudo = () => {
@@ -685,11 +699,20 @@ export default function Admin() {
 
     const idAula = form.id || gerarId();
 
+    let visualAula = null;
+    if (form.materialEstudo) {
+      const v = visualDoMaterial(form.materialEstudo);
+      visualAula = { icone: v.icone, cor: v.cor.id, layout: v.layout };
+    } else if (form.materialEstudoErro) {
+      visualAula = form.visualMaterial || null;
+    }
+
     if (form.materialEstudo && !form.materialEstudoErro) {
       try {
         setStatusEnvio("Gravando material de estudo...");
         await setDoc(doc(db, "chronos", `material_${idAula}`), {
           ...form.materialEstudo,
+          visual: visualAula,
           aulaId: idAula,
           atualizadoEm: new Date().toISOString(),
         });
@@ -713,7 +736,8 @@ export default function Admin() {
       videos: videosFinais.length > 0 ? videosFinais : null, 
       pdfs: pdfsFinais.length > 0 ? pdfsFinais : null, 
       materialTexto: form.materialTexto || null,
-      temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo
+      temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo,
+      visualMaterial: visualAula
     };
 
     const nextDb = JSON.parse(JSON.stringify(bancoDados));
@@ -1634,7 +1658,7 @@ export default function Admin() {
                 </div>
 
                 <div className="md:col-span-2 space-y-3">
-                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><BookOpen className="w-4 h-4"/> Material de Estudo com IA (Opcional)</h3>
+                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><BookOpen className="w-4 h-4"/> Material de Estudo</h3>
                   {!form.materialEstudo && !carregandoMaterial && !form.materialEstudoErro && (
                     <p className="text-xs text-stone-400 dark:text-slate-500">Anexe o PDF da Seduc em "Material PDF" e use <strong>Preencher aula com IA</strong> (opção "Material da Seduc"). O material aparece aqui para você revisar antes de publicar.</p>
                   )}
@@ -1649,6 +1673,8 @@ export default function Admin() {
                       material={form.materialEstudo}
                       onChange={m => setForm(prev => ({ ...prev, materialEstudo: m }))}
                       onRemover={removerMaterialEstudo}
+                      onTrocarVisual={trocarVisualMaterial}
+                      disciplina={bancoDados?.[form.turmaId]?.disciplina || ""}
                       disabled={salvando || gerandoMaterial}
                       inputClass={inputBaseClass}
                     />

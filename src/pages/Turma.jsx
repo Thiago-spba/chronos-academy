@@ -429,7 +429,7 @@ export default function Turma() {
                   <h5 className="flex items-center gap-2 text-sm font-bold text-stone-800 dark:text-slate-200 mb-6 uppercase"><BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-500" /> Material de Estudo</h5>
                   {materialEstudo.carregando
                     ? <p className="text-sm text-stone-400 dark:text-slate-500 font-bold">Carregando material de estudo...</p>
-                    : <MaterialEstudo material={materialEstudo.dados} />}
+                    : <MaterialEstudo material={materialEstudo.dados} disciplina={turma.disciplina} />}
                 </div>
               )}
 

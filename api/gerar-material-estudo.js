@@ -5,6 +5,8 @@
 // Regra principal: a IA so usa o que esta no material; o que vier de fora do material
 // volta marcado como "complemento" para o professor conferir antes de publicar.
 
+import { CATALOGO_ICONES, chaveIcone } from "../src/utils/catalogoIcones.js";
+
 const FIREBASE_API_KEY = "AIzaSyBg2AEb82yO5Sk2TPuITfdPRscoDr-P2P8";
 const MODEL = "claude-haiku-4-5-20251001";
 const MAX_PDF_BYTES = 8 * 1024 * 1024; // 8MB
@@ -12,10 +14,10 @@ const MAX_PDFS = 5;
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024; // 20MB somados
 const MAX_TEXTO = 200000; // caracteres de texto colado
 
-export const TEMAS = [
-  "historia", "matematica", "programacao", "tecnologia", "redes",
-  "seguranca", "carreira", "comunicacao", "ciencias", "geral",
-];
+// Lista de ilustracoes que a IA pode escolher (chave: dica).
+const LISTA_ICONES = Object.entries(CATALOGO_ICONES)
+  .map(([chave, info]) => `${chave} (${info.dica})`)
+  .join("; ");
 
 export const config = {
   api: {
@@ -72,8 +74,10 @@ async function coletarPdfs({ pdfs, pdfBase64, pdfUrl }) {
   if (itens.length > MAX_PDFS) return { erro: `Envie no maximo ${MAX_PDFS} PDFs por vez.` };
 
   const documentos = [];
+  const nomes = [];
   let totalBytes = 0;
   for (const item of itens) {
+    nomes.push(typeof item?.nome === "string" ? item.nome.slice(0, 120) : "");
     let b64 = typeof item?.base64 === "string" ? item.base64 : null;
     if (!b64 && typeof item?.url === "string") {
       if (!hostPermitido(item.url)) return { erro: "Endereco de PDF nao permitido." };
@@ -94,7 +98,7 @@ async function coletarPdfs({ pdfs, pdfBase64, pdfUrl }) {
     if (totalBytes > MAX_TOTAL_BYTES) return { erro: "Os PDFs juntos passam de 20MB. Marque menos arquivos." };
     documentos.push(b64);
   }
-  return { documentos };
+  return { documentos, nomes };
 }
 
 const texto = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -157,10 +161,20 @@ ${FORMATO_CAMPOS},
 }`;
   }
 
+  const partes = Math.max(1, qtdPdfs + (temTexto ? 1 : 0));
+  const { minSecoes, maxSecoes } = limitesSecoes(partes);
+  const regraPartes = partes > 1
+    ? `4. Voce recebeu ${partes} materiais diferentes (cada um vem antes marcado como "MATERIAL 1", "MATERIAL 2"...). TODOS tem o MESMO peso: cada material deve ganhar mais ou menos o mesmo numero de secoes, e os conceitos principais de CADA um devem aparecer. Nao deixe um material "engolir" o outro. Em cada secao, informe em "parte" o numero do material de onde ela veio. Siga a ordem dos materiais.`
+    : `4. Se o material for extenso, condense: fique so com o essencial para a aula. Em cada secao use "parte": 1.`;
+
   return `${cabecalho}
-4. Se o material for extenso, condense: fique so com o essencial para a aula, no maximo 8 secoes. ${prioridades ? `De destaque a estes topicos priorizados pelo professor: ${prioridades}` : "Mantenha o foco no tema central da aula."}
+${regraPartes} ${prioridades ? `De destaque a estes topicos priorizados pelo professor: ${prioridades}` : "Mantenha o foco no tema central da aula."}
 5. No material de estudo, se voce precisar acrescentar algo que NAO esta no material (uma definicao que o material nao traz, um exemplo do dia a dia, uma frase de ligacao com conteudo novo), marque aquele item com "complemento": true. Tudo que vem do material fica com "complemento": false.
 6. Uma definicao complementar deve ser a definicao padrao de livro didatico, curta e sem opinioes.
+7. CONTEXTO: escreva de 2 a 4 frases curtas que situam o aluno antes do conteudo. Use a situacao-problema, o "ponto de partida" ou a "contextualizacao" do proprio material (reescrita de forma simples). So se o material nao tiver nada disso, escreva uma ligacao simples com o dia a dia e marque "contextoComplemento": true.
+8. PALAVRAS-CHAVE: TODA palavra tecnica ou dificil (que um aluno do ensino medio pode nao conhecer) que aparecer no contexto ou nas secoes TEM que estar em "termos", escrita EXATAMENTE como aparece no texto (mesma grafia). Nao inclua termos que nao aparecem no texto. Explique cada termo com palavras simples, sem usar outro termo dificil.
+9. ILUSTRACAO: em "icones", escolha de 1 a 3 chaves da lista abaixo, da mais ligada a menos ligada ao assunto ESPECIFICO desta aula (nao a materia em geral). Use SOMENTE chaves da lista.
+Lista: ${LISTA_ICONES}
 
 O material e o original da Seduc. Sua tarefa: preencher os campos da aula E montar o material de estudo.
 
@@ -171,18 +185,26 @@ ${FORMATO_CAMPOS},
   "material": {
     "titulo": "titulo curto e claro do material",
     "resumo": "1 ou 2 frases dizendo do que trata a aula",
-    "tema": "um destes valores: ${TEMAS.join(", ")}",
+    "contexto": "2 a 4 frases curtas que situam o aluno (regra 7)",
+    "contextoComplemento": false,
+    "icones": ["chave1", "chave2", "chave3"],
     "secoes": [
-      { "titulo": "titulo da secao", "texto": "de 2 a 5 frases curtas e claras", "complemento": false }
+      { "titulo": "titulo da secao", "texto": "de 2 a 5 frases curtas e claras", "parte": 1, "complemento": false }
     ],
     "termos": [
-      { "termo": "palavra ou expressao importante", "definicao": "1 ou 2 frases simples", "complemento": false }
+      { "termo": "palavra exatamente como aparece no texto", "definicao": "1 ou 2 frases simples", "complemento": false }
     ]
   },
   "avisos": ["pontos que o professor precisa conferir (pode ser lista vazia)"]
 }
 
-Limites do material: de 3 a 8 secoes; de 3 a 10 termos.`;
+Limites do material: de ${minSecoes} a ${maxSecoes} secoes; de 3 a 15 termos.`;
+}
+
+// Mais materiais anexados = mais secoes (para caber todos com o mesmo peso).
+function limitesSecoes(partes) {
+  if (partes <= 1) return { minSecoes: 3, maxSecoes: 8 };
+  return { minSecoes: Math.min(3 * partes, 10), maxSecoes: Math.min(5 * partes, 12) };
 }
 
 function normalizarCampos(bruto) {
@@ -198,20 +220,37 @@ function normalizarCampos(bruto) {
 }
 
 // Garante o formato esperado, mesmo que a IA erre algum campo.
-function normalizarMaterial(bruto, avisos) {
+function normalizarMaterial(bruto, avisos, partes) {
   const secoes = (Array.isArray(bruto?.secoes) ? bruto.secoes : [])
-    .map((s) => ({ titulo: texto(s?.titulo, 200), texto: texto(s?.texto, 3000), complemento: s?.complemento === true }))
+    .map((s) => {
+      const p = Number.parseInt(s?.parte, 10);
+      return {
+        titulo: texto(s?.titulo, 200),
+        texto: texto(s?.texto, 3000),
+        parte: Number.isFinite(p) && p >= 1 && p <= partes ? p : 1,
+        complemento: s?.complemento === true,
+      };
+    })
     .filter((s) => s.titulo || s.texto)
-    .slice(0, 10);
+    .slice(0, 12);
+  const vistos = new Set();
   const termos = (Array.isArray(bruto?.termos) ? bruto.termos : [])
     .map((t) => ({ termo: texto(t?.termo, 150), definicao: texto(t?.definicao, 1000), complemento: t?.complemento === true }))
-    .filter((t) => t.termo && t.definicao)
+    .filter((t) => {
+      const k = t.termo.toLowerCase();
+      if (!t.termo || !t.definicao || vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    })
     .slice(0, 15);
-  const tema = TEMAS.includes(bruto?.tema) ? bruto.tema : "geral";
+  const icones = [...new Set((Array.isArray(bruto?.icones) ? bruto.icones : []).map(chaveIcone).filter(Boolean))].slice(0, 3);
+  const contexto = texto(bruto?.contexto, 1200);
   return {
     titulo: texto(bruto?.titulo, 200),
     resumo: texto(bruto?.resumo, 800),
-    tema,
+    contexto,
+    contextoComplemento: !!contexto && bruto?.contextoComplemento === true,
+    icones: icones.length ? icones : ["geral"],
     secoes,
     termos,
     avisos,
@@ -238,7 +277,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ erro: "Nao autorizado." });
   }
 
-  const { documentos, erro } = await coletarPdfs({ pdfs, pdfBase64, pdfUrl });
+  const { documentos, nomes, erro } = await coletarPdfs({ pdfs, pdfBase64, pdfUrl });
   if (erro) return res.status(400).json({ erro });
 
   const textoMaterial = texto(textoColado, MAX_TEXTO);
@@ -256,11 +295,19 @@ export default async function handler(req, res) {
     exemplos,
   });
 
-  const conteudo = documentos.map((data) => ({
-    type: "document",
-    source: { type: "base64", media_type: "application/pdf", data },
-  }));
-  if (textoMaterial) conteudo.push({ type: "text", text: `<material>\n${textoMaterial}\n</material>` });
+  // Cada material vem marcado com o numero, para a IA dar o mesmo peso a todos.
+  const partes = Math.max(1, documentos.length + (textoMaterial ? 1 : 0));
+  const conteudo = [];
+  documentos.forEach((data, i) => {
+    if (partes > 1) conteudo.push({ type: "text", text: `MATERIAL ${i + 1} de ${partes}${nomes[i] ? ` (arquivo: ${nomes[i]})` : ""}:` });
+    conteudo.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
+  });
+  if (textoMaterial) {
+    conteudo.push({
+      type: "text",
+      text: `${partes > 1 ? `MATERIAL ${partes} de ${partes} (texto colado):\n` : ""}<material>\n${textoMaterial}\n</material>`,
+    });
+  }
   conteudo.push({ type: "text", text: prompt });
 
   try {
@@ -308,7 +355,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ campos, avisos });
     }
 
-    const material = normalizarMaterial(bruto?.material, avisos);
+    const material = normalizarMaterial(bruto?.material, avisos, partes);
     if (material.secoes.length === 0) {
       return res.status(502).json({ erro: "A IA nao conseguiu montar o material de estudo. Tente de novo." });
     }

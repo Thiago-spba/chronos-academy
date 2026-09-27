@@ -476,6 +476,18 @@ export default function Admin() {
   const qtdAnexosIA = anexosIA.novos.length + anexosIA.salvos.length;
   const totalAnexos = form.pdfs.length + arquivosPdf.length;
 
+  // Semanas ja usadas em aulas do mesmo bimestre/turma, da mais recente pra mais antiga (sugestao pra "escolher" em vez de digitar toda vez).
+  const semanasSugeridas = useMemo(() => {
+    const modulo = bancoDados[form.turmaId]?.modulos?.find(m => m.id === form.moduloId);
+    const vistas = new Set();
+    const lista = [];
+    (modulo?.aulas || []).forEach(a => {
+      const s = String(a.semana || "").trim();
+      if (s && !vistas.has(s)) { vistas.add(s); lista.push(s); }
+    });
+    return lista.reverse();
+  }, [bancoDados, form.turmaId, form.moduloId]);
+
   // ─── PREENCHER AULA COM IA ───
   // modo "seduc": preenche os campos e cria o material de estudo (a IA le o material bruto da Seduc)
   // modo "meu":   so preenche os campos, a partir do material que o professor ja preparou
@@ -1500,7 +1512,12 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Semana de Referência</label>
-                    <input required disabled={salvando} value={form.semana} onChange={e => setForm({...form, semana: e.target.value})} placeholder="Ex: 1ª Semana de Agosto de 2026" className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`} />
+                    <input required disabled={salvando} list="semanas-sugeridas" value={form.semana} onChange={e => setForm({...form, semana: e.target.value})} placeholder="Ex: 1ª Semana de Agosto de 2026" className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`} />
+                    {semanasSugeridas.length > 0 && (
+                      <datalist id="semanas-sugeridas">
+                        {semanasSugeridas.map(s => <option key={s} value={s} />)}
+                      </datalist>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-stone-600 dark:text-slate-300 mb-1">Assunto / Título da Aula</label>

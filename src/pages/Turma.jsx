@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Play, Calendar, Download, FileText, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History, BookOpen } from 'lucide-react';
+import { Play, Calendar, Download, FileText, FileCheck2, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History, BookOpen } from 'lucide-react';
 import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
@@ -200,7 +200,7 @@ export default function Turma() {
   if (!turma) return <div className="text-center py-20 text-stone-400 font-bold">Turma não encontrada.</div>;
 
   const temVideo = aulaAtiva ? (aulaAtiva.video || (aulaAtiva.videos && aulaAtiva.videos.length > 0)) : false;
-  const temMaterial = aulaAtiva ? (aulaAtiva.pdf || (aulaAtiva.pdfs && aulaAtiva.pdfs.length > 0) || aulaAtiva.materialTexto) : false;
+  const temMaterial = aulaAtiva ? (aulaAtiva.pdf || (aulaAtiva.pdfs && aulaAtiva.pdfs.length > 0) || aulaAtiva.materialTexto || aulaAtiva.materialProntoPdf) : false;
 
   const modulosOrd = ordenarModulos(turma.modulos);
   const anoAtual = anoAtualDaTurma(turma.modulos);
@@ -450,24 +450,43 @@ export default function Turma() {
               {temMaterial && (
                 <div className="flex flex-col gap-3 border-t border-stone-100 dark:border-slate-800 pt-8">
                   <h5 className="text-sm font-bold text-stone-800 dark:text-slate-200 mb-4 uppercase">Material de Apoio</h5>
-                  
+
+                  {aulaAtiva.materialProntoPdf && (
+                    <a href={aulaAtiva.materialProntoPdf.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/50 hover:border-emerald-400 dark:hover:border-emerald-500/50 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileCheck2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Material simplificado (Prof. Thiago)</p>
+                          <p className="text-sm font-bold text-stone-800 dark:text-slate-200 truncate">{aulaAtiva.materialProntoPdf.titulo}</p>
+                        </div>
+                      </div>
+                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500 shrink-0" />
+                    </a>
+                  )}
+
                   {aulaAtiva.pdf && !aulaAtiva.pdfs && (
                     <a href={aulaAtiva.pdf.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500/50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-red-500" />
-                        <p className="text-sm font-bold text-stone-800 dark:text-slate-200">{aulaAtiva.pdf.titulo}</p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="w-5 h-5 text-red-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-slate-500">Material original (Seduc)</p>
+                          <p className="text-sm font-bold text-stone-800 dark:text-slate-200 truncate">{aulaAtiva.pdf.titulo}</p>
+                        </div>
                       </div>
-                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500" />
+                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500 shrink-0" />
                     </a>
                   )}
 
                   {aulaAtiva.pdfs && aulaAtiva.pdfs.map((doc, i) => (
                     <a key={i} href={doc.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-950 rounded-xl border border-stone-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500/50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-red-500" />
-                        <p className="text-sm font-bold text-stone-800 dark:text-slate-200">{doc.titulo}</p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="w-5 h-5 text-red-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 dark:text-slate-500">Material original (Seduc)</p>
+                          <p className="text-sm font-bold text-stone-800 dark:text-slate-200 truncate">{doc.titulo}</p>
+                        </div>
                       </div>
-                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500" />
+                      <Download className="w-5 h-5 text-stone-400 dark:text-slate-500 shrink-0" />
                     </a>
                   ))}
 

@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { BookMarked, ChevronDown, Compass, GraduationCap, Lightbulb } from "lucide-react";
 import { visualDoMaterial } from "../utils/temasMaterial";
 import { credencialProfessor } from "../utils/professor";
@@ -50,13 +50,52 @@ function Definicao({ termo, cor }) {
   );
 }
 
+// Mostra o conteudo aos poucos, conforme o aluno rola a tela ate ele (em vez de tudo de uma vez).
+// "as" escolhe a tag (div, li...) pra nao quebrar listas (<ol>/<ul> so aceitam <li> direto).
+function Revela({ as: Tag = "div", className = "", children }) {
+  const ref = useRef(null);
+  const [visto, setVisto] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setVisto(true); return; }
+    const obs = new IntersectionObserver(
+      (entradas) => { if (entradas[0].isIntersecting) { setVisto(true); obs.disconnect(); } },
+      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  const revelaClasse = `transition-all duration-500 ease-out motion-reduce:transition-none motion-reduce:!opacity-100 motion-reduce:!translate-y-0 ${visto ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`;
+  return (
+    <Tag ref={ref} className={`${revelaClasse} ${className}`}>
+      {children}
+    </Tag>
+  );
+}
+
+// Uma secao "comparacao": dois lados lado a lado (ex.: sem X vs com X, antes vs depois).
+function Comparacao({ dados, cor }) {
+  const lado = (rotulo, texto) => (
+    <div className={`flex-1 p-3 rounded-lg border ${cor.suave} ${cor.borda}`}>
+      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${cor.texto}`}>{rotulo}</p>
+      <p className="text-sm text-stone-700 dark:text-slate-300 leading-relaxed">{texto}</p>
+    </div>
+  );
+  return (
+    <div className="mt-2 flex flex-col sm:flex-row gap-2">
+      {lado(dados.rotuloA, dados.textoA)}
+      {lado(dados.rotuloB, dados.textoB)}
+    </div>
+  );
+}
+
 function Cabecalho({ layout, material, visual }) {
   const { Icone, rotulo, cor } = visual;
   const resumo = material.resumo && <p className="mt-1 text-sm leading-relaxed opacity-90">{material.resumo}</p>;
 
   if (layout === "faixa") {
     return (
-      <div className={`chronos-sobe relative overflow-hidden p-5 sm:p-6 rounded-2xl bg-gradient-to-br ${cor.grad} text-white shadow-lg`}>
+      <div className={`relative overflow-hidden p-5 sm:p-6 rounded-2xl bg-gradient-to-br ${cor.grad} text-white shadow-lg`}>
         <div className="absolute -right-6 -bottom-8 w-36 h-36 rounded-full bg-white/10" aria-hidden="true" />
         <div className="relative flex items-center gap-4">
           <div className="min-w-0 flex-1">
@@ -74,7 +113,7 @@ function Cabecalho({ layout, material, visual }) {
 
   if (layout === "centro") {
     return (
-      <div className={`chronos-sobe text-center p-6 rounded-2xl border ${cor.suave} ${cor.borda}`}>
+      <div className={`text-center p-6 rounded-2xl border ${cor.suave} ${cor.borda}`}>
         <div className={`chronos-flutua mx-auto w-20 h-20 rounded-full bg-gradient-to-br ${cor.grad} flex items-center justify-center shadow-lg`}>
           <Icone className="w-10 h-10 text-white" />
         </div>
@@ -87,7 +126,7 @@ function Cabecalho({ layout, material, visual }) {
 
   if (layout === "trilha") {
     return (
-      <div className="chronos-sobe relative overflow-hidden p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800">
+      <div className="relative overflow-hidden p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800">
         <Icone className={`absolute -right-4 -top-4 w-32 h-32 sm:w-40 sm:h-40 opacity-10 ${cor.texto}`} aria-hidden="true" />
         <div className="relative max-w-[80%]">
           <p className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${cor.texto}`}>
@@ -103,7 +142,7 @@ function Cabecalho({ layout, material, visual }) {
 
   // lateral
   return (
-    <div className="chronos-sobe flex items-center gap-4 p-5 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800">
+    <div className="flex items-center gap-4 p-5 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800">
       <div className={`chronos-flutua shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${cor.grad} flex items-center justify-center shadow-lg`}>
         <Icone className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
       </div>
@@ -130,12 +169,13 @@ export default function MaterialEstudo({ material, disciplina }) {
   const marcar = (textoBloco, bloco) => (
     <TextoComTermos texto={textoBloco} termos={termos} bloco={bloco} aberto={aberto} onAbrir={setAberto} cor={cor} />
   );
-  const atraso = (i) => ({ animationDelay: `${Math.min(i, 8) * 80}ms` });
-
   const secaoConteudo = (s, i) => (
     <>
       <p className="text-sm font-bold text-stone-800 dark:text-slate-100">{s.titulo}</p>
-      <p className="mt-1 text-sm text-stone-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">{marcar(s.texto, `s${i}`)}</p>
+      {s.texto && (
+        <p className="mt-1 text-sm text-stone-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">{marcar(s.texto, `s${i}`)}</p>
+      )}
+      {s.comparacao && <Comparacao dados={s.comparacao} cor={cor} />}
       <Definicao termo={termoAberto(`s${i}`)} cor={cor} />
     </>
   );
@@ -145,11 +185,11 @@ export default function MaterialEstudo({ material, disciplina }) {
     listaSecoes = (
       <div className="space-y-3">
         {secoes.map((s, i) => (
-          <div key={i} className="chronos-sobe relative pl-5 pr-4 py-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 overflow-hidden" style={atraso(i)}>
+          <Revela key={i} className="relative pl-5 pr-4 py-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 overflow-hidden">
             <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${cor.linha}`} aria-hidden="true" />
             <p className={`text-[10px] font-black tracking-widest ${cor.texto}`}>{String(i + 1).padStart(2, "0")}</p>
             {secaoConteudo(s, i)}
-          </div>
+          </Revela>
         ))}
       </div>
     );
@@ -157,10 +197,10 @@ export default function MaterialEstudo({ material, disciplina }) {
     listaSecoes = (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {secoes.map((s, i) => (
-          <div key={i} className="chronos-sobe p-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800" style={atraso(i)}>
+          <Revela key={i} className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800">
             <span className={`inline-block mb-2 px-2 py-0.5 rounded-md text-[11px] font-black ${cor.marca}`}>{i + 1}</span>
             {secaoConteudo(s, i)}
-          </div>
+          </Revela>
         ))}
       </div>
     );
@@ -169,10 +209,10 @@ export default function MaterialEstudo({ material, disciplina }) {
       <ol className="relative ml-3.5 space-y-5">
         <span className={`absolute left-0 top-2 bottom-2 w-0.5 opacity-40 ${cor.linha}`} aria-hidden="true" />
         {secoes.map((s, i) => (
-          <li key={i} className="chronos-sobe relative pl-8" style={atraso(i)}>
+          <Revela key={i} as="li" className="relative pl-8">
             <span className={`absolute -left-3.5 top-0 w-7 h-7 rounded-full bg-gradient-to-br ${cor.grad} text-white text-xs font-black flex items-center justify-center shadow`}>{i + 1}</span>
             {secaoConteudo(s, i)}
-          </li>
+          </Revela>
         ))}
       </ol>
     );
@@ -180,10 +220,10 @@ export default function MaterialEstudo({ material, disciplina }) {
     listaSecoes = (
       <ol className="space-y-3">
         {secoes.map((s, i) => (
-          <li key={i} className="chronos-sobe flex gap-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800" style={atraso(i)}>
+          <Revela key={i} as="li" className="flex gap-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800">
             <span className={`shrink-0 w-7 h-7 rounded-full text-xs font-black flex items-center justify-center ${cor.marca}`}>{i + 1}</span>
             <div className="min-w-0 flex-1">{secaoConteudo(s, i)}</div>
-          </li>
+          </Revela>
         ))}
       </ol>
     );
@@ -199,20 +239,20 @@ export default function MaterialEstudo({ material, disciplina }) {
         @media (prefers-reduced-motion: reduce) { .chronos-sobe, .chronos-flutua { animation: none; } }
       `}</style>
 
-      <Cabecalho layout={layout} material={material} visual={visual} />
+      <Revela><Cabecalho layout={layout} material={material} visual={visual} /></Revela>
 
       {material.contexto && (
-        <div className={`chronos-sobe p-4 rounded-xl border ${cor.suave} ${cor.borda}`}>
+        <Revela className={`p-4 rounded-xl border ${cor.suave} ${cor.borda}`}>
           <p className={`flex items-center gap-2 text-xs font-black uppercase mb-1.5 ${cor.texto}`}><Compass className="w-4 h-4" /> Para começar</p>
           <p className="text-sm text-stone-700 dark:text-slate-300 leading-relaxed">{marcar(material.contexto, "ctx")}</p>
           <Definicao termo={termoAberto("ctx")} cor={cor} />
-        </div>
+        </Revela>
       )}
 
       {listaSecoes}
 
       {termos.length > 0 && (
-        <div className="chronos-sobe p-4 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800">
+        <Revela className="p-4 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800">
           <p className={`flex items-center gap-2 text-xs font-black uppercase mb-1 ${cor.texto}`}>
             <BookMarked className="w-4 h-4" /> Palavras-chave
           </p>
@@ -239,10 +279,10 @@ export default function MaterialEstudo({ material, disciplina }) {
             })}
           </div>
           <Definicao termo={termoAberto("lista")} cor={cor} />
-        </div>
+        </Revela>
       )}
 
-      <div className="flex items-center gap-3 pt-1">
+      <Revela className="flex items-center gap-3 pt-1">
         <span className={`shrink-0 w-9 h-9 rounded-full bg-gradient-to-br ${cor.grad} flex items-center justify-center`}>
           <GraduationCap className="w-4.5 h-4.5 text-white" />
         </span>
@@ -250,7 +290,7 @@ export default function MaterialEstudo({ material, disciplina }) {
           Material preparado por <strong className="text-stone-700 dark:text-slate-200">{professor.nome}</strong>
           <br />{professor.formacao}
         </p>
-      </div>
+      </Revela>
     </div>
   );
 }

@@ -25,6 +25,8 @@ export default function RevisaoMaterial({ material, onChange, onRemover, onTroca
   const set = (campo, valor) => onChange({ ...material, [campo]: valor });
   const setItem = (lista, i, campo, valor) =>
     set(lista, material[lista].map((x, j) => (j === i ? { ...x, [campo]: valor } : x)));
+  const setComparacao = (i, campo, valor) =>
+    setItem("secoes", i, "comparacao", { ...secoes[i].comparacao, [campo]: valor });
   const removerItem = (lista, i) => set(lista, material[lista].filter((_, j) => j !== i));
   const trocarIcone = (icone) =>
     onChange({ ...material, visual: { icone, cor: visual.cor.id, layout: visual.layout } });
@@ -128,6 +130,17 @@ export default function RevisaoMaterial({ material, onChange, onRemover, onTroca
                 <button type="button" disabled={disabled} onClick={() => removerItem("secoes", i)} title="Remover seção" className="text-stone-400 hover:text-red-500 p-1 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
               </div>
               <textarea disabled={disabled} rows={4} value={s.texto} onChange={(e) => setItem("secoes", i, "texto", e.target.value)} className={`${inputClass} resize-y`} />
+              {s.comparacao && (
+                <div className="space-y-1.5 p-2 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Comparação (2 lados)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input disabled={disabled} value={s.comparacao.rotuloA || ""} onChange={(e) => setComparacao(i, "rotuloA", e.target.value)} placeholder="Rótulo do lado A" className={inputClass} />
+                    <input disabled={disabled} value={s.comparacao.rotuloB || ""} onChange={(e) => setComparacao(i, "rotuloB", e.target.value)} placeholder="Rótulo do lado B" className={inputClass} />
+                    <textarea disabled={disabled} rows={2} value={s.comparacao.textoA || ""} onChange={(e) => setComparacao(i, "textoA", e.target.value)} placeholder="Texto do lado A" className={`${inputClass} resize-y`} />
+                    <textarea disabled={disabled} rows={2} value={s.comparacao.textoB || ""} onChange={(e) => setComparacao(i, "textoB", e.target.value)} placeholder="Texto do lado B" className={`${inputClass} resize-y`} />
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           <button type="button" disabled={disabled} onClick={() => set("secoes", [...secoes, { titulo: "", texto: "", parte: 1, complemento: false }])} className="flex items-center gap-1 text-xs font-bold text-indigo-700 dark:text-indigo-400 disabled:opacity-50">

@@ -175,6 +175,7 @@ ${regraPartes} ${prioridades ? `De destaque a estes topicos priorizados pelo pro
 8. PALAVRAS-CHAVE: TODA palavra tecnica ou dificil (que um aluno do ensino medio pode nao conhecer) que aparecer no contexto ou nas secoes TEM que estar em "termos", escrita EXATAMENTE como aparece no texto (mesma grafia). Nao inclua termos que nao aparecem no texto. Explique cada termo com palavras simples, sem usar outro termo dificil.
 9. ILUSTRACAO: em "icones", escolha de 1 a 3 chaves da lista abaixo, da mais ligada a menos ligada ao assunto ESPECIFICO desta aula (nao a materia em geral). Use SOMENTE chaves da lista.
 Lista: ${LISTA_ICONES}
+10. COMPARACAO (opcional): se (e SOMENTE se) uma secao comparar claramente duas coisas opostas ou complementares que estao no material (ex.: "sem X" vs "com X", antes vs depois, urgente vs importante), preencha tambem "comparacao" nessa secao, com "rotuloA"/"textoA"/"rotuloB"/"textoB" (rotulo curto, ate 4 palavras; texto de 1 a 2 frases cada lado). Use isso raramente, so quando ajudar a entender — a maioria das secoes deve ter "comparacao": null.
 
 O material e o original da Seduc. Sua tarefa: preencher os campos da aula E montar o material de estudo.
 
@@ -189,7 +190,7 @@ ${FORMATO_CAMPOS},
     "contextoComplemento": false,
     "icones": ["chave1", "chave2", "chave3"],
     "secoes": [
-      { "titulo": "titulo da secao", "texto": "de 2 a 5 frases curtas e claras", "parte": 1, "complemento": false }
+      { "titulo": "titulo da secao", "texto": "de 2 a 5 frases curtas e claras", "parte": 1, "complemento": false, "comparacao": null }
     ],
     "termos": [
       { "termo": "palavra exatamente como aparece no texto", "definicao": "1 ou 2 frases simples", "complemento": false }
@@ -221,6 +222,14 @@ function normalizarCampos(bruto) {
 
 // Garante o formato esperado, mesmo que a IA erre algum campo.
 function normalizarMaterial(bruto, avisos, partes) {
+  const normalizarComparacao = (c) => {
+    const rotuloA = texto(c?.rotuloA, 60);
+    const textoA = texto(c?.textoA, 400);
+    const rotuloB = texto(c?.rotuloB, 60);
+    const textoB = texto(c?.textoB, 400);
+    if (!rotuloA || !textoA || !rotuloB || !textoB) return null;
+    return { rotuloA, textoA, rotuloB, textoB };
+  };
   const secoes = (Array.isArray(bruto?.secoes) ? bruto.secoes : [])
     .map((s) => {
       const p = Number.parseInt(s?.parte, 10);
@@ -229,9 +238,10 @@ function normalizarMaterial(bruto, avisos, partes) {
         texto: texto(s?.texto, 3000),
         parte: Number.isFinite(p) && p >= 1 && p <= partes ? p : 1,
         complemento: s?.complemento === true,
+        comparacao: normalizarComparacao(s?.comparacao),
       };
     })
-    .filter((s) => s.titulo || s.texto)
+    .filter((s) => s.titulo || s.texto || s.comparacao)
     .slice(0, 12);
   const vistos = new Set();
   const termos = (Array.isArray(bruto?.termos) ? bruto.termos : [])

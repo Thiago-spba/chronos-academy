@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { 
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
-  AlertTriangle, Video, FileText, AlignLeft, Target,
+  AlertTriangle, Video, FileText, FileCheck2, AlignLeft, Target,
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
   ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2
 } from "lucide-react";
@@ -79,6 +79,7 @@ export default function Admin() {
   const [autenticado, setAutenticado] = useState(false);
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
+  const [arquivoMaterialPronto, setArquivoMaterialPronto] = useState(null); // PDF pronto (feito pelo professor ou por outra IA), so anexado quando ele escolhe
   const [modoIA, setModoIA] = useState("seduc"); // "seduc" = material bruto da Seduc | "meu" = material que o professor preparou
   const [avisosIA, setAvisosIA] = useState([]);
   const [gerandoMaterial, setGerandoMaterial] = useState(false);
@@ -114,8 +115,8 @@ export default function Admin() {
 
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
-    introducao: "", utilidade: "", materialTexto: "", 
-    videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null
+    introducao: "", utilidade: "", materialTexto: "",
+    videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
   });
 
   const inputBaseClass = "w-full p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 dark:focus:ring-amber-500/50 outline-none text-xs sm:text-sm transition-colors duration-300";
@@ -383,11 +384,12 @@ export default function Admin() {
       });
     });
 
-    setForm({ 
-      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "", 
-      videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null
+    setForm({
+      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "",
+      videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
     });
     setArquivosPdf([]);
+    setArquivoMaterialPronto(null);
     setPrioridadesIA("");
     setTextoColadoIA("");
     setAvisosIA([]);
@@ -399,14 +401,16 @@ export default function Admin() {
     const videosMigrados = aula.videos ? [...aula.videos] : (aula.video ? [aula.video] : [{ videoId: "", duracao: "" }]);
     const pdfsMigrados = aula.pdfs ? [...aula.pdfs] : (aula.pdf ? [aula.pdf] : []);
 
-    setForm({ 
-      id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "", 
-      videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }], 
+    setForm({
+      id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "",
+      videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }],
       pdfs: pdfsMigrados,
       materialEstudo: null,
+      materialProntoPdf: aula.materialProntoPdf || null,
       visualMaterial: aula.visualMaterial || null
     });
     setArquivosPdf([]);
+    setArquivoMaterialPronto(null);
     setPrioridadesIA("");
     setTextoColadoIA("");
     setAvisosIA([]);
@@ -445,6 +449,8 @@ export default function Admin() {
     const newPdfs = form.pdfs.filter((_, i) => i !== index);
     setForm({ ...form, pdfs: newPdfs });
   };
+
+  const removerMaterialProntoSalvo = () => setForm({ ...form, materialProntoPdf: null });
 
   const arquivoParaBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -684,6 +690,24 @@ export default function Admin() {
       }
     }
 
+    let materialProntoPdfFinal = form.materialProntoPdf || null;
+    if (arquivoMaterialPronto) {
+      try {
+        setStatusEnvio("Enviando material simplificado (PDF)...");
+        const fileRef = ref(storage, `chronos_pdfs/${Date.now()}_${arquivoMaterialPronto.name}`);
+        await uploadBytes(fileRef, arquivoMaterialPronto);
+        const url = await getDownloadURL(fileRef);
+        const tamanhoMB = (arquivoMaterialPronto.size / (1024 * 1024)).toFixed(2) + " MB";
+        materialProntoPdfFinal = { titulo: arquivoMaterialPronto.name, url, tamanho: tamanhoMB };
+      } catch (error) {
+        console.error("Erro no upload", error);
+        alert("Ocorreu um erro ao enviar o material simplificado (PDF). Verifique a conexão.");
+        setSalvando(false);
+        setStatusEnvio("");
+        return;
+      }
+    }
+
     setStatusEnvio("Gravando dados da aula...");
 
     const videosFinais = form.videos.filter(v => v.videoId.trim() !== "");
@@ -725,8 +749,9 @@ export default function Admin() {
       introducao: form.introducao, 
       utilidade: form.utilidade, 
       videos: videosFinais.length > 0 ? videosFinais : null, 
-      pdfs: pdfsFinais.length > 0 ? pdfsFinais : null, 
+      pdfs: pdfsFinais.length > 0 ? pdfsFinais : null,
       materialTexto: form.materialTexto || null,
+      materialProntoPdf: materialProntoPdfFinal,
       temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo,
       visualMaterial: visualAula
     };
@@ -1640,6 +1665,33 @@ export default function Admin() {
                         </div>
                       )}
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase mb-3 flex items-center gap-2"><FileCheck2 className="w-4 h-4"/> Material Simplificado (PDF, opcional)</h3>
+                  <div className="space-y-2 p-3 sm:p-4 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-stone-300 dark:border-slate-700">
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
+                      Normalmente a IA gera o material de estudo sozinha. Se você já preparou um material pronto (feito por você ou por outra IA), pode anexar aqui — ele fica disponível para o aluno junto com o material da Seduc, sem substituir o que a IA gerar.
+                    </p>
+                    {form.materialProntoPdf && !arquivoMaterialPronto && (
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2 rounded-lg gap-2">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 truncate flex-1">{form.materialProntoPdf.titulo}</span>
+                        <button type="button" disabled={salvando} onClick={removerMaterialProntoSalvo} className="text-stone-300 dark:text-slate-600 hover:text-red-500 p-1 rounded transition-colors shrink-0 disabled:opacity-50" title="Remover anexo"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    )}
+                    {arquivoMaterialPronto && (
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2 rounded-lg gap-2">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 truncate flex-1">{arquivoMaterialPronto.name}</span>
+                        <button type="button" disabled={salvando} onClick={() => setArquivoMaterialPronto(null)} className="text-stone-300 dark:text-slate-600 hover:text-red-500 p-1 rounded transition-colors shrink-0 disabled:opacity-50" title="Remover anexo"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    )}
+                    {!form.materialProntoPdf && !arquivoMaterialPronto && (
+                      <label className={`flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-stone-300 dark:border-slate-700 text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer transition-colors ${salvando ? "opacity-50 pointer-events-none" : ""}`}>
+                        <Plus className="w-3.5 h-3.5"/> Anexar PDF pronto
+                        <input type="file" accept="application/pdf" disabled={salvando} className="hidden" onChange={e => { const f = e.target.files[0]; if (f) setArquivoMaterialPronto(f); e.target.value = ""; }} />
+                      </label>
+                    )}
                   </div>
                 </div>
 

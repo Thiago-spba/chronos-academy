@@ -43,7 +43,7 @@ function Definicao({ termo, cor }) {
   return (
     <div className={`chronos-sobe mt-3 flex gap-2 p-3 rounded-lg border ${cor.suave} ${cor.borda}`}>
       <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${cor.texto}`} />
-      <p className="text-sm text-stone-700 dark:text-slate-300 leading-relaxed">
+      <p className="text-sm lg:text-base text-stone-700 dark:text-slate-300 leading-relaxed">
         <strong>{termo.termo}:</strong> {termo.definicao}
       </p>
     </div>
@@ -78,7 +78,7 @@ function Comparacao({ dados, cor }) {
   const lado = (rotulo, texto) => (
     <div className={`flex-1 p-3 rounded-lg border ${cor.suave} ${cor.borda}`}>
       <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${cor.texto}`}>{rotulo}</p>
-      <p className="text-sm text-stone-700 dark:text-slate-300 leading-relaxed">{texto}</p>
+      <p className="text-sm lg:text-base text-stone-700 dark:text-slate-300 leading-relaxed">{texto}</p>
     </div>
   );
   return (
@@ -91,7 +91,7 @@ function Comparacao({ dados, cor }) {
 
 function Cabecalho({ layout, material, visual }) {
   const { Icone, rotulo, cor } = visual;
-  const resumo = material.resumo && <p className="mt-1 text-sm leading-relaxed opacity-90">{material.resumo}</p>;
+  const resumo = material.resumo && <p className="mt-1 text-sm lg:text-base leading-relaxed opacity-90">{material.resumo}</p>;
 
   if (layout === "faixa") {
     return (
@@ -100,7 +100,7 @@ function Cabecalho({ layout, material, visual }) {
         <div className="relative flex items-center gap-4">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-widest text-white/80">{rotulo}</p>
-            <h6 className="text-lg sm:text-xl font-black leading-tight">{material.titulo}</h6>
+            <h6 className="text-lg sm:text-xl lg:text-2xl font-black leading-tight">{material.titulo}</h6>
             {resumo}
           </div>
           <div className="chronos-flutua shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/15 flex items-center justify-center">
@@ -118,8 +118,8 @@ function Cabecalho({ layout, material, visual }) {
           <Icone className="w-10 h-10 text-white" />
         </div>
         <p className={`mt-3 text-[10px] font-black uppercase tracking-widest ${cor.texto}`}>{rotulo}</p>
-        <h6 className="text-lg sm:text-xl font-black text-stone-800 dark:text-slate-100 leading-tight">{material.titulo}</h6>
-        {material.resumo && <p className="mt-1 max-w-xl mx-auto text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{material.resumo}</p>}
+        <h6 className="text-lg sm:text-xl lg:text-2xl font-black text-stone-800 dark:text-slate-100 leading-tight">{material.titulo}</h6>
+        {material.resumo && <p className="mt-1 max-w-xl mx-auto text-sm lg:text-base text-stone-600 dark:text-slate-400 leading-relaxed">{material.resumo}</p>}
       </div>
     );
   }
@@ -133,8 +133,8 @@ function Cabecalho({ layout, material, visual }) {
             <span className={`w-6 h-6 rounded-lg bg-gradient-to-br ${cor.grad} flex items-center justify-center`}><Icone className="w-3.5 h-3.5 text-white" /></span>
             {rotulo}
           </p>
-          <h6 className="mt-2 text-lg sm:text-xl font-black text-stone-800 dark:text-slate-100 leading-tight">{material.titulo}</h6>
-          {material.resumo && <p className="mt-1 text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{material.resumo}</p>}
+          <h6 className="mt-2 text-lg sm:text-xl lg:text-2xl font-black text-stone-800 dark:text-slate-100 leading-tight">{material.titulo}</h6>
+          {material.resumo && <p className="mt-1 text-sm lg:text-base text-stone-600 dark:text-slate-400 leading-relaxed">{material.resumo}</p>}
         </div>
       </div>
     );
@@ -148,8 +148,8 @@ function Cabecalho({ layout, material, visual }) {
       </div>
       <div className="min-w-0">
         <p className={`text-[10px] font-black uppercase tracking-widest ${cor.texto}`}>{rotulo}</p>
-        <h6 className="text-lg sm:text-xl font-black text-stone-800 dark:text-slate-100 leading-tight">{material.titulo}</h6>
-        {material.resumo && <p className="mt-1 text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{material.resumo}</p>}
+        <h6 className="text-lg sm:text-xl lg:text-2xl font-black text-stone-800 dark:text-slate-100 leading-tight">{material.titulo}</h6>
+        {material.resumo && <p className="mt-1 text-sm lg:text-base text-stone-600 dark:text-slate-400 leading-relaxed">{material.resumo}</p>}
       </div>
     </div>
   );
@@ -171,9 +171,9 @@ export default function MaterialEstudo({ material, disciplina }) {
   );
   const secaoConteudo = (s, i) => (
     <>
-      <p className="text-sm font-bold text-stone-800 dark:text-slate-100">{s.titulo}</p>
+      <p className="text-sm lg:text-base font-bold text-stone-800 dark:text-slate-100">{s.titulo}</p>
       {s.texto && (
-        <p className="mt-1 text-sm text-stone-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">{marcar(s.texto, `s${i}`)}</p>
+        <p className="mt-1 text-sm lg:text-base text-stone-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">{marcar(s.texto, `s${i}`)}</p>
       )}
       {s.comparacao && <Comparacao dados={s.comparacao} cor={cor} />}
       <Definicao termo={termoAberto(`s${i}`)} cor={cor} />
@@ -244,7 +244,7 @@ export default function MaterialEstudo({ material, disciplina }) {
       {material.contexto && (
         <Revela className={`p-4 rounded-xl border ${cor.suave} ${cor.borda}`}>
           <p className={`flex items-center gap-2 text-xs font-black uppercase mb-1.5 ${cor.texto}`}><Compass className="w-4 h-4" /> Para começar</p>
-          <p className="text-sm text-stone-700 dark:text-slate-300 leading-relaxed">{marcar(material.contexto, "ctx")}</p>
+          <p className="text-sm lg:text-base text-stone-700 dark:text-slate-300 leading-relaxed">{marcar(material.contexto, "ctx")}</p>
           <Definicao termo={termoAberto("ctx")} cor={cor} />
         </Revela>
       )}

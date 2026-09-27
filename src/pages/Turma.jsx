@@ -383,7 +383,7 @@ export default function Turma() {
       {aulaAtiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-900/60 dark:bg-black/80 backdrop-blur-sm" onClick={() => setAulaAtiva(null)}>
           <div 
-            className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 shadow-2xl rounded-3xl flex flex-col animate-fade-in overflow-hidden border border-stone-200 dark:border-slate-800" 
+            className="w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[90vh] bg-white dark:bg-slate-900 shadow-2xl rounded-3xl flex flex-col animate-fade-in overflow-hidden border border-stone-200 dark:border-slate-800"
             onClick={(e) => e.stopPropagation()} 
           >
             <div className="flex-shrink-0 flex items-center justify-between p-4 sm:p-6 bg-white/95 dark:bg-slate-900/95 border-b border-stone-200 dark:border-slate-800">
@@ -397,8 +397,8 @@ export default function Turma() {
               </button>
             </div>
 
-            <div className="p-4 sm:p-8 overflow-y-auto">
-              <h4 className="text-2xl sm:text-3xl font-black text-stone-800 dark:text-slate-100 mb-8">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-8">
+              <h4 className="text-2xl sm:text-3xl lg:text-4xl font-black text-stone-800 dark:text-slate-100 mb-8">
                 Aula {obterNumeroAula(aulaAtiva, 0)} - {aulaAtiva.titulo}
               </h4>
 
@@ -409,7 +409,7 @@ export default function Turma() {
                     <ChevronDown className="w-4 h-4 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
                   </summary>
                   <div className="px-5 pb-5 pt-1 border-t border-stone-100 dark:border-slate-800 mt-2">
-                    <p className="text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{aulaAtiva.introducao}</p>
+                    <p className="text-sm lg:text-base text-stone-600 dark:text-slate-400 leading-relaxed">{aulaAtiva.introducao}</p>
                   </div>
                 </details>
 
@@ -419,7 +419,7 @@ export default function Turma() {
                     <ChevronDown className="w-4 h-4 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
                   </summary>
                   <div className="px-5 pb-5 pt-1 border-t border-stone-100 dark:border-slate-800 mt-2">
-                    <p className="text-sm text-stone-600 dark:text-slate-400 leading-relaxed">{aulaAtiva.utilidade}</p>
+                    <p className="text-sm lg:text-base text-stone-600 dark:text-slate-400 leading-relaxed">{aulaAtiva.utilidade}</p>
                   </div>
                 </details>
               </div>

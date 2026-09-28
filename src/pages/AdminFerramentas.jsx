@@ -116,7 +116,7 @@ export default function AdminFerramentas() {
   const salvarForm = async (e) => {
     e.preventDefault();
     if (!form.titulo.trim() || !form.url.trim()) {
-      alert('Preencha pelo menos o título e o link.');
+      setToast({ mensagem: 'Preencha pelo menos o título e o link.', erro: true });
       return;
     }
     setSalvando(true);
@@ -141,7 +141,7 @@ export default function AdminFerramentas() {
       setToast({ mensagem: 'Ferramenta salva com sucesso!' });
     } catch (e) {
       console.error(e);
-      alert('Erro de permissão ao salvar. Confira se você está logado como admin.');
+      setToast({ mensagem: 'Erro de permissão ao salvar. Confira se você está logado como admin.', erro: true });
     } finally {
       setSalvando(false);
     }
@@ -191,7 +191,7 @@ export default function AdminFerramentas() {
 
   return (
     <div className="animate-fade-in bg-stone-50 dark:bg-slate-950 min-h-screen pb-20 transition-colors duration-300">
-      {toast && <Toast mensagem={toast.mensagem} onClose={() => setToast(null)} />}
+      {toast && <Toast mensagem={toast.mensagem} erro={toast.erro} onClose={() => setToast(null)} />}
       {excluindo && (
         <ModalConfirmar titulo={`Excluir "${excluindo.titulo}"?`} mensagem="Essa ferramenta some da página Prática. Não afeta o site original dela, só remove o link daqui." onConfirmar={excluirItem} onCancelar={() => setExcluindo(null)} />
       )}

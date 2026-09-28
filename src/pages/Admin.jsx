@@ -14,7 +14,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 import RevisaoMaterial from "../components/RevisaoMaterial";
-import { Toast } from "../components/Notificacao";
+import { Toast, useConfirmacao } from "../components/Notificacao";
 import { pendenciasMaterial, escolherVisual, visuaisRecentes, visualDoMaterial } from "../utils/temasMaterial";
 import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
 
@@ -100,6 +100,7 @@ export default function Admin() {
   const [statusEnvio, setStatusEnvio] = useState("");
   const [toast, setToast] = useState(null);
   const [excluindo, setExcluindo] = useState(null);
+  const { confirmar, elementoConfirmacao } = useConfirmacao();
   const [autenticado, setAutenticado] = useState(false);
   
   const [arquivosPdf, setArquivosPdf] = useState([]);
@@ -313,12 +314,12 @@ export default function Admin() {
     const cleanId = idFinal.trim().toLowerCase().replace(/\s+/g, '-');
     
     if(!cleanId || !nomeFinal) {
-      alert("Por favor, preencha todos os campos da turma!");
+      setToast({ mensagem: "Por favor, preencha todos os campos da turma!", erro: true });
       return;
     }
 
     if(nextDb[cleanId]) {
-      alert("Já existe uma turma cadastrada com este ID!");
+      setToast({ mensagem: "Já existe uma turma cadastrada com este ID!", erro: true });
       return;
     }
 
@@ -387,7 +388,7 @@ export default function Admin() {
       setToast({ mensagem: publicar === true ? 'Aviso PUBLICADO! Os alunos já veem o sininho aceso.' : publicar === false ? 'Aviso ocultado.' : 'Aviso atualizado com sucesso!' });
       setModalAviso(false);
     } catch(e) { 
-      alert('Erro ao salvar aviso.'); 
+      setToast({ mensagem: "Erro ao salvar aviso.", erro: true });
     } finally { 
       setSalvandoAviso(false); 
     }
@@ -521,18 +522,18 @@ export default function Admin() {
     const texto = textoColadoIA.trim();
     const completo = modoIA === "seduc";
     if (total === 0 && !texto) {
-      alert("Anexe um PDF (ou cole o texto do material) antes de preencher com IA.");
+      setToast({ mensagem: "Anexe um PDF (ou cole o texto do material) antes de preencher com IA.", erro: true });
       return;
     }
     if (total > 5) {
-      alert("Marque no maximo 5 PDFs por vez.");
+      setToast({ mensagem: "Marque no maximo 5 PDFs por vez.", erro: true });
       return;
     }
     const camposCheios = ["numeroAula", "titulo", "introducao", "utilidade", "materialTexto"].some(k => String(form[k] || "").trim());
     const substituir = camposCheios
-      ? window.confirm("Alguns campos ja estao preenchidos.\n\nOK = substituir pelo que a IA gerar\nCancelar = a IA preenche so os campos vazios")
+      ? await confirmar({ titulo: "Alguns campos já estão preenchidos", mensagem: "O que a IA deve fazer com os campos que já têm texto?", textoConfirmar: "Substituir pelo que a IA gerar", textoCancelar: "Só preencher os vazios" })
       : false;
-    if (completo && form.materialEstudo && !window.confirm("Esta aula ja tem um material de estudo. Gerar de novo vai substituir o atual (e as suas edicoes). Continuar?")) return;
+    if (completo && form.materialEstudo && !(await confirmar({ titulo: "Gerar material de novo?", mensagem: "Esta aula já tem um material de estudo. Gerar de novo vai substituir o atual (e as suas edições).", textoConfirmar: "Gerar de novo", perigo: true }))) return;
 
     setGerandoMaterial(true);
     setAvisosIA([]);
@@ -581,7 +582,7 @@ export default function Admin() {
       let data = {};
       try { data = await resp.json(); } catch { data = {}; }
       if (!resp.ok || !data.campos || (completo && !data.material)) {
-        alert(data.erro || (resp.status === 413 ? "O material e grande demais para enviar de uma vez. Marque menos PDFs." : (resp.status === 504 ? "A IA demorou demais. Tente com menos paginas ou menos PDFs." : "Erro ao preencher com IA.")));
+        setToast({ mensagem: data.erro || (resp.status === 413 ? "O material e grande demais para enviar de uma vez. Marque menos PDFs." : (resp.status === 504 ? "A IA demorou demais. Tente com menos paginas ou menos PDFs." : "Erro ao preencher com IA.")), erro: true });
         return;
       }
 
@@ -609,7 +610,7 @@ export default function Admin() {
       setToast({ mensagem: completo ? "Campos e material de estudo preenchidos pela IA. Revise antes de publicar." : "Campos preenchidos pela IA. Revise antes de publicar." });
     } catch (e) {
       console.error(e);
-      alert("Erro ao preencher com IA.");
+      setToast({ mensagem: "Erro ao preencher com IA.", erro: true });
     } finally {
       setGerandoMaterial(false);
     }
@@ -625,8 +626,8 @@ export default function Admin() {
     });
   };
 
-  const removerMaterialEstudo = () => {
-    if (!window.confirm("Remover o material de estudo desta aula? (Os alunos deixam de ver depois que voce salvar a aula.)")) return;
+  const removerMaterialEstudo = async () => {
+    if (!(await confirmar({ titulo: "Remover material de estudo?", mensagem: "Os alunos deixam de ver depois que você salvar a aula.", textoConfirmar: "Remover", perigo: true }))) return;
     setForm(prev => ({ ...prev, materialEstudo: null, materialEstudoErro: false }));
   };
 
@@ -645,7 +646,7 @@ export default function Admin() {
       await navigator.clipboard.writeText(registro);
       setToast({ mensagem: "Registro copiado! Já pode colar na Sala do Futuro." });
     } catch {
-      alert("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente (Ctrl+C).");
+      setToast({ mensagem: "Não foi possível copiar automaticamente. Selecione o texto e copie manualmente (Ctrl+C).", erro: true });
     }
   };
 
@@ -717,11 +718,11 @@ export default function Admin() {
     e.preventDefault();
     if (salvando) return;
     if (carregandoMaterial || gerandoMaterial) {
-      alert("Aguarde o material de estudo terminar de carregar.");
+      setToast({ mensagem: "Aguarde o material de estudo terminar de carregar.", erro: true });
       return;
     }
     const pendentesMaterial = pendenciasMaterial(form.materialEstudo);
-    if (pendentesMaterial > 0 && !window.confirm(`O material de estudo ainda tem ${pendentesMaterial} trecho(s) em amarelo sem conferir. Publicar mesmo assim?`)) return;
+    if (pendentesMaterial > 0 && !(await confirmar({ titulo: "Publicar mesmo assim?", mensagem: `O material de estudo ainda tem ${pendentesMaterial} trecho(s) em amarelo sem conferir.`, textoConfirmar: "Publicar mesmo assim" }))) return;
     setSalvando(true);
     
     let pdfsFinais = [...form.pdfs];
@@ -739,7 +740,7 @@ export default function Admin() {
         }
       } catch (error) {
         console.error("Erro no upload", error);
-        alert("Ocorreu um erro ao enviar os PDFs. Verifique a conexão.");
+        setToast({ mensagem: "Ocorreu um erro ao enviar os PDFs. Verifique a conexão.", erro: true });
         setSalvando(false);
         setStatusEnvio("");
         return;
@@ -757,7 +758,7 @@ export default function Admin() {
         materialProntoPdfFinal = { titulo: arquivoMaterialPronto.name, url, tamanho: tamanhoMB };
       } catch (error) {
         console.error("Erro no upload", error);
-        alert("Ocorreu um erro ao enviar o material simplificado (PDF). Verifique a conexão.");
+        setToast({ mensagem: "Ocorreu um erro ao enviar o material simplificado (PDF). Verifique a conexão.", erro: true });
         setSalvando(false);
         setStatusEnvio("");
         return;
@@ -789,7 +790,7 @@ export default function Admin() {
         });
       } catch (error) {
         console.error("Erro ao gravar material de estudo", error);
-        alert("Erro ao gravar o material de estudo. A aula nao foi salva; tente de novo.");
+        setToast({ mensagem: "Erro ao gravar o material de estudo. A aula nao foi salva; tente de novo.", erro: true });
         setSalvando(false);
         setStatusEnvio("");
         return;
@@ -869,7 +870,7 @@ export default function Admin() {
       setFormAberto(false);
       setToast({ mensagem: "Aula gravada e sincronizada com sucesso!" });
     } catch (error) {
-      alert("Erro de permissão ao salvar os dados.");
+      setToast({ mensagem: "Erro de permissão ao salvar os dados.", erro: true });
     } finally {
       setSalvando(false);
       setStatusEnvio("");
@@ -979,8 +980,9 @@ export default function Admin() {
 
   return (
     <div className="animate-fade-in bg-stone-50 dark:bg-slate-950 min-h-screen pb-20 transition-colors duration-300">
-      {toast && <Toast mensagem={toast.mensagem} onClose={() => setToast(null)} />}
+      {toast && <Toast mensagem={toast.mensagem} erro={toast.erro} onClose={() => setToast(null)} />}
       {excluindo && <ModalConfirmar onConfirmar={excluirAula} onCancelar={() => setExcluindo(null)} />}
+      {elementoConfirmacao}
 
       {/* MODAL DE GERENCIAMENTO E UNIÃO DE TURMAS */}
       {modalTurmas && (
@@ -1093,7 +1095,7 @@ export default function Admin() {
                           </div>
                         </div>
                         <button 
-                          onClick={() => { if(window.confirm(`CUIDADO: Excluir a turma "${info.nome}" apagará TODAS as aulas vinculadas a ela. Confirmar exclusão?`)) handleExcluirTurma(id) }} 
+                          onClick={async () => { if (await confirmar({ titulo: "Excluir turma?", mensagem: `CUIDADO: excluir a turma "${info.nome}" apaga TODAS as aulas vinculadas a ela.`, textoConfirmar: "Excluir turma", perigo: true })) handleExcluirTurma(id); }}
                           className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors shrink-0" 
                           title="Excluir Turma"
                         >

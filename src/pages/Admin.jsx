@@ -1,10 +1,11 @@
 ﻿import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap, 
+  BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap,
   AlertTriangle, Video, FileText, FileCheck2, AlignLeft, Target,
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
-  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2
+  ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2,
+  ClipboardList, Copy
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -25,6 +26,29 @@ const turmasIniciais = {
   "2c-dev": { nome: "2ª Série C", disciplina: "Desenvolvimento de Sistemas", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] },
   "2c-carr": { nome: "2ª Série C", disciplina: "Carreira e Competências", modulos: [{ id: "b3", titulo: "3º Bimestre", abertoPadrao: true, aulas: [] }] }
 };
+
+// Atalhos para completar o "Registro da Aula" (texto pra colar na Sala do Futuro).
+// Cada clique acrescenta a frase no final do texto, sem apagar o que ja estava escrito.
+const OPCOES_REGISTRO = [
+  { label: "Atividade escrita", frase: "Foi realizada atividade escrita." },
+  { label: "Exercícios de fixação", frase: "Foram realizados exercícios de fixação." },
+  { label: "Correção na Plataforma do Futuro", frase: "Foi corrigida a tarefa na Plataforma do Futuro." },
+  { label: "Debate em grupo", frase: "Foi realizado debate em grupo." },
+  { label: "Roda de conversa", frase: "Foi realizada roda de conversa sobre o tema." },
+  { label: "Discussão sobre atualidades", frase: "Foi realizada discussão sobre atualidades relacionadas ao conteúdo." },
+  { label: "Reportagem/notícia", frase: "Foi analisada reportagem/notícia relacionada ao tema." },
+  { label: "Impactos do passado no presente", frase: "Foram discutidos os impactos do passado no presente." },
+  { label: "Leitura e interpretação", frase: "Foi realizada leitura e interpretação de texto." },
+  { label: "Vídeo", frase: "Foi exibido vídeo relacionado ao conteúdo." },
+  { label: "Trabalho em grupo/dupla", frase: "Foi realizado trabalho em grupo/dupla." },
+  { label: "Apresentação oral", frase: "Foi realizada apresentação oral dos alunos." },
+  { label: "Revisão de conteúdo", frase: "Foi realizada revisão do conteúdo." },
+  { label: "Avaliação/prova", frase: "Foi aplicada avaliação/prova." },
+  { label: "Exercício prático", frase: "Foi realizado exercício prático (mão na massa)." },
+  { label: "Dúvidas dos alunos", frase: "Foram esclarecidas dúvidas dos alunos." },
+  { label: "Material de apoio Chronos", frase: "Foi utilizado o material de apoio da plataforma Chronos." },
+  { label: "Jogo/quiz educativo", frase: "Foi realizado jogo educativo/quiz de fixação." },
+];
 
 function gerarId() { return "aula_" + Date.now().toString(36); }
 
@@ -115,7 +139,7 @@ export default function Admin() {
 
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
-    introducao: "", utilidade: "", materialTexto: "",
+    introducao: "", utilidade: "", materialTexto: "", registroAula: "",
     videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
   });
 
@@ -385,7 +409,7 @@ export default function Admin() {
     });
 
     setForm({
-      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "",
+      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "", registroAula: "",
       videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
     });
     setArquivosPdf([]);
@@ -402,7 +426,7 @@ export default function Admin() {
     const pdfsMigrados = aula.pdfs ? [...aula.pdfs] : (aula.pdf ? [aula.pdf] : []);
 
     setForm({
-      id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "",
+      id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "", registroAula: aula.registroAula || "",
       videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }],
       pdfs: pdfsMigrados,
       materialEstudo: null,
@@ -576,6 +600,7 @@ export default function Admin() {
           introducao: usar("introducao", c.introducao),
           utilidade: usar("utilidade", c.utilidade),
           materialTexto: usar("materialTexto", c.resumo),
+          registroAula: usar("registroAula", c.registro),
           semana: String(prev.semana || "").trim() ? prev.semana : semanaDeReferencia(),
           ...(completo ? { materialEstudo: materialNovo, materialEstudoErro: false } : {}),
         };
@@ -603,6 +628,25 @@ export default function Admin() {
   const removerMaterialEstudo = () => {
     if (!window.confirm("Remover o material de estudo desta aula? (Os alunos deixam de ver depois que voce salvar a aula.)")) return;
     setForm(prev => ({ ...prev, materialEstudo: null, materialEstudoErro: false }));
+  };
+
+  // ─── REGISTRO DA AULA (rascunho pra colar na Sala do Futuro; nunca aparece pro aluno) ───
+  const acrescentarRegistro = (frase) => {
+    setForm(prev => {
+      const atual = String(prev.registroAula || "").trim();
+      return { ...prev, registroAula: atual ? `${atual} ${frase}` : frase };
+    });
+  };
+
+  const copiarRegistro = async () => {
+    const registro = String(form.registroAula || "").trim();
+    if (!registro) return;
+    try {
+      await navigator.clipboard.writeText(registro);
+      setToast({ mensagem: "Registro copiado! Já pode colar na Sala do Futuro." });
+    } catch {
+      alert("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente (Ctrl+C).");
+    }
   };
 
   // ─── SUGESTAO DE VIDEOS DO YOUTUBE (EM PORTUGUES, COM AJUDA DA IA) ───
@@ -763,6 +807,7 @@ export default function Admin() {
       videos: videosFinais.length > 0 ? videosFinais : null, 
       pdfs: pdfsFinais.length > 0 ? pdfsFinais : null,
       materialTexto: form.materialTexto || null,
+      registroAula: form.registroAula || "",
       materialProntoPdf: materialProntoPdfFinal,
       temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo,
       visualMaterial: visualAula
@@ -1739,6 +1784,42 @@ export default function Admin() {
                       inputClass={inputBaseClass}
                     />
                   )}
+                </div>
+
+                <div className="md:col-span-2 space-y-3">
+                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><ClipboardList className="w-4 h-4"/> Registro da Aula (Sala do Futuro)</h3>
+                  <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
+                    Rascunho pronto pra colar no registro de aula da Sala do Futuro — só você vê, o aluno nunca vê isso. A IA sugere quando você preenche a aula, mas o texto fica sempre editável: complete com o que rolou de verdade na aula.
+                  </p>
+                  <textarea
+                    rows={2}
+                    disabled={salvando}
+                    value={form.registroAula}
+                    onChange={e => setForm({ ...form, registroAula: e.target.value })}
+                    placeholder="Ex: Aula sobre o Tratado de Tordesilhas e a divisão de terras entre Portugal e Espanha."
+                    className={`${inputBaseClass} resize-y disabled:opacity-60 disabled:cursor-not-allowed`}
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {OPCOES_REGISTRO.map(op => (
+                      <button
+                        key={op.label}
+                        type="button"
+                        disabled={salvando}
+                        onClick={() => acrescentarRegistro(op.frase)}
+                        className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 hover:text-amber-700 dark:hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        + {op.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={salvando || !form.registroAula.trim()}
+                    onClick={copiarRegistro}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-300 hover:border-amber-400 dark:hover:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Copiar registro
+                  </button>
                 </div>
               </div>
 

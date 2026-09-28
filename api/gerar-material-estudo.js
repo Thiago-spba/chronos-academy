@@ -132,7 +132,8 @@ const FORMATO_CAMPOS = `  "campos": {
     "titulo": "titulo claro e atrativo para os alunos (ate 12 palavras)",
     "introducao": "para 'O que e isso?': 1 ou 2 frases curtas (no maximo 35 palavras) explicando o assunto",
     "utilidade": "para 'Para que serve?': 1 ou 2 frases curtas (no maximo 35 palavras) com a utilidade pratica, incentivando o estudo",
-    "resumo": "de 3 a 5 frases curtas com os pontos principais do material"
+    "resumo": "de 3 a 5 frases curtas com os pontos principais do material",
+    "registro": "1 frase curta e simples (no maximo 30 palavras) dizendo o que foi trabalhado na aula, para o professor colar no registro de aula da Sala do Futuro (ex.: 'Aula sobre o Tratado de Tordesilhas e a divisao de terras entre Portugal e Espanha.')"
   }`;
 
 function montarPrompt({ modo, tituloAula, disciplina, prioridades, qtdPdfs, temTexto, exemplos }) {
@@ -217,6 +218,7 @@ function normalizarCampos(bruto) {
     introducao: texto(bruto?.introducao, 800),
     utilidade: texto(bruto?.utilidade, 800),
     resumo: texto(bruto?.resumo, 2000),
+    registro: texto(bruto?.registro, 300),
   };
 }
 

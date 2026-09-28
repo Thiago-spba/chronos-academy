@@ -55,7 +55,9 @@ export default function Home() {
         if (cancelado || !snap.exists()) return;
         const dados = snap.data() || {};
         const lista = [];
-        turmas.forEach((turma) => {
+        // "1j" e "2l" sao espelhos automaticos de "1g" e "2h" (mesmo conteudo,
+        // replicado ao salvar) — sem este filtro a mesma aula apareceria 2x aqui.
+        turmas.filter((turma) => turma.id !== '1j' && turma.id !== '2l').forEach((turma) => {
           (dados[turma.id]?.modulos || []).forEach((modulo) => {
             (modulo.aulas || []).forEach((aula) => {
               lista.push({ turma, aula, quando: quandoFoiCriada(aula) });

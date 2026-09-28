@@ -1,6 +1,11 @@
 const FIREBASE_API_KEY = "AIzaSyBg2AEb82yO5Sk2TPuITfdPRscoDr-P2P8";
 const MODEL = "claude-haiku-4-5-20251001";
 
+// So o professor (mesma regra que ja existe em gerar-material-estudo.js) pode
+// gastar a cota da IA. Antes, esta funcao so conferia se havia ALGUM login
+// valido no Firebase, nao especificamente o do professor.
+const EMAIL_PROFESSOR = "thiago.rpba@gmail.com";
+
 async function verificarToken(idToken) {
   if (!idToken) return false;
   try {
@@ -14,7 +19,7 @@ async function verificarToken(idToken) {
     );
     if (!resp.ok) return false;
     const data = await resp.json();
-    return Array.isArray(data.users) && data.users.length > 0;
+    return Array.isArray(data.users) && data.users.some((u) => u.email === EMAIL_PROFESSOR);
   } catch {
     return false;
   }

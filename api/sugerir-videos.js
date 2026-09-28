@@ -9,6 +9,11 @@ const MODEL = "claude-haiku-4-5-20251001";
 const MAX_RESULTADOS = 8;
 const MAX_CANDIDATOS = 24;
 
+// So o professor (mesma regra que ja existe em gerar-material-estudo.js) pode
+// gastar a cota da IA e do YouTube. Antes, esta funcao so conferia se havia
+// ALGUM login valido no Firebase, nao especificamente o do professor.
+const EMAIL_PROFESSOR = "thiago.rpba@gmail.com";
+
 async function verificarToken(idToken) {
   if (!idToken) return false;
   try {
@@ -22,7 +27,7 @@ async function verificarToken(idToken) {
     );
     if (!resp.ok) return false;
     const data = await resp.json();
-    return Array.isArray(data.users) && data.users.length > 0;
+    return Array.isArray(data.users) && data.users.some((u) => u.email === EMAIL_PROFESSOR);
   } catch {
     return false;
   }

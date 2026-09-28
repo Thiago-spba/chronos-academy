@@ -1647,6 +1647,42 @@ export default function Admin() {
                   )}
                 </div>
 
+                <div className="space-y-3">
+                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><ClipboardList className="w-4 h-4"/> Registro da Aula (Sala do Futuro)</h3>
+                  <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
+                    Rascunho pronto pra colar no registro de aula da Sala do Futuro — só você vê, o aluno nunca vê isso. A IA sugere quando você preenche a aula, mas o texto fica sempre editável: complete com o que rolou de verdade na aula.
+                  </p>
+                  <textarea
+                    rows={2}
+                    disabled={salvando}
+                    value={form.registroAula}
+                    onChange={e => setForm({ ...form, registroAula: e.target.value })}
+                    placeholder="Ex: Aula sobre o Tratado de Tordesilhas e a divisão de terras entre Portugal e Espanha."
+                    className={`${inputBaseClass} resize-y disabled:opacity-60 disabled:cursor-not-allowed`}
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {OPCOES_REGISTRO.map(op => (
+                      <button
+                        key={op.label}
+                        type="button"
+                        disabled={salvando}
+                        onClick={() => acrescentarRegistro(op.frase)}
+                        className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 hover:text-amber-700 dark:hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        + {op.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={salvando || !form.registroAula.trim()}
+                    onClick={copiarRegistro}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-300 hover:border-amber-400 dark:hover:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Copiar registro
+                  </button>
+                </div>
+
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><UploadCloud className="w-4 h-4"/> Material PDF</h3>
@@ -1784,42 +1820,6 @@ export default function Admin() {
                       inputClass={inputBaseClass}
                     />
                   )}
-                </div>
-
-                <div className="md:col-span-2 space-y-3">
-                  <h3 className="text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><ClipboardList className="w-4 h-4"/> Registro da Aula (Sala do Futuro)</h3>
-                  <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
-                    Rascunho pronto pra colar no registro de aula da Sala do Futuro — só você vê, o aluno nunca vê isso. A IA sugere quando você preenche a aula, mas o texto fica sempre editável: complete com o que rolou de verdade na aula.
-                  </p>
-                  <textarea
-                    rows={2}
-                    disabled={salvando}
-                    value={form.registroAula}
-                    onChange={e => setForm({ ...form, registroAula: e.target.value })}
-                    placeholder="Ex: Aula sobre o Tratado de Tordesilhas e a divisão de terras entre Portugal e Espanha."
-                    className={`${inputBaseClass} resize-y disabled:opacity-60 disabled:cursor-not-allowed`}
-                  />
-                  <div className="flex flex-wrap gap-1.5">
-                    {OPCOES_REGISTRO.map(op => (
-                      <button
-                        key={op.label}
-                        type="button"
-                        disabled={salvando}
-                        onClick={() => acrescentarRegistro(op.frase)}
-                        className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 hover:text-amber-700 dark:hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        + {op.label}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={salvando || !form.registroAula.trim()}
-                    onClick={copiarRegistro}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-300 hover:border-amber-400 dark:hover:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Copiar registro
-                  </button>
                 </div>
               </div>
 

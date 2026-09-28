@@ -478,7 +478,7 @@ export default function Admin() {
 
   // Semanas ja usadas em aulas do mesmo bimestre/turma, da mais recente pra mais antiga (sugestao pra "escolher" em vez de digitar toda vez).
   const semanasSugeridas = useMemo(() => {
-    const modulo = bancoDados[form.turmaId]?.modulos?.find(m => m.id === form.moduloId);
+    const modulo = bancoDados?.[form.turmaId]?.modulos?.find(m => m.id === form.moduloId);
     const vistas = new Set();
     const lista = [];
     (modulo?.aulas || []).forEach(a => {

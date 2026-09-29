@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, GraduationCap, AlertCircle } from "lucide-react";
 import { auth, googleProvider } from "../firebase";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithRedirect, getRedirectResult } from "firebase/auth";
 
 const ADMIN_EMAIL = "thiago.rpba@gmail.com"; // único e-mail com acesso ao painel
 
@@ -10,22 +10,52 @@ export default function AdminLogin() {
   const navigate = useNavigate();
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
+  // Verificando o resultado do redirecionamento (usuario acabou de voltar do login do Google).
+  const [verificandoRetorno, setVerificandoRetorno] = useState(true);
+
+  // signInWithPopup foi trocado por signInWithRedirect: no celular (Safari, webviews
+  // de apps como Instagram/WhatsApp, PWA instalado), o navegador costuma bloquear a
+  // janela pop-up do Google silenciosamente, o que gerava "Falha ao autenticar com o
+  // Google" sem motivo aparente. O redirect leva o usuario ate o Google e traz ele de
+  // volta para esta mesma pagina, sem depender de pop-up.
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (cancelado) return;
+        if (result) {
+          if (result.user.email !== ADMIN_EMAIL) {
+            await auth.signOut();
+            setErro("Esta conta Google não tem acesso à área administrativa.");
+          } else {
+            navigate("/admin/painel");
+            return;
+          }
+        }
+      } catch (error) {
+        if (!cancelado) {
+          console.error(error);
+          setErro("Falha ao autenticar com o Google. Tente novamente.");
+        }
+      } finally {
+        if (!cancelado) setVerificandoRetorno(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [navigate]);
 
   const handleLogin = async () => {
     setErro("");
     setCarregando(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user.email !== ADMIN_EMAIL) {
-        await auth.signOut();
-        setErro("Esta conta Google não tem acesso à área administrativa.");
-        return;
-      }
-      navigate("/admin/painel");
+      // A pagina sai daqui e volta pronta (o resultado e tratado no useEffect acima).
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       console.error(error);
       setErro("Falha ao autenticar com o Google. Tente novamente.");
-    } finally {
       setCarregando(false);
     }
   };
@@ -60,10 +90,10 @@ export default function AdminLogin() {
 
           <button
             onClick={handleLogin}
-            disabled={carregando}
+            disabled={carregando || verificandoRetorno}
             className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-800 dark:text-slate-100 font-bold text-sm shadow-sm hover:bg-stone-50 dark:hover:bg-slate-700 disabled:opacity-60 transition-all duration-300"
           >
-            {carregando ? (
+            {carregando || verificandoRetorno ? (
               <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin" />
             ) : (
               <>

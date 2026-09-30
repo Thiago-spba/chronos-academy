@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<title>Aula animada · Chronos Academy</title>
+<style>
+  /* Fontes e biblioteca de animação ficam no próprio site (funciona mesmo com internet fraca). */
+  @font-face{font-family:'Lexend'; font-weight:400; font-display:swap; src:url(/aulas-animadas/lib/lexend-400.woff2) format('woff2');}
+  @font-face{font-family:'Lexend'; font-weight:700; font-display:swap; src:url(/aulas-animadas/lib/lexend-700.woff2) format('woff2');}
+  *{box-sizing:border-box}
+  body{margin:0}
+  /* Layout: um unico quadro (cena SVG 1600x900) onde tudo e desenhado,
+     escrito e transformado no mesmo lugar; controles grandes embaixo.
+     As cores vem de 30 temas (JS); estes valores sao o tema 1 (quadro verde). */
+  :root{
+    --board:#17302a; --board2:#1f3d35; --chalk:#f4f0e6; --dim:#a9bdb4; --g1:#1d3a33; --g2:#142823;
+    --yellow:#ffd166; --sky:#8fd3ff; --coral:#ff8f7e; --ok:#8ee89b; --line:#c9d6cf;
+    --font:'Lexend','Segoe UI',system-ui,sans-serif;
+    color-scheme: dark;
+  }
+  html,body{height:100%}
+  body{background:var(--board); color:var(--chalk); font-family:var(--font); display:flex; flex-direction:column;}
+  .palco{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding-inline:16px; padding-block:8px 0;}
+  #cena{width:100%; height:100%; display:block; user-select:none; -webkit-user-select:none;}
+  #cena text{font-family:var(--font);}
+  .c-chalk{fill:var(--chalk)} .c-dim{fill:var(--dim)} .c-yellow{fill:var(--yellow)} .c-sky{fill:var(--sky)}
+  .c-coral{fill:var(--coral)} .c-ok{fill:var(--ok)} .c-board{fill:var(--board)}
+  .b{font-weight:700} .ls{letter-spacing:.12em}
+  .traco{stroke:var(--chalk); stroke-width:5; fill:none; stroke-linecap:round}
+  .traco-fino{stroke:var(--line); stroke-width:2.5; fill:none; opacity:.75}
+  .traco-y{stroke:var(--yellow); stroke-width:4; fill:none; stroke-linecap:round}
+  .quad-area{fill:var(--board2); stroke:var(--chalk); stroke-width:3}
+  .celula{fill:var(--yellow)}
+  .card-box{fill:var(--board2); stroke:var(--line); stroke-width:2.5}
+  .card-coral{fill:var(--board2); stroke:var(--coral); stroke-width:3}
+  .card-ok{fill:var(--board2); stroke:var(--ok); stroke-width:3}
+  .alt{cursor:pointer}
+  .alt-box{fill:var(--board2); stroke:var(--line); stroke-width:3; transition:stroke .15s}
+  .alt:hover .alt-box{stroke:var(--sky)}
+  .alt-box.sel{stroke:var(--yellow); stroke-width:7}
+  .alt-circ{fill:var(--chalk)}
+  .chip{cursor:pointer}
+  .chip rect{fill:var(--board2); stroke:var(--sky); stroke-width:2.5}
+  .chip:hover rect{fill:color-mix(in srgb, var(--board2) 82%, var(--chalk))}
+  .sombra{fill:var(--dim); opacity:.55}
+
+  .nav{padding-inline:16px; padding-block:10px calc(12px + env(safe-area-inset-bottom,0px)); display:flex; align-items:center; justify-content:space-between; gap:14px;}
+  .botao{font-family:var(--font); font-weight:700; font-size:clamp(16px,1.8vw,22px); padding:12px 28px; border-radius:14px; cursor:pointer; transition:transform .12s, background .15s;}
+  .botao:active{transform:scale(.97)}
+  .botao:focus-visible{outline:3px solid var(--sky); outline-offset:3px}
+  .botao:disabled{opacity:.35; cursor:default}
+  .botao.principal{background:var(--yellow); color:var(--board); border:none;}
+  .botao.secundario{background:transparent; color:var(--chalk); border:2px solid var(--line);}
+  .dica{font-size:clamp(11px,1.2vw,14px); color:var(--dim); text-align:center;}
+  .esq{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .botao.tema{font-size:clamp(12px,1.2vw,15px); font-weight:400; padding:10px 16px; background:transparent; color:var(--dim); border:1.5px dashed var(--line);}
+  @media (max-width:560px){ .dica{display:none} }
+  .girar{display:none; text-align:center; color:var(--yellow); font-size:15px; padding:14px 16px 0;}
+  @media (orientation:portrait) and (max-width:700px){ .girar{display:block} }
+</style>
+</head>
+<body>
+<p class="girar">Dica: gire o celular para ver o quadro maior.</p>
+<div class="palco">
+  <svg id="cena" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Quadro da aula"></svg>
+</div>
+<div class="nav">
+  <div class="esq">
+    <button class="botao secundario" id="btnVoltar">Voltar</button>
+    <button class="botao tema" id="btnFechar" title="Voltar para o Chronos">Fechar</button>
+  </div>
+  <span class="dica">Espaço ou → avança · ← volta · clique no meio da animação para pular</span>
+  <button class="botao principal" id="btnAvancar">Começar</button>
+</div>
+
+
+<script src="/aulas-animadas/lib/gsap.min.js"></script>
+<script src="/aulas-animadas/lib/temas.js"></script>
+<script src="/aulas-animadas/lib/motor.js"></script>
+<script>
+// Página única para todas as aulas animadas geradas pelo motor.
+// Endereço: /aulas-animadas/aula.html#id=<aula>&tema=<1-30>
+// (o "#" não muda o arquivo em cache, então funciona offline).
+(function(){
+  var h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  var id = (h.get('id') || '').toLowerCase();
+  var tema = parseInt(h.get('tema') || '1', 10) || 1;
+  if (!/^[a-z0-9-]{1,60}$/.test(id)){ window.ChronosMotor.erro('Aula não encontrada.', 'Volte ao Chronos e abra a aula de novo.'); return; }
+  var s = document.createElement('script');
+  s.src = '/aulas-animadas/dados/' + id + '.js';
+  s.onload = function(){ window.ChronosMotor.iniciar(window.CHRONOS_AULA, tema - 1); };
+  s.onerror = function(){ window.ChronosMotor.erro('Não foi possível abrir esta aula.', 'Verifique a internet e recarregue a página.'); };
+  document.body.appendChild(s);
+})();
+</script>
+
+</body>
+</html>

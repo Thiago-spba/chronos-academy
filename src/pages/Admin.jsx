@@ -244,13 +244,31 @@ export default function Admin() {
           const temAnoLegado = turma.modulos.some(m => lerModulo(m).ano === Number(ano));
           bimestres.forEach(req => {
             if (!temAnoLegado) return;
-            const existe = turma.modulos.find(m => m.id === req.id || (m.id === "b3" && req.id === "b3"));
+            const existe = turma.modulos.find(m => m.id === req.id) || acharModulo(turma.modulos, Number(ano), lerModulo(req).bim);
             if (!existe) {
               turma.modulos.push({ id: req.id, titulo: req.titulo, abertoPadrao: false, aulas: [] });
               precisaAtualizar = true;
             }
           });
           
+          // Limpa bimestre repetido e vazio (mesmo ano e bimestre); nunca apaga um que tenha aulas.
+          const vistos = new Map();
+          const semRepetidos = [];
+          turma.modulos.forEach(m => {
+            const chave = chaveModulo(m);
+            const anterior = vistos.get(chave);
+            if (!anterior) { vistos.set(chave, m); semRepetidos.push(m); return; }
+            const vazioM = !(m.aulas && m.aulas.length);
+            const vazioA = !(anterior.aulas && anterior.aulas.length);
+            if (!vazioM && !vazioA) { semRepetidos.push(m); return; } // os dois tem aulas: deixa como esta
+            const fica = vazioA ? m : anterior, sai = vazioA ? anterior : m;
+            if (sai.abertoPadrao) fica.abertoPadrao = true;
+            semRepetidos[semRepetidos.indexOf(sai)] = fica;
+            if (fica === m) vistos.set(chave, m);
+            precisaAtualizar = true;
+          });
+          turma.modulos = semRepetidos.filter((m, i, arr) => arr.indexOf(m) === i);
+
           turma.modulos = ordenarModulos(turma.modulos);
         });
 

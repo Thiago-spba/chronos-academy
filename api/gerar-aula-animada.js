@@ -44,7 +44,7 @@ const REGRAS = `REGRAS OBRIGATORIAS:
 const FORMATO = `Responda SOMENTE com um JSON (sem texto antes ou depois) neste formato:
 {
   "titulo": "titulo da aula (ate 44 letras)",
-  "termos": [ {"chave":"area","chip":"Área","titulo":"ÁREA","oQueE":["ate 3 linhas","de ate 33 letras"],"explicando":["..."],"exemplo":["..."]} ],   // de 1 a 4 palavras-chave da aula
+  "termos": [ {"chave":"area","chip":"Área","titulo":"ÁREA","oQueE":["ate 3 linhas","de ate 33 letras"],"explicando":["..."],"exemplo":["..."]} ],   // de 1 a 4 palavras-chave da aula; "chip" = nome curto (1 ou 2 palavras, ate 18 letras)
   "abertura": {"antes":"frase de contexto","destaque":"o numero/expressao em foco (ate 24 letras)","depois":"a pergunta","alternativas":["A","B","C","D"],"correta":2,"calculo":"8 × 5"},
   "blocos": [ ... ],
   "duvidas": [ ... ],

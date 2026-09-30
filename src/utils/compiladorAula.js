@@ -24,6 +24,8 @@ function limpa(v, max) {
   const corte = s.slice(0, max);
   const esp = corte.lastIndexOf(" ");
   let r = (esp >= max * 0.5 ? corte.slice(0, esp) : corte).replace(/[\s,;:(–-]+$/, "");
+  // não deixa sobrar "de", "da", "e"... pendurado no fim ("Unidade de" vira "Unidade")
+  r = r.replace(/(?:\s+(?:de|da|do|das|dos|e|a|o|as|os|em|no|na|para|com|por|um|uma|ao|à))+$/i, "");
   if ((r.match(/\*/g) || []).length % 2) r = r.replace(/\*/g, "");
   return r;
 }

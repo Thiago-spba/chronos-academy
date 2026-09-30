@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 
 // Mostra uma aula animada (JSON do motor) dentro de um quadro (iframe).
 // O quadro avisa "estou pronto" e a gente manda a aula por mensagem (so entre paginas do mesmo site).
-export default function AulaAnimadaJanela({ aula, tema = 1, onFechar, className = '', titulo = 'Aula animada' }) {
+export default function AulaAnimadaJanela({ aula, tema = 1, onFechar, onStatus, className = '', titulo = 'Aula animada' }) {
   const ref = useRef(null);
   const dados = useRef({ aula, tema });
   dados.current = { aula, tema };
   const fecharRef = useRef(onFechar);
   fecharRef.current = onFechar;
+  const statusRef = useRef(onStatus);
+  statusRef.current = onStatus;
 
   useEffect(() => {
     const ouvir = (ev) => {
@@ -19,6 +21,8 @@ export default function AulaAnimadaJanela({ aula, tema = 1, onFechar, className 
         ref.current.contentWindow.postMessage({ tipo: 'chronos-aula', aula: dados.current.aula, tema: dados.current.tema }, window.location.origin);
       } else if (d.tipo === 'chronos-fechar' && fecharRef.current) {
         fecharRef.current();
+      } else if (d.tipo === 'chronos-status' && statusRef.current) {
+        statusRef.current({ erros: Array.isArray(d.erros) ? d.erros : [], total: d.total });
       }
     };
     window.addEventListener('message', ouvir);

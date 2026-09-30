@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Loader2, CheckCircle2, AlertTriangle, HelpCircle, RefreshCw, Trash2, ShieldCheck, Palette } from 'lucide-react';
 import AulaAnimadaJanela from './AulaAnimadaJanela';
 import { compilarAula } from '../utils/compiladorAula';
@@ -30,6 +30,7 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
   const [gerando, setGerando] = useState('');
   const [nivel, setNivel] = useState(nivelPadrao);
   const [respostasNovas, setRespostasNovas] = useState({});
+  const [statusPrevia, setStatusPrevia] = useState(null); // {erros, total} vindo da prévia; null = ainda carregando
 
   const analise = useMemo(() => {
     if (!valor?.plano) return null;
@@ -80,7 +81,11 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
   };
 
   const temaAtual = valor?.tema || temaInicial;
+  // trocou a aula ou o tema: a prévia recarrega e avisa de novo
+  useEffect(() => { setStatusPrevia(null); }, [valor?.aula, temaAtual]);
   const temErros = !!analise?.erros?.length;
+  const errosPrevia = statusPrevia?.erros || [];
+  const previaOk = !!statusPrevia && errosPrevia.length === 0;
 
   return (
     <div className="rounded-2xl border border-fuchsia-200 dark:border-fuchsia-900/50 bg-fuchsia-50/60 dark:bg-fuchsia-950/10 p-4 space-y-4">
@@ -107,6 +112,13 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
 
       {valor && analise && (
         <>
+          {errosPrevia.length > 0 && (
+            <div className="rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 p-3">
+              <p className="text-xs font-black text-red-800 dark:text-red-300 flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4" /> A animação teve erro ao montar — não dá para aprovar. Use "Gerar de novo".</p>
+              <ul className="text-xs text-red-800 dark:text-red-300 list-disc pl-5 space-y-1">{errosPrevia.map((e, i) => <li key={i}>{e}</li>)}</ul>
+            </div>
+          )}
+
           {temErros && (
             <div className="rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 p-3">
               <p className="text-xs font-black text-red-800 dark:text-red-300 flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4" /> A conferência achou problemas — não dá para aprovar assim</p>
@@ -135,7 +147,7 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
           )}
 
           <div className="rounded-xl overflow-hidden border border-stone-300 dark:border-slate-700 bg-black" style={{ aspectRatio: '16 / 9' }}>
-            <AulaAnimadaJanela aula={valor.aula} tema={temaAtual} titulo="Prévia da aula animada" />
+            <AulaAnimadaJanela aula={valor.aula} tema={temaAtual} titulo="Prévia da aula animada" onStatus={setStatusPrevia} />
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <button type="button" onClick={() => onChange({ ...valor, tema: proximoTema ? proximoTema(temaAtual) : (temaAtual % 30) + 1 })} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-stone-700 dark:text-slate-300 font-bold hover:bg-white dark:hover:bg-slate-900"><Palette className="w-3.5 h-3.5" /> Outro visual (tema {temaAtual})</button>
@@ -165,7 +177,7 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
                 <button type="button" onClick={() => onChange({ ...valor, aprovada: false })} className="px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-xs font-bold text-stone-700 dark:text-slate-300">Desfazer aprovação</button>
               </>
             ) : (
-              <button type="button" disabled={temErros || !!gerando} onClick={() => onChange({ ...valor, aprovada: true })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-bold"><CheckCircle2 className="w-4 h-4" /> Aprovar para os alunos</button>
+              <button type="button" disabled={temErros || !previaOk || !!gerando} title={!previaOk && !errosPrevia.length ? "Aguarde a prévia carregar" : ""} onClick={() => onChange({ ...valor, aprovada: true })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-bold"><CheckCircle2 className="w-4 h-4" /> Aprovar para os alunos</button>
             )}
             <button type="button" disabled={!!gerando} onClick={() => gerar(valor.respostas || [])} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-xs font-bold text-stone-700 dark:text-slate-300 disabled:opacity-50"><RefreshCw className="w-3.5 h-3.5" /> Gerar de novo</button>
             <button type="button" disabled={!!gerando} onClick={() => onChange(null)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"><Trash2 className="w-3.5 h-3.5" /> Descartar</button>

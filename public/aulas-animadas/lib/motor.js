@@ -921,6 +921,8 @@ function iniciar(AULA, temaIdx){
     window.__aula = {irPara:irPara, total:N, erros:ERROS};
     tl.seek('b0');
     sync();
+    // avisa o painel do professor (prévia) se a aula montou sem erros; assim aula com defeito nunca é aprovada
+    if (window.parent !== window) window.parent.postMessage({tipo:'chronos-status', erros:ERROS.slice(0, 8), total:N}, location.origin);
   }
 }
 

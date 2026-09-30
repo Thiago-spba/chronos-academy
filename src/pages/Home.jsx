@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles, Bell, Calculator } from 'lucide-react';
+import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles, Bell, Calculator, Atom } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
 import NomesFlutuantes from '../components/NomesFlutuantes';
 import { db } from '../firebase';
@@ -26,6 +26,28 @@ const turmas = [
   { id: '2c-carr', grupo: 'ftp', serie: '2ª Série C', disciplina: 'Carreira e Competências', curso: 'Novo Ensino Médio (Hab. Profissional)', icone: Target, corBadge: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' }
 ];
 
+// Turmas criadas no painel (ex.: Física) que ainda não estão na lista fixa acima ganham card sozinhas.
+// Só lê chronos/dados_escola; as turmas fixas continuam exatamente como antes.
+function turmaAutomatica(id, dados) {
+  const nome = String((dados && dados.nome) || id).trim();
+  const disc = String((dados && dados.disciplina) || '').trim();
+  const t = (nome + ' ' + disc).toLowerCase();
+  const fisica = /f[ií]sica/.test(t);
+  const mat = /matem[aá]tica/.test(t);
+  return {
+    id,
+    grupo: 'fgb',
+    serie: nome,
+    disciplina: disc || (fisica ? 'Física' : mat ? 'Matemática' : 'Turma'),
+    curso: 'Novo Ensino Médio',
+    icone: fisica ? Atom : mat ? Calculator : ScrollText,
+    corBadge: fisica
+      ? 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800'
+      : 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800',
+    automatica: true,
+  };
+}
+
 const grupos = [
   { id: 'fgb', sigla: 'FGB', titulo: 'Formação Geral Básica' },
   { id: 'ftp', sigla: 'FTP', titulo: 'Formação Técnica e Profissional' }
@@ -48,6 +70,9 @@ export default function Home() {
   const [ultimasAulas, setUltimasAulas] = useState([]);
   const [recentesAberto, setRecentesAberto] = useState(false);
   const [avisoAtivo, setAvisoAtivo] = useState(false);
+  const [turmasExtras, setTurmasExtras] = useState([]);
+  // fixas + automáticas (as novas aparecem primeiro, como a Matemática já faz)
+  const todasTurmas = [...turmasExtras, ...turmas];
 
   // Aulas mais recentes de todas as turmas juntas, para sempre aparecer o que foi postado por último.
   useEffect(() => {
@@ -57,9 +82,14 @@ export default function Home() {
         if (cancelado || !snap.exists()) return;
         const dados = snap.data() || {};
         const lista = [];
+        const conhecidas = new Set(turmas.map((t) => t.id));
+        const extras = Object.keys(dados)
+          .filter((id) => !conhecidas.has(id) && dados[id] && typeof dados[id] === 'object' && Array.isArray(dados[id].modulos) && dados[id].modulos.some((m) => (m.aulas || []).length > 0))
+          .map((id) => turmaAutomatica(id, dados[id]));
+        if (extras.length) setTurmasExtras(extras);
         // "1j" e "2l" sao espelhos automaticos de "1g" e "2h" (mesmo conteudo,
         // replicado ao salvar) — sem este filtro a mesma aula apareceria 2x aqui.
-        turmas.filter((turma) => turma.id !== '1j' && turma.id !== '2l').forEach((turma) => {
+        [...extras, ...turmas].filter((turma) => turma.id !== '1j' && turma.id !== '2l').forEach((turma) => {
           (dados[turma.id]?.modulos || []).forEach((modulo) => {
             (modulo.aulas || []).forEach((aula) => {
               lista.push({ turma, aula, quando: quandoFoiCriada(aula) });
@@ -83,7 +113,7 @@ export default function Home() {
         const data = snap.data();
         const avisosDb = data.avisos || data.aviso;
         if (!avisosDb) return;
-        const ids = turmas.map((t) => t.id);
+        const ids = todasTurmas.map((t) => t.id);
         const ativo =
           ids.some((id) => avisosDb[id]?.ativo) ||
           !!avisosDb['global']?.ativo ||
@@ -241,7 +271,7 @@ export default function Home() {
                 <h4 className="text-lg font-black text-stone-700 dark:text-slate-200">{grupo.titulo}</h4>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {turmas.filter((t) => t.grupo === grupo.id).map((turma) => {
+        {todasTurmas.filter((t) => t.grupo === grupo.id).map((turma) => {
           const Icon = turma.icone;
           return (
             /* ATENÇÃO AQUI: Retirei o overflow-hidden para o balão poder sair do card */

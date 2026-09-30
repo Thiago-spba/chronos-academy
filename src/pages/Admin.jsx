@@ -590,7 +590,7 @@ export default function Admin() {
 
       const c = data.campos;
       const materialNovo = completo
-        ? { ...data.material, visual: escolherVisual({ sugestoes: data.material.icones, recentes: visuaisRecentes(turma, form.id) }) }
+        ? { ...data.material, visual: escolherVisual({ sugestoes: data.material.icones, recentes: visuaisRecentes(turma, form.id), semente: form.turmaId }) }
         : null;
       const numero = c.numero || proximoNumeroAula(turma?.modulos, form.moduloId);
       const numeroAulaIA = c.nomeAula ? `Aula ${numero} - ${c.nomeAula}` : `Aula ${numero}`;
@@ -624,7 +624,7 @@ export default function Admin() {
       const atual = visualDoMaterial(prev.materialEstudo);
       const recentes = [...visuaisRecentes(bancoDados?.[prev.turmaId], prev.id), { icone: atual.icone, cor: atual.cor.id, layout: atual.layout }];
       const sugestoes = prev.materialEstudo.icones?.length ? prev.materialEstudo.icones : [atual.icone];
-      return { ...prev, materialEstudo: { ...prev.materialEstudo, visual: escolherVisual({ sugestoes, recentes }) } };
+      return { ...prev, materialEstudo: { ...prev.materialEstudo, visual: escolherVisual({ sugestoes, recentes, semente: prev.turmaId }) } };
     });
   };
 

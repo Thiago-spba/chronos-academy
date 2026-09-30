@@ -65,12 +65,22 @@ export function opcoesIcones() {
   return Object.entries(CATALOGO_ICONES).map(([chave, info]) => ({ chave, ...info }));
 }
 
+// Numero fixo tirado de um texto (mesmo texto = mesmo numero).
+function hashTexto(t) {
+  let h = 0;
+  for (const ch of String(t || "")) h = (h * 31 + ch.charCodeAt(0)) % 100003;
+  return h;
+}
+
 // Visual pronto para desenhar (aceita materiais antigos, que so tinham "tema").
+// Material antigo, sem cor/layout salvos, ganha um visual proprio tirado do codigo da aula
+// (antes todos apareciam iguais: ambar + lateral).
 export function visualDoMaterial(material) {
   const v = material?.visual || {};
   const chave = chaveIcone(v.icone) || chaveIcone(material?.tema) || "geral";
-  const cor = CORES.find((c) => c.id === v.cor) || CORES[0];
-  const layout = LAYOUTS.includes(v.layout) ? v.layout : "lateral";
+  const combo = COMBOS[hashTexto(material?.aulaId) % COMBOS.length];
+  const cor = CORES.find((c) => c.id === v.cor) || CORES.find((c) => c.id === combo.cor) || CORES[0];
+  const layout = LAYOUTS.includes(v.layout) ? v.layout : (material?.aulaId ? combo.layout : "lateral");
   return { icone: chave, Icone: DESENHOS[chave] || GraduationCap, rotulo: CATALOGO_ICONES[chave]?.rotulo || "Estudo", cor, layout };
 }
 
@@ -89,7 +99,9 @@ export function visuaisRecentes(turma, aulaIdAtual, janela = JANELA_SEM_REPETIR)
 // Icone: a sugestao da IA mais ligada ao assunto que ainda nao foi usada; se todas foram, repete a principal
 // (o assunto vem antes da novidade; a cor e o layout garantem que o visual fica diferente).
 // Cor + layout: combinacao que nao aparece nas recentes e nao repete a cor nem o layout da aula anterior.
-export function escolherVisual({ sugestoes = [], recentes = [] } = {}) {
+// "semente" (ex.: o id da turma) faz cada turma comecar num ponto diferente da lista,
+// para a 1a aula de Historia, Matematica e Fisica nao nascerem iguais.
+export function escolherVisual({ sugestoes = [], recentes = [], semente = "" } = {}) {
   const validas = [...new Set(sugestoes.map(chaveIcone).filter(Boolean))];
   if (validas.length === 0) validas.push("geral");
   const iconesUsados = new Set(recentes.map((v) => chaveIcone(v?.icone)));
@@ -99,7 +111,7 @@ export function escolherVisual({ sugestoes = [], recentes = [] } = {}) {
   const ultimoUso = new Map();
   recentes.forEach((v, i) => ultimoUso.set(chaveCombo(v), i));
   const anterior = recentes[recentes.length - 1];
-  const inicio = anterior ? (COMBOS.findIndex((c) => chaveCombo(c) === chaveCombo(anterior)) + 1) : 0;
+  const inicio = anterior ? (COMBOS.findIndex((c) => chaveCombo(c) === chaveCombo(anterior)) + 1) : hashTexto(semente) % COMBOS.length;
   const emOrdem = COMBOS.map((_, i) => COMBOS[(Math.max(inicio, 0) + i) % COMBOS.length]);
 
   const livre = emOrdem.find((c) => !ultimoUso.has(chaveCombo(c)) && (!anterior || (c.cor !== anterior.cor && c.layout !== anterior.layout)))

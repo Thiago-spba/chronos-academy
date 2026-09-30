@@ -4,7 +4,7 @@
 //  2) matemática: recalcula contas/colunas/vírgulas e confere toda frase "A op B = C";
 //  3) pergunta/alternativas: 4 opções, única correta válida.
 // Não grava nada. Devolve { ok, erros, avisos, verificadas }.
-import { lerNumero, vezes, dividido, soma, menos, igual, conferirTexto, avaliar, acharAlternativa, formatar } from "./matematicaExata.js";
+import { lerNumero, vezes, dividido, soma, menos, igual, conferirTexto, avaliar, avaliarLinear, acharAlternativa, formatar, usaPi, ehZero } from "./matematicaExata.js";
 import { conferirFormulas, contextosDeFormula } from "./formulasConhecidas.js";
 
 const PECAS = [
@@ -145,9 +145,11 @@ function verificar(aula) {
     if (a.conferencia && a.conferencia.calculo) {
       try {
         const v = avaliar(a.conferencia.calculo);
+        const fino = usaPi(a.conferencia.calculo) ? avaliar(a.conferencia.calculo, { vars: { pi: "3,14159265358979323846" } }) : null;
+        const opc = { fino, porcento: /%|×\s*100\s*$/.test(a.conferencia.calculo) };
         const alts = a.tipo === "pergunta" ? (a.alternativas || []) : [a.conferencia.alternativa];
         const idx = a.tipo === "pergunta" ? Number(a.correta) : 0;
-        const r = acharAlternativa(alts, v);
+        const r = acharAlternativa(alts, v, opc);
         if (a.tipo === "pergunta" && r.indice !== idx && !(r.indice == null && r.motivo === "ilegivel")) err(onde + ": a alternativa marcada não é a que tem o valor de " + a.conferencia.calculo + " (" + formatar(v) + ").");
         else if (a.tipo !== "pergunta" && r.indice !== 0 && r.motivo !== "ilegivel") err(onde + ": a alternativa revelada não tem o valor de " + a.conferencia.calculo + " (" + formatar(v) + ").");
         else verificadas++;
@@ -184,12 +186,50 @@ function verificar(aula) {
     if (!(p.momento >= 0 && p.momento <= 4)) err(onde + ": momento inválido.");
     if (!p.acoes.some((a) => a && a.tipo === "legenda")) avi(onde + ": passo sem legenda (o aluno fica sem explicação escrita).");
     p.acoes.forEach((a, j) => conferirAcao(a, onde + (p.acoes.length > 1 ? ", ação " + (j + 1) : "")));
+    // a legenda não pode dizer um valor diferente do quadro ("S = 87 m" na legenda e "S = 80 m" no quadro)
+    const bare = /(?:^|[^\p{L}])([\p{L}Δ])\s*=\s*\*?(−?-?\d{1,3}(?: \d{3})*(?:,\d+)?|−?-?\d+(?:,\d+)?)\*?(?![\d,]|\s*[×÷+\-−*\/^])/gu;
+    const doQuadro = {};
+    p.acoes.filter((a) => a && a.tipo === "linhas").forEach((a) => (a.linhas || []).forEach((l) => {
+      for (const m of String((l && l.t) || "").matchAll(bare)) (doQuadro[m[1]] = doQuadro[m[1]] || new Set()).add(m[2].replace(/−/g, "-"));
+    }));
+    p.acoes.filter((a) => a && a.tipo === "legenda").forEach((a) => {
+      for (const m of String(a.t || "").matchAll(bare)) {
+        const q = doQuadro[m[1]];
+        if (q && q.size === 1 && !q.has(m[2].replace(/−/g, "-"))) err(onde + ": a legenda diz " + m[1] + " = " + m[2] + ", mas o quadro mostra " + m[1] + " = " + [...q][0] + ".");
+      }
+    });
   });
 
   // toda frase com "A op B = C" da aula inteira
   const c = conferirTexto_todas(aula);
   verificadas += c.conferidas;
   c.erros.forEach((e) => err("Conta escrita errada: \"" + e.trecho + "\" — o certo seria " + e.esperado + "."));
+
+  // resoluções de equação (quadros "eqN_i"): toda linha "… = …" com a incógnita tem a MESMA solução
+  const eqs = {};
+  aula.passos.forEach((p) => (p && p.acoes || []).forEach((a) => {
+    const m = a && a.tipo === "linhas" && /^(eq\d+)_\d+$/.exec(String(a.id || ""));
+    if (m) (a.linhas || []).forEach((l) => { (eqs[m[1]] = eqs[m[1]] || []).push(String((l && l.t) || "")); });
+  }));
+  Object.entries(eqs).forEach(([id, linhas]) => {
+    let sol = null, letra = null;
+    linhas.forEach((t0) => {
+      const t = t0.replace(/\*/g, "").replace(/\s*≈.*$/, "");
+      if (/^Conferindo/.test(t) || (t.match(/=/g) || []).length !== 1) return;
+      const ls = [...new Set(t.match(/\p{L}/gu) || [])];
+      if (ls.length !== 1) return;
+      try {
+        const [e, d] = t.split("=");
+        const L = avaliarLinear(e, { incognita: ls[0], implicita: true }), R = avaliarLinear(d, { incognita: ls[0], implicita: true });
+        const A = menos(L.a, R.a);
+        if (ehZero(A)) { err("Equação " + id + ": a linha \"" + t + "\" não tem solução única."); return; }
+        const x = dividido(menos(R.b, L.b), A);
+        verificadas++;
+        if (sol == null) { sol = x; letra = ls[0]; }
+        else if (ls[0] !== letra || !igual(sol, x)) err("Equação " + id + ": a linha \"" + t + "\" não tem a mesma solução das outras (" + letra + " = " + formatar(sol) + ").");
+      } catch { /* linha que não é equação */ }
+    });
+  });
 
   // fórmulas escritas em textos (ex.: "triângulo: A = b × h" está errado)
   const grupos = [];

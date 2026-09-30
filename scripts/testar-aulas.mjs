@@ -230,6 +230,31 @@ secao("5) Rigor matemático (casos da auditoria)");
   formulasErradas.forEach(([tit, f]) => { const y = roda({ tipo: "ideia", titulo: tit, linhas: [f] }); ok(!y.v.ok, `fórmula errada passou: ${tit}: ${f}`); });
   const formulasCertas = [["Área do triângulo", "A = b × h ÷ 2"], ["Círculo", "A = π × r²"], ["Trapézio", "A = (B + b) × h ÷ 2"], ["Quadrado", "P = 4 × l"], ["Velocidade média", "v = S ÷ t"], ["Circunferência", "C = 2 × π × r"], ["Retângulo", "A = b × h"]];
   formulasCertas.forEach(([tit, f]) => { const y = roda({ tipo: "ideia", titulo: tit, linhas: [f] }); ok(y.v.ok, `fórmula certa acusada: ${tit}: ${f}: ${y.v.erros.join(" | ")}`); });
+  // --- segunda auditoria ---
+  x = aprova("* em texto livre é vezes", { tipo: "ideia", titulo: "Veja", linhas: ["Veja: 2*3 = 6", "Área: 8*5 = 40 m²"] }); tem(x, "2 × 3 = 6", "2*3 texto"); naoTem(x, "23 = 6", "2*3 texto"); tem(x, "8 × 5 = 40 m²", "8*5 texto");
+  barra("* em texto livre com conta errada", { tipo: "ideia", titulo: "Veja", linhas: ["12*5 = 70"] });
+  x = aprova("desafio com 3*4", { tipo: "desafio", enunciado: ["Quanto é 3*4?"], alternativas: ["7", "12", "34", "1"], calculo: "3 × 4" }); naoTem(x, "Quanto é 34", "3*4 enunciado");
+  x = aprova("1.000.000 é um milhão", { tipo: "desafio", enunciado: ["1000 × 1000?"], alternativas: ["1.000.000", "100", "10", "10.000"], calculo: "1000 × 1000" }); tem(x, "Alternativa A ✓", "1.000.000");
+  barra("500 × 2 não é 1.000.000", { tipo: "desafio", enunciado: ["500 × 2?"], alternativas: ["1.000.000", "100", "10", "10.000"], calculo: "500 × 2" });
+  x = aprova("0.125 é decimal", { tipo: "figura", forma: "circulo", medidas: { raio: "0.125" }, unidade: "m" }); tem(x, "r = 0,125 m", "0.125");
+  barra("1.875 é ambíguo em conta", { tipo: "movimento", velocidade: "1.875", tempo: "2", unidadeVelocidade: "m/s" });
+  barra("'Mais de 40' não é 40", { tipo: "desafio", enunciado: ["5 × 8?"], alternativas: ["Mais de 40", "30", "20", "10"], calculo: "5 × 8" });
+  barra("'1½' não é 1", { tipo: "desafio", enunciado: ["0,5 + 0,5?"], alternativas: ["1½", "2", "3", "4"], calculo: "0,5 + 0,5" });
+  x = aprova("2x(x + 1) é parábola", { tipo: "grafico", funcao: "y = 2x(x + 1)" }); tem(x, "2º grau", "2x(x+1)");
+  x = aprova("fórmula 2x(x + 1)", { tipo: "formula", formula: "A = 2x(x + 1)", valores: { x: "3" } }); tem(x, "A = *24*", "2x(x+1) x=3");
+  x = aprova("6 ÷ 2/3 = 9", { tipo: "expressoes", itens: [{ expr: "6 ÷ 2/3" }, { expr: "1/2 ÷ 1/4" }] }); tem(x, "6 ÷ (2/3) = *9*", "6 ÷ 2/3"); tem(x, "(1/2) ÷ (1/4) = *2*", "1/2 ÷ 1/4");
+  barra("6 ÷ 2 / 3 com espaço é ambíguo", { tipo: "expressoes", itens: [{ expr: "6 ÷ 2 / 3" }] });
+  x = aprova("dízima na alternativa", { tipo: "desafio", enunciado: ["10 ÷ 3?"], alternativas: ["3,33", "3", "30", "0,3"], calculo: "10 ÷ 3" }); tem(x, "Alternativa A ✓", "10 ÷ 3");
+  x = aprova("π verdadeiro na alternativa", { tipo: "desafio", enunciado: ["π × 5²?"], alternativas: ["78,54", "31,4", "15,7", "25"], calculo: "π × 5²" }); tem(x, "Alternativa A ✓", "78,54");
+  barra("25% não é 25 pessoas", { tipo: "desafio", enunciado: ["100 − 75?"], alternativas: ["25%", "75", "175", "50"], calculo: "100 − 75" });
+  const verdadeiros2 = ["2 m + 3 m = 5 m", "1 m² = 1 m × 1 m = 100 cm × 100 cm = 10 000 cm²", "17 ÷ 5 = 3 e resto 2", "17 ÷ 5 = 3, resto 2", "f(2) = 2 × 2 + 1 = 5", "2 h = 2 × 60 min = 120 min", "O dobro de 3 e 5 são 6 e 10", "2/3 ≈ 0,666", "3 ÷ 1/2 = 6", "6 ÷ 2/3 = 9", "1/2 ÷ 1/4 = 2"];
+  verdadeiros2.forEach((t) => { const y = roda({ tipo: "ideia", titulo: "Veja", linhas: [t] }); ok(y.v.ok, `texto verdadeiro foi acusado: "${t}": ${y.v.erros.join(" | ")}`); });
+  const falsos2 = ["2 m + 3 m = 5 m²", "a) 12 × 3,5 = 40", "1) 2 + 2 = 5", "3 ÷ 1/2 = 1,5", "1/2 ÷ 1/4 = 0,125", "17 ÷ 5 = 3 e resto 3"];
+  falsos2.forEach((t) => { const y = roda({ tipo: "ideia", titulo: "Veja", linhas: [t] }); ok(!y.v.ok, `texto falso passou: "${t}"`); });
+  // o verificador confere sozinho as linhas de uma equação
+  { const y = roda({ tipo: "equacao", equacao: "2x + 3 = 11" }); const suja = JSON.parse(JSON.stringify(y.r.aula));
+    suja.passos.forEach((p) => p.acoes.forEach((a) => (a.linhas || []).forEach((l) => { if (l.t === "2x = 8") l.t = "2x = 9"; })));
+    ok(!verificarAula(suja).ok, "verificador não pegou passo de equação trocado"); }
   console.log(`  ${falsos.length} frases falsas, ${verdadeiros.length} verdadeiras, ${formulasErradas.length + formulasCertas.length} fórmulas conferidas`);
 }
 

@@ -19,6 +19,7 @@ function limpa(v, max) {
   if (typeof v === "number" && Number.isFinite(v)) v = String(v);
   if (typeof v !== "string") return "";
   let s = v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/(\d|\))\s*\*\s*(?=[\d(])/g, "$1 × "); // "2*3" é multiplicação, não destaque
   if ((s.match(/\*/g) || []).length % 2) s = s.replace(/\*/g, ""); // destaque precisa abrir e fechar
   if (s.length <= max) return s;
   // corta na última palavra inteira (nunca no meio de uma palavra)
@@ -34,15 +35,20 @@ function limpa(v, max) {
 // perdem o "*" (vira ×). Ponto como vírgula decimal ("2.5") vira "2,5"; "1.500" vira "1 500".
 // Se passar do tamanho, o campo fica marcado como longo (vira erro no compilador, nunca corte silencioso).
 const LONGO = "\u0000LONGO";
+const AMBIGUO = "\u0000AMBIGUO";
 function limpaConta(v, max) {
   if (typeof v === "number" && Number.isFinite(v)) v = String(v).replace(".", ",");
   if (typeof v !== "string") return "";
   let s = v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-  s = s.replace(/\*/g, "×").replace(/(\d)\.(\d{3})(?![\d])/g, "$1 $2").replace(/(\d)\.(\d)/g, "$1,$2");
+  const np = M.normalizarPontos(s.replace(/\*/g, "×"));
+  if (np.ambiguo) return AMBIGUO + np.ambiguo;
+  // "3/4" escrito junto é UMA fração (como no livro): "6 ÷ 2/3" = 6 ÷ (2/3). Com espaços ("6 ÷ 2 / 3") é ambíguo.
+  s = np.texto.replace(/(?<![\d,\/.])(\d+)\/(\d+)(?![\d,\/.])/g, "($1/$2)");
+  if (/[÷\/]\s*\d+(?:,\d+)?\s+\/\s*\d|\d\s*\/\s+\d+(?:,\d+)?\s*[÷\/]/.test(s)) return AMBIGUO + s;
   if (s.length > max) return LONGO + s.slice(0, 40);
   return s;
 }
-const ehLongo = (t) => typeof t === "string" && t.startsWith(LONGO);
+const ehLongo = (t) => typeof t === "string" && (t.startsWith(LONGO) || t.startsWith(AMBIGUO));
 const lista = (v, n, max) => (Array.isArray(v) ? v : []).map((x) => limpa(x, max)).filter(Boolean).slice(0, n);
 const slug = (t) => limpa(t, 40).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "termo";
 function inteiro(v, min, max) { const n = Number.parseInt(v, 10); return Number.isFinite(n) && n >= min && n <= max ? n : null; }
@@ -56,7 +62,13 @@ function mapaTextos(v, maxChaves = 8, conta = false) {
 
 // Quebra um texto em linhas de até "max" caracteres (sem cortar palavras).
 export function quebrar(texto, max) {
-  const palavras = String(texto).split(" ");
+  // nunca quebra um número ("10 000") nem separa o número da unidade ("40 m²")
+  const palavras = [];
+  String(texto).split(" ").forEach((p) => {
+    const ant = palavras[palavras.length - 1];
+    if (ant != null && /\d\*?$/.test(ant) && (/^\*?\d{3}(?!\d)/.test(p) || /^(mm|cm|dm|m|km|mm²|cm²|dm²|m²|km²|cm³|m³|mL|L|g|kg|mg|s|h|min|km\/h|m\/s|%)[*.,;:!?)]*$/.test(p))) palavras[palavras.length - 1] = ant + " " + p;
+    else palavras.push(p);
+  });
   const linhas = [];
   let atual = "";
   palavras.forEach((p) => {
@@ -155,7 +167,9 @@ function decidirCorreta(alternativas, calculo, corretaIA, onde) {
   try { v = M.avaliar(calculo); } catch (e) { return { erro: `${onde}: não consegui calcular "${calculo}" (${e.message}).` }; }
   const pi = M.usaPi(calculo);
   const vt = pi ? `≈ ${M.aproximar(v, 2)}` : M.formatarComAprox(v);
-  const r = M.acharAlternativa(alternativas, v);
+  let fino = null;
+  if (pi) { try { fino = M.avaliar(calculo, { vars: { pi: "3,14159265358979323846" } }); } catch { fino = null; } }
+  const r = M.acharAlternativa(alternativas, v, { fino, porcento: /%|×\s*100\s*$/.test(calculo) });
   if (r.indice != null) {
     if (corretaIA != null && corretaIA !== r.indice) return { erro: `${onde}: a IA marcou a alternativa ${L(corretaIA)}, mas a conta ${bonita(calculo)} dá ${vt}, que é a alternativa ${L(r.indice)}. Uma das duas está errada; gere de novo.` };
     return { correta: r.indice, valor: v, pi };
@@ -371,7 +385,13 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
     const info = { n: iBloco, tipo: bl.tipo, momento: bl.momento, fonte: bl.fonte || "", complemento: bl.complemento, resumo: "", contas: [] };
     if (bl.complemento) avisos.push(`Bloco ${iBloco} (${bl.tipo}): conteúdo que NÃO está no material (a IA acrescentou). Confira antes de aprovar.`);
     try {
-      if (longos.length) throw new Error(`a conta do campo "${longos[0]}" é longa demais; divida em contas menores (nunca corto uma conta).`);
+      if (longos.length) {
+        const achado = [];
+        const busca = (o) => { if (typeof o === "string" && (o.startsWith(LONGO) || o.startsWith(AMBIGUO))) achado.push(o); else if (o && typeof o === "object") Object.values(o).forEach(busca); };
+        busca(bl);
+        if (achado[0].startsWith(AMBIGUO)) throw new Error(`o número "${achado[0].slice(AMBIGUO.length)}" é ambíguo (ponto de milhar ou decimal? divisão por fração sem parênteses?). Use vírgula nos decimais, espaço nos milhares e parênteses: 6 ÷ (2/3).`);
+        throw new Error(`a conta do campo "${longos[0]}" é longa demais; divida em contas menores (nunca corto uma conta).`);
+      }
       if (bl.tipo === "ideia") {
         if (!bl.titulo && !bl.linhas.length && !bl.destaque) throw new Error("bloco vazio");
         const p = novoPasso(bl.momento);

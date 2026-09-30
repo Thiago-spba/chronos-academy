@@ -24,7 +24,7 @@ function lin(itens, y0 = 250) {
 /* FRAÇÃO (barras)                                                     */
 /* ------------------------------------------------------------------ */
 function fr(txt, nome) {
-  const m = /^\s*(\d{1,3})\s*\/\s*(\d{1,3})\s*$/.exec(String(txt || ""));
+  const m = /^\s*\(?\s*(\d{1,3})\s*\/\s*(\d{1,3})\s*\)?\s*$/.exec(String(txt || ""));
   if (!m) throw new Error(`A fração "${nome}" precisa estar no formato 3/4.`);
   const n = Number(m[1]), d = Number(m[2]);
   if (d < 2 || d > 24) throw new Error(`O denominador de "${txt}" precisa ficar entre 2 e 24.`);

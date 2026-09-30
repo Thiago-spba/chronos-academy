@@ -63,7 +63,7 @@ function agrupar(ip) { return ip.replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
 // Formata para mostrar ao aluno. milhar: agrupa de 3 em 3 a partir de 1 000.
 export function formatar(x, { milhar = true } = {}) {
   const k = casasDecimais(x);
-  if (k < 0) return x.n + "/" + x.d;
+  if (k < 0) return (x.n < 0n ? "−" + -x.n : String(x.n)) + "/" + x.d;
   const negativo = x.n < 0n;
   const abs = negativo ? -x.n : x.n;
   const escala = 10n ** BigInt(k);
@@ -98,6 +98,18 @@ export function formatarComAprox(x) {
   return ehDecimalExato(x) ? formatar(x) : `${formatar(x)} ≈ ${aproximar(x)}`;
 }
 
+/* ---------------- pontos em números ---------------- */
+// "1.000.000" -> "1 000 000" ; "0.125" -> "0,125" ; "2.5" -> "2,5" ; "1.875" (um grupo de 3) é AMBÍGUO.
+export function normalizarPontos(t) {
+  let ambiguo = null;
+  let s = String(t).replace(/(?<![\d.,])\d{1,3}(?:\.\d{3}){2,}(?![\d.,])/g, (m) => m.replace(/\./g, " "));
+  s = s.replace(/(?<![\d.,])0\.(\d+)(?![\d.,])/g, "0,$1");
+  s = s.replace(/(?<![\d.,])(\d+)\.(\d{1,2}|\d{4,})(?![\d.,])/g, "$1,$2");
+  s = s.replace(/(?<![\d.,])([1-9]\d{0,2})\.(\d{3})(?![\d.,])/g, (m) => { ambiguo = ambiguo || m; return m; });
+  s = s.replace(/(?<![\d])\.(\d)/g, (m) => { ambiguo = ambiguo || m; return m; });
+  return { texto: s, ambiguo };
+}
+
 /* ---------------- expressões ---------------- */
 // Valor "linear": a·x + b (a = 0 para números comuns). Só existe um x por conta.
 const lin = (a, b) => ({ a, b });
@@ -122,7 +134,7 @@ function normalizar(bruto) {
   let s = String(bruto).replace(/ /g, " ");
   s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (c) => "^" + c.split("").map((d) => SUP[d]).join(""));
   s = s.replace(/[−–—]/g, "-").replace(/[×·]/g, "*").replace(/÷/g, "/");
-  s = s.replace(/(\d|\)|%)\s*[xX]\s*(?=\d|\()/g, "$1*");
+  s = s.replace(/(\d|\)|%)\s*[xX]\s*(?=\d)/g, "$1*").replace(/(\d|\)|%)\s+[xX]\s+(?=\()/g, "$1*");
   s = s.replace(/%\s*de\s+/gi, "% * ");
   return s;
 }
@@ -264,7 +276,10 @@ const PI_FINO = "3,14159265358979323846";
 
 // quebra o texto em pedaços matemáticos (números com unidade, operadores, relações) e "quebras"
 function pedacosTexto(bruto) {
-  let s = normalizar(String(bruto).replace(/\*/g, "").replace(/R\$\s*/g, "").replace(/…/g, "..."));
+  let s0 = String(bruto).replace(/(\d)\s*\*\s*(?=[\d(])/g, "$1 × ").replace(/\*/g, "").replace(/R\$\s*/g, "").replace(/…/g, "...");
+  s0 = s0.replace(/^\s*(?:[a-zA-Z]|\d{1,2})\)\s+/, ""); // rótulo de exercício: "a) 12 × 3 = 36"
+  s0 = s0.replace(/(?<![\d,\/.]|\d )(\d+)\/(\d+)(?![\d,\/])/g, "($1/$2)"); // "1/2" escrito junto é uma fração
+  let s = normalizar(s0);
   const out = [];
   let i = 0;
   while (i < s.length) {
@@ -274,17 +289,18 @@ function pedacosTexto(bruto) {
     let m = /^\d{1,3}(?: \d{3})+(?:,\d+)?(?![\d,])|^\d+(?:,\d+)?/.exec(resto);
     if (m && !/^\d{1,3}(?: \d{3})+/.test(resto)) m = /^\d+(?:,\d+)?/.exec(resto);
     if (m) {
-      const tk = { t: "n", txt: m[0], v: lerNumero(m[0]) };
+      const tk = { t: "n", txt: m[0], v: lerNumero(m[0]), ini: i };
       i += m[0].length;
       if (s.slice(i, i + 3) === "...") { tk.trunc = true; i += 3; }
       const u = RE_UNI.exec(s.slice(i));
       if (u) { const inf = infoUnidade(u[1] + (u[2] || "")); if (inf) { tk.u = inf; i += u[0].length; } }
-      if (/^\s*resto\s+\d/.test(s.slice(i))) { const r = /^\s*resto\s+(\d+)/.exec(s.slice(i)); tk.resto = lerNumero(r[1]); i += r[0].length; }
+      const rr = /^\s*[,;]?\s*(?:e\s+|com\s+)?resto\s*(?:=|é|de)?\s*(\d+)/.exec(s.slice(i));
+      if (rr) { tk.resto = lerNumero(rr[1]); i += rr[0].length; }
       out.push(tk);
       continue;
     }
-    if ("+-*/^()%".includes(c)) { out.push({ t: c }); i++; continue; }
-    if (c === "π") { out.push({ t: "pi" }); i++; continue; }
+    if ("+-*/^()%".includes(c)) { out.push({ t: c, ini: i }); i++; continue; }
+    if (c === "π") { out.push({ t: "pi", ini: i }); i++; continue; }
     if (c === "√") { out.push({ t: "raiz" }); i++; continue; }
     if ("=≈<>≤≥".includes(c)) {
       if (s[i + 1] === "=" && (c === "<" || c === ">")) { out.push({ t: "rel", v: c === "<" ? "≤" : "≥" }); i += 2; continue; }
@@ -293,7 +309,7 @@ function pedacosTexto(bruto) {
     }
     // letra, pontuação, ≠, etc.: interrompe (palavra "colada" no número anterior, como em "2x", marca a conta como incompleta)
     const w = /^[\p{L}\d_]+/u.exec(resto);
-    out.push({ t: "quebra", palavra: !!w, colado: i > 0 && s[i - 1] !== " ", letra: !!w && /^\p{L}$/u.test(w[0]) && !/^[eéaàoó]$/i.test(w[0]) });
+    out.push({ t: "quebra", palavra: !!w, colado: i > 0 && s[i - 1] !== " ", letra: !!w && /^\p{L}$/u.test(w[0]) && !/^[eéaàoó]$/i.test(w[0]), fim: i + (w ? w[0].length : 1) });
     i += w ? w[0].length : 1;
   }
   return out;
@@ -328,9 +344,19 @@ function avaliarPedacos(tks) {
     const e1 = monta("exato"), e2 = monta("fino");
     if (e1 == null) return null;
     const exato = avaliar(e1), fino = avaliar(e2);
+    // valor em unidades-base: cada número com unidade vira número × fator (2 h -> 2 × 3600 s)
+    let si = null;
+    const fams = new Set(tks.filter((k) => k.t === "n" && k.u).map((k) => k.u.familia.replace(/\d/g, "")));
+    if (fams.size === 1) {
+      const orig = tks.map((k) => k.txt);
+      tks.forEach((k) => { if (k.t === "n" && k.u) k.txt = `(${k.txt} × ${formatar(k.u.fator, { milhar: false })})`; });
+      try { const e3 = monta("exato"); si = e3 == null ? null : avaliar(e3); } catch { si = null; }
+      tks.forEach((k, j) => { if (orig[j] != null) k.txt = orig[j]; });
+      si = si ? { valor: si, familia: [...fams][0] } : null;
+    }
     const comU = tks.filter((k) => k.t === "n" && k.u);
     const soProduto = tks.every((k) => k.t === "n" || k.t === "*" || k.t === "pi");
-    return { exato, fino, pi, irracional: irr, temOp, unidades: comU.map((k) => k.u), soProduto, nums: tks.filter((k) => k.t === "n") };
+    return { exato, fino, si, pi, irracional: irr, temOp, unidades: comU.map((k) => k.u), soProduto, nums: tks.filter((k) => k.t === "n") };
   } catch { return null; }
 }
 const casasDoTexto = (txt) => (String(txt).split(",")[1] || "").length;
@@ -367,6 +393,7 @@ export function conferirTexto(bruto) {
       const t0 = l[0].t;
       if (["+", "*", "/", "^", "%", ")"].includes(t0)) return null;
       if (t0 === "-" && cor.antes && cor.antes.palavra) return null;
+      if (t0 === "(" && cor.antes && cor.antes.palavra && l[0].ini === cor.antes.fim) return null; // "f(2) = ..." é função, não conta
       const v = avaliarPedacos(l);
       return v ? { ...v, tks: l } : null;
     });
@@ -397,6 +424,19 @@ export function conferirTexto(bruto) {
         }
       }
       const aproximado = E.pi || D.pi || E.irracional || D.irracional;
+      // soma de comprimentos dá comprimento (2 m + 3 m = 5 m, nunca 5 m²)
+      const soSoma = (X) => X.tks.every((k) => ["n", "+", "-", "(", ")"].includes(k.t));
+      if (rel === "=" && soSoma(E) && E.unidades.length && E.unidades.every((u) => u.familia === E.unidades[0].familia) && D.unidades.length === 1 && D.unidades[0].familia !== E.unidades[0].familia) {
+        erros.push({ trecho, esperado: "a mesma unidade dos termos somados", lido: txt(D.tks) });
+        continue;
+      }
+      // os dois lados com unidades da mesma grandeza: compara em unidades-base ("2 h = 2 × 60 min")
+      if (rel === "=" && E.si && D.si && E.si.familia === D.si.familia && !aproximado) {
+        if (!igual(E.si.valor, D.si.valor)) erros.push({ trecho, esperado: "valores diferentes nas unidades", lido: txt(D.tks) });
+        continue;
+      }
+      // só um lado com unidade e o outro é conta sem unidade ("3 h = 3 × 60"): conversão implícita, não arrisca
+      if (E.unidades.length && !D.unidades.length && !E.temOp && D.temOp) continue;
       if (rel === "=") {
         if (D.nums.length === 1 && D.nums[0].resto && !D.temOp) {
           // "7 ÷ 2 = 3 resto 1"
@@ -427,7 +467,8 @@ export function conferirTexto(bruto) {
         const lado = !D.temOp ? D : !E.temOp ? E : D;
         const tol = F(1n, 2n * 10n ** BigInt(Math.max(0, ...lado.nums.map((k) => casasDoTexto(k.txt)))));
         const perto = (x, y) => comparar(absF(menos(x, y)), tol) <= 0 || comparar(absF(menos(x, y)), F(1n, 10n ** 12n)) <= 0;
-        const ok = perto(E.fino, D.fino) || ((E.pi || D.pi) && perto(E.exato, D.exato));
+        const trunca = (x, y) => { const u = F(1n, 10n ** BigInt(Math.max(0, ...lado.nums.map((k) => casasDoTexto(k.txt))))); const d = menos(absF(x), absF(y)); return (x.n < 0n) === (y.n < 0n) && comparar(d, ZERO) >= 0 && comparar(d, u) < 0; };
+        const ok = perto(E.fino, D.fino) || ((E.pi || D.pi) && perto(E.exato, D.exato)) || (lado === D && trunca(E.fino, D.fino));
         if (!ok) erros.push({ trecho, esperado: aproximar(E.fino, 3), lido: formatar(D.exato) });
         continue;
       }
@@ -441,7 +482,7 @@ export function conferirTexto(bruto) {
   const N = "(\\d{1,3}(?:[ .]\\d{3})+(?:,\\d+)?|\\d+(?:,\\d+)?)";
   const frase = String(bruto).replace(/\*/g, "").replace(/ /g, " ");
   const padroes = [
-    [new RegExp(`\\b(dobro|triplo|qu[aá]druplo|metade|ter[cç]o|quarta parte) de ${N} (?:é|e|vale|=) (?:igual a )?${N}`, "giu"), (m) => {
+    [new RegExp(`\\b(dobro|triplo|qu[aá]druplo|metade|ter[cç]o|quarta parte) de ${N} (?:é|vale|=) (?:igual a )?${N}`, "giu"), (m) => {
       const k = { dobro: F(2n), triplo: F(3n), "quádruplo": F(4n), "quadruplo": F(4n), metade: F(1n, 2n), "terço": F(1n, 3n), "terco": F(1n, 3n), "quarta parte": F(1n, 4n) }[m[1].toLowerCase()];
       return [vezes(k, lerNumero(m[2])), m[3]];
     }],
@@ -548,7 +589,11 @@ export function raizExata(x) {
 // "entre 20 e 30" -> faixa. Texto sem um único número claro -> null (não arrisca).
 export function valorDeTexto(bruto) {
   let t = String(bruto || "").replace(/\*/g, "").replace(/ /g, " ").trim();
-  t = t.replace(/(\d)\.(\d{3})(?!\d)/g, "$1 $2").replace(/(\d)\.(\d)/g, "$1,$2");
+  // na alternativa vale o que o ALUNO lê: "1.500" = mil e quinhentos (ponto de milhar, padrão brasileiro)
+  const np = normalizarPontos(t);
+  t = np.texto.replace(/(?<![\d.,])([1-9]\d{0,2})\.(\d{3})(?![\d.,])/g, "$1 $2");
+  if (/(?<![\d])\.\d/.test(t)) return null;
+  t = t.replace(/(?<=[\d)])\s*(km\/h|m\/s)(?![\p{L}])/gu, "");
   const fx = /(?:entre|de)\s+(-?[\d ,]+?)\s*(?:[a-zA-Zµ²³\/]+\s*)?(?:e|a|até)\s+(-?[\d ,]+)/i.exec(t);
   if (fx) {
     try {
@@ -557,6 +602,8 @@ export function valorDeTexto(bruto) {
       return { valor: null, faixa: [lo, hi] };
     } catch { /* segue */ }
   }
+  // "mais de 40", "até 5", "±3", "1½": não é um valor único
+  if (/\b(mais|menos|acima|abaixo|pelo menos|no m[aá]ximo|no m[ií]nimo|at[eé]|quase|cerca|aproximadamente|superior|inferior)\b|[±½¼¾⅓⅔⅛]|[<>≤≥]/i.test(t)) return null;
   const tks = pedacosTexto(t);
   const corridas = [];
   let atual = [];
@@ -571,17 +618,26 @@ export function valorDeTexto(bruto) {
   return { valor: v.exato, faixa: null, pct: c.length >= 2 && c[c.length - 1].t === "%" };
 }
 // Qual alternativa tem o valor? {indice} | {indice:null, motivo:"nenhuma"|"varias"|"ilegivel"}
-export function acharAlternativa(alternativas, valor) {
-  const lidas = alternativas.map(valorDeTexto);
+// opcoes: { fino } = valor com π verdadeiro (quando a conta usa π); { porcento } = a conta dá um número "em %".
+export function acharAlternativa(alternativas, valor, { fino = null, porcento = false } = {}) {
+  const lidas = alternativas.map((a) => ({ l: valorDeTexto(a), casas: (String(a).replace(/\s/g, "").match(/,(\d+)/) || ["", ""])[1].length }));
   const certas = [];
-  lidas.forEach((l, i) => {
+  const exato = ehDecimalExato(valor) && !fino;
+  lidas.forEach(({ l, casas }, i) => {
     if (!l) return;
     if (l.faixa) { if (comparar(valor, l.faixa[0]) >= 0 && comparar(valor, l.faixa[1]) <= 0) certas.push(i); return; }
-    if (igual(l.valor, valor) || (l.pct && igual(vezes(l.valor, F(100n)), valor))) certas.push(i);
+    const alvo = l.pct && porcento ? vezes(l.valor, F(100n)) : l.valor;
+    if (igual(alvo, valor)) { certas.push(i); return; }
+    if (!exato && casas >= 1) {
+      // valor não exato (dízima ou π): vale a alternativa arredondada (ou truncada) nas casas que ela mostra
+      const tol = F(1n, 2n * 10n ** BigInt(casas));
+      const perto = (v) => comparar(absF(menos(v, alvo)), tol) <= 0;
+      if (perto(valor) || (fino && perto(fino))) certas.push(i);
+    }
   });
   if (certas.length === 1) return { indice: certas[0] };
   if (certas.length > 1) return { indice: null, motivo: "varias", quais: certas };
-  return { indice: null, motivo: lidas.every(Boolean) ? "nenhuma" : "ilegivel" };
+  return { indice: null, motivo: lidas.every((x) => x.l) ? "nenhuma" : "ilegivel" };
 }
 
 /* ---------------- equação do 1º grau ---------------- */
@@ -700,6 +756,12 @@ export function escreverConta(bruto, vars = {}, { compacto = false } = {}) {
   let ant = null;
   for (let i = 0; i < tk.length; i++) {
     const k = tk[i];
+    // fração entre parênteses "(3/4)" fica escrita como fração
+    if (k.t === "(" && tk[i + 1] && tk[i + 1].t === "n" && tk[i + 2] && tk[i + 2].t === "/" && tk[i + 3] && tk[i + 3].t === "n" && tk[i + 4] && tk[i + 4].t === ")" && ehInteiro(tk[i + 1].v) && ehInteiro(tk[i + 3].v)) {
+      if (fimOperando(ant)) out.push(" × ");
+      out.push(`(${formatar(tk[i + 1].v, { milhar: false })}/${formatar(tk[i + 3].v, { milhar: false })})`);
+      i += 4; ant = { t: ")" }; continue;
+    }
     if (fimOperando(ant) && operando(k)) {
       const junta = compacto && ant.t === "n" && k.t === "id" && !Object.prototype.hasOwnProperty.call(vars, k.v); // "2x" continua "2x"
       out.push(junta ? "" : " × ");

@@ -28,6 +28,21 @@ export function ordenarModulos(modulos) {
   return [...(modulos || [])].sort((a, b) => chaveModulo(a) - chaveModulo(b));
 }
 
+// So para EXIBIR: se houver dois modulos do mesmo ano/bimestre (ex.: "3º Bimestre" repetido),
+// mostra apenas um (o que tem mais aulas; empate: o marcado como em andamento). Nao grava nada.
+export function unirDuplicados(modulos) {
+  const grupos = new Map();
+  for (const m of modulos || []) {
+    const k = chaveModulo(m);
+    const atual = grupos.get(k);
+    if (!atual) { grupos.set(k, m); continue; }
+    const na = (atual.aulas || []).length;
+    const nm = (m.aulas || []).length;
+    if (nm > na || (nm === na && m.abertoPadrao && !atual.abertoPadrao)) grupos.set(k, m);
+  }
+  return [...grupos.values()];
+}
+
 export function tituloModulo(ano, bim) {
   return bim + 'º Bimestre - ' + ano;
 }

@@ -5,7 +5,7 @@ import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { lerModulo, ordenarModulos, anoAtualDaTurma, buscarAulas } from '../utils/bimestres';
+import { lerModulo, ordenarModulos, unirDuplicados, anoAtualDaTurma, buscarAulas } from '../utils/bimestres';
 import MaterialEstudo from '../components/MaterialEstudo';
 import { acharAulaAnimada, linkAulaAnimada } from '../utils/aulasAnimadas';
 
@@ -203,7 +203,7 @@ export default function Turma() {
   const temVideo = aulaAtiva ? (aulaAtiva.video || (aulaAtiva.videos && aulaAtiva.videos.length > 0)) : false;
   const temMaterial = aulaAtiva ? (aulaAtiva.pdf || (aulaAtiva.pdfs && aulaAtiva.pdfs.length > 0) || aulaAtiva.materialTexto || aulaAtiva.materialProntoPdf) : false;
 
-  const modulosOrd = ordenarModulos(turma.modulos);
+  const modulosOrd = ordenarModulos(unirDuplicados(turma.modulos));
   const anoAtual = anoAtualDaTurma(turma.modulos);
   const temAulas = (m) => (m.aulas || []).length > 0;
   const modulosPrincipais = modulosOrd.filter((m) => {

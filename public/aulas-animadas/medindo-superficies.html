@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<title>Medindo superfícies · Chronos Academy</title>
+<style>
+  /* Fontes e biblioteca de animação ficam no próprio site (funciona mesmo com internet fraca). */
+  @font-face{font-family:'Lexend'; font-weight:400; font-display:swap; src:url(/aulas-animadas/lib/lexend-400.woff2) format('woff2');}
+  @font-face{font-family:'Lexend'; font-weight:700; font-display:swap; src:url(/aulas-animadas/lib/lexend-700.woff2) format('woff2');}
+  *{box-sizing:border-box}
+  body{margin:0}
+  /* Layout: um unico quadro (cena SVG 1600x900) onde tudo e desenhado,
+     escrito e transformado no mesmo lugar; controles grandes embaixo.
+     As cores vem de 30 temas (JS); estes valores sao o tema 1 (quadro verde). */
+  :root{
+    --board:#17302a; --board2:#1f3d35; --chalk:#f4f0e6; --dim:#a9bdb4; --g1:#1d3a33; --g2:#142823;
+    --yellow:#ffd166; --sky:#8fd3ff; --coral:#ff8f7e; --ok:#8ee89b; --line:#c9d6cf;
+    --font:'Lexend','Segoe UI',system-ui,sans-serif;
+    color-scheme: dark;
+  }
+  html,body{height:100%}
+  body{background:var(--board); color:var(--chalk); font-family:var(--font); display:flex; flex-direction:column;}
+  .palco{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding-inline:16px; padding-block:8px 0;}
+  #cena{width:100%; height:100%; display:block; user-select:none; -webkit-user-select:none;}
+  #cena text{font-family:var(--font);}
+  .c-chalk{fill:var(--chalk)} .c-dim{fill:var(--dim)} .c-yellow{fill:var(--yellow)} .c-sky{fill:var(--sky)}
+  .c-coral{fill:var(--coral)} .c-ok{fill:var(--ok)} .c-board{fill:var(--board)}
+  .b{font-weight:700} .ls{letter-spacing:.12em}
+  .traco{stroke:var(--chalk); stroke-width:5; fill:none; stroke-linecap:round}
+  .traco-fino{stroke:var(--line); stroke-width:2.5; fill:none; opacity:.75}
+  .traco-y{stroke:var(--yellow); stroke-width:4; fill:none; stroke-linecap:round}
+  .quad-area{fill:var(--board2); stroke:var(--chalk); stroke-width:3}
+  .celula{fill:var(--yellow)}
+  .card-box{fill:var(--board2); stroke:var(--line); stroke-width:2.5}
+  .card-coral{fill:var(--board2); stroke:var(--coral); stroke-width:3}
+  .card-ok{fill:var(--board2); stroke:var(--ok); stroke-width:3}
+  .alt{cursor:pointer}
+  .alt-box{fill:var(--board2); stroke:var(--line); stroke-width:3; transition:stroke .15s}
+  .alt:hover .alt-box{stroke:var(--sky)}
+  .alt-box.sel{stroke:var(--yellow); stroke-width:7}
+  .alt-circ{fill:var(--chalk)}
+  .chip{cursor:pointer}
+  .chip rect{fill:var(--board2); stroke:var(--sky); stroke-width:2.5}
+  .chip:hover rect{fill:color-mix(in srgb, var(--board2) 82%, var(--chalk))}
+  .sombra{fill:var(--dim); opacity:.55}
+
+  .nav{padding-inline:16px; padding-block:10px calc(12px + env(safe-area-inset-bottom,0px)); display:flex; align-items:center; justify-content:space-between; gap:14px;}
+  .botao{font-family:var(--font); font-weight:700; font-size:clamp(16px,1.8vw,22px); padding:12px 28px; border-radius:14px; cursor:pointer; transition:transform .12s, background .15s;}
+  .botao:active{transform:scale(.97)}
+  .botao:focus-visible{outline:3px solid var(--sky); outline-offset:3px}
+  .botao:disabled{opacity:.35; cursor:default}
+  .botao.principal{background:var(--yellow); color:var(--board); border:none;}
+  .botao.secundario{background:transparent; color:var(--chalk); border:2px solid var(--line);}
+  .dica{font-size:clamp(11px,1.2vw,14px); color:var(--dim); text-align:center;}
+  .esq{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .botao.tema{font-size:clamp(12px,1.2vw,15px); font-weight:400; padding:10px 16px; background:transparent; color:var(--dim); border:1.5px dashed var(--line);}
+  @media (max-width:560px){ .dica{display:none} }
+  .girar{display:none; text-align:center; color:var(--yellow); font-size:15px; padding:14px 16px 0;}
+  @media (orientation:portrait) and (max-width:700px){ .girar{display:block} }
+</style>
+</head>
+<body>
+<p class="girar">Dica: gire o celular para ver o quadro maior.</p>
+<div class="palco">
+  <svg id="cena" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Quadro da aula Medindo superfícies"></svg>
+</div>
+<div class="nav">
+  <div class="esq">
+    <button class="botao secundario" id="btnVoltar">Voltar</button>
+    <button class="botao tema" id="btnFechar" title="Voltar para o Chronos">Fechar</button>
+  </div>
+  <span class="dica">Espaço ou → avança · ← volta · clique no meio da animação para pular</span>
+  <button class="botao principal" id="btnAvancar">Começar</button>
+</div>
+
+<script src="/aulas-animadas/lib/gsap.min.js"></script>
+<script>
+(function(){
+  var NS = 'http://www.w3.org/2000/svg';
+  var svg = document.getElementById('cena');
+  var btnAvancar = document.getElementById('btnAvancar');
+  var btnVoltar = document.getElementById('btnVoltar');
+  var btnFechar = document.getElementById('btnFechar');
+  btnFechar.addEventListener('click', function(){
+    if (window.history.length > 1) window.history.back(); else window.location.href = '/';
+  });
+
+  // ============================================================
+  // 30 TEMAS DE CORES — o Chronos abre esta página com #temaN, onde
+  // N = número da aula (1 a 30, depois recomeça): nunca repete antes da 31ª aula.
+  // Contraste de todos os textos conferido (padrão WCAG).
+  // ============================================================
+  var TEMAS = [{"nome":"Quadro verde","bg":"#17302a","g1":"#1d3a33","g2":"#142823","card":"#1f3d35","chalk":"#f4f0e6","dim":"#a9bdb4","a1":"#ffd166","a2":"#8fd3ff","coral":"#ff8f7e","ok":"#8ee89b","line":"#c9d6cf"},{"nome":"Lousa preta","bg":"#151515","g1":"#202020","g2":"#0e0e0e","card":"#232323","chalk":"#f5f5f0","dim":"#b3b3ab","a1":"#ffd43b","a2":"#74c0fc","coral":"#ff8787","ok":"#8ce99a","line":"#cfcfc7"},{"nome":"Azul-marinho","bg":"#0f1d33","g1":"#16284a","g2":"#0b1628","card":"#1a2d4f","chalk":"#eef3ff","dim":"#a9b8d6","a1":"#ffcf5c","a2":"#7fd8ff","coral":"#ff9a8a","ok":"#88e3a6","line":"#c3cfe6"},{"nome":"Roxo noturno","bg":"#1e1533","g1":"#2a1e47","g2":"#150f25","card":"#2c2150","chalk":"#f3efff","dim":"#bcb0db","a1":"#ffd166","a2":"#7ee0e6","coral":"#ff9fb2","ok":"#94e8b4","line":"#cfc6e8"},{"nome":"Grafite","bg":"#22262b","g1":"#2c3137","g2":"#191c20","card":"#2e343b","chalk":"#f1f3f5","dim":"#b4bbc3","a1":"#ffc94d","a2":"#66d9e8","coral":"#ff948a","ok":"#8ee89b","line":"#c8ced4"},{"nome":"Vinho","bg":"#2a1218","g1":"#3a1a22","g2":"#1e0d11","card":"#3b1c25","chalk":"#fbeff1","dim":"#d4b4bb","a1":"#ffd166","a2":"#8fd3ff","coral":"#ffa08a","ok":"#9be8a8","line":"#e0c5ca"},{"nome":"Petróleo","bg":"#0e2a2f","g1":"#143a41","g2":"#0a1f23","card":"#173f47","chalk":"#edf8f9","dim":"#a9cbd0","a1":"#ffd166","a2":"#b5e0ff","coral":"#ffa08e","ok":"#9ef0b0","line":"#c0dde0"},{"nome":"Café","bg":"#2b2019","g1":"#3a2b21","g2":"#1f1712","card":"#3c2d23","chalk":"#f8efe6","dim":"#cfbcab","a1":"#ffd166","a2":"#9fd8ff","coral":"#ffa38f","ok":"#a2e8a0","line":"#decbbb"},{"nome":"Floresta","bg":"#10261b","g1":"#173524","g2":"#0b1c13","card":"#1a3a28","chalk":"#effaf2","dim":"#abcab6","a1":"#ffe066","a2":"#99e2ff","coral":"#ffa08e","ok":"#b2f2bb","line":"#c3dccb"},{"nome":"Índigo","bg":"#171c46","g1":"#20275e","g2":"#111436","card":"#242b66","chalk":"#f0f2ff","dim":"#b0b7e0","a1":"#ffd166","a2":"#7fe7dc","coral":"#ffa3aa","ok":"#9be8b0","line":"#c5cbee"},{"nome":"Ardósia","bg":"#1f2a36","g1":"#283645","g2":"#172029","card":"#2b3a4a","chalk":"#f0f4f8","dim":"#afbecc","a1":"#ffcc66","a2":"#89e0ff","coral":"#ffa196","ok":"#95e6a8","line":"#c8d3de"},{"nome":"Oceano","bg":"#062a3d","g1":"#0a3a54","g2":"#041f2e","card":"#0d4260","chalk":"#eaf7ff","dim":"#a6c9db","a1":"#ffd97a","a2":"#7ff0d2","coral":"#ffa597","ok":"#a3f0b2","line":"#bfdcea"},{"nome":"Berinjela","bg":"#2d1530","g1":"#3e1d42","g2":"#200f22","card":"#412046","chalk":"#fbf0fc","dim":"#d3b3d7","a1":"#ffd166","a2":"#8fe3ff","coral":"#ffa893","ok":"#9eeaa9","line":"#e1c7e4"},{"nome":"Musgo","bg":"#262a17","g1":"#343a1f","g2":"#1b1e10","card":"#373d22","chalk":"#f7f8ea","dim":"#c6caa8","a1":"#ffd166","a2":"#9ed8ff","coral":"#ffa08a","ok":"#b8f2a0","line":"#d8dcbd"},{"nome":"Noite estrelada","bg":"#13183a","g1":"#1c2350","g2":"#0d112a","card":"#1f2758","chalk":"#f2f4ff","dim":"#afb6de","a1":"#ffe08a","a2":"#8cf0ff","coral":"#ffa6b5","ok":"#9ff0c0","line":"#c8cdee"},{"nome":"Bege e verde","bg":"#f3ecdc","g1":"#f7f1e3","g2":"#ece2cc","card":"#fffaf0","chalk":"#1f2a22","dim":"#56635a","a1":"#1f6f2c","a2":"#1c5d99","coral":"#b0301f","ok":"#1b7a3e","line":"#8a9a8a"},{"nome":"Caderno","bg":"#f4f7fb","g1":"#ffffff","g2":"#e9eef6","card":"#ffffff","chalk":"#1b2533","dim":"#556071","a1":"#c2410c","a2":"#1d4ed8","coral":"#c01f1f","ok":"#237a36","line":"#9aa7b8"},{"nome":"Areia","bg":"#f1e6d6","g1":"#f6ede0","g2":"#e8d9c4","card":"#fbf5ec","chalk":"#2d241c","dim":"#65574a","a1":"#a8461a","a2":"#2a6685","coral":"#ab2219","ok":"#2c7437","line":"#a8957f"},{"nome":"Menta","bg":"#e3f4ec","g1":"#eefaf4","g2":"#d4ece0","card":"#f7fdfa","chalk":"#13302a","dim":"#46645b","a1":"#a14a06","a2":"#0c6a83","coral":"#b01a1a","ok":"#13763a","line":"#8fb3a6"},{"nome":"Céu","bg":"#e2eefb","g1":"#eef5fd","g2":"#d3e4f7","card":"#f8fbff","chalk":"#10233d","dim":"#475a74","a1":"#b93c0b","a2":"#1d4ed8","coral":"#b01a1a","ok":"#13763a","line":"#93a9c6"},{"nome":"Lavanda","bg":"#ece8f7","g1":"#f5f2fc","g2":"#e0daf1","card":"#fbfaff","chalk":"#241a3d","dim":"#574e72","a1":"#a14a06","a2":"#6325cf","coral":"#b3113a","ok":"#13763a","line":"#a79dc4"},{"nome":"Pêssego","bg":"#fbe9df","g1":"#fdf2ec","g2":"#f5dccd","card":"#fff9f5","chalk":"#3a1f14","dim":"#735446","a1":"#a14a06","a2":"#0c6582","coral":"#b01a1a","ok":"#2a7433","line":"#c7a594"},{"nome":"Quadriculado","bg":"#eef0f2","g1":"#f7f8f9","g2":"#e3e6e9","card":"#ffffff","chalk":"#1c1f24","dim":"#565d65","a1":"#b93c0b","a2":"#0a6878","coral":"#bf2424","ok":"#237a36","line":"#9ca3ab"},{"nome":"Limão","bg":"#f1f5dc","g1":"#f7faea","g2":"#e6edc9","card":"#fdfff4","chalk":"#25300f","dim":"#57633e","a1":"#8f2f10","a2":"#1b54a0","coral":"#b01a1a","ok":"#2a7433","line":"#a5b08a"},{"nome":"Rosa","bg":"#f8e6ec","g1":"#fcf1f5","g2":"#f0d6e0","card":"#fffafc","chalk":"#3a1422","dim":"#734d5e","a1":"#a14a06","a2":"#1a58a0","coral":"#b3113a","ok":"#2a7433","line":"#c79eb0"},{"nome":"Azul royal","bg":"#1e3a8a","g1":"#2748a8","g2":"#172e6e","card":"#2a4bb0","chalk":"#ffffff","dim":"#d0dbf8","a1":"#ffd43b","a2":"#a5f3fc","coral":"#ffbdb2","ok":"#c3f8d2","line":"#d6def7"},{"nome":"Verde-bandeira","bg":"#0f4526","g1":"#135a31","g2":"#0b361d","card":"#145c33","chalk":"#ffffff","dim":"#cfeada","a1":"#ffe066","a2":"#bfe3ff","coral":"#ffc8bd","ok":"#e0fbe4","line":"#d6eedd"},{"nome":"Brasa","bg":"#3b1d0a","g1":"#4f2810","g2":"#2b1507","card":"#53301a","chalk":"#fff4ea","dim":"#dcc2ad","a1":"#ffd166","a2":"#9fd8ff","coral":"#ffaca4","ok":"#a8eba8","line":"#e6cdb9"},{"nome":"Turquesa","bg":"#0b3f3f","g1":"#0f5050","g2":"#083030","card":"#115656","chalk":"#f2ffff","dim":"#c0e4e4","a1":"#ffd166","a2":"#c9e9ff","coral":"#ffc8bd","ok":"#cdf9d1","line":"#c9eaea"},{"nome":"Carmim","bg":"#4a1020","g1":"#5e1529","g2":"#380b18","card":"#65192e","chalk":"#fff1f4","dim":"#e6bfc9","a1":"#ffd43b","a2":"#b3e8ff","coral":"#ffbfae","ok":"#bff5c6","line":"#ecc7d0"}];
+  var temaAtual = 0;
+  function claro(hex){ var n = parseInt(hex.slice(1), 16); return ((n >> 16) * .299 + ((n >> 8) & 255) * .587 + (n & 255) * .114) > 150; }
+  function aplicarTema(i){
+    temaAtual = (i % TEMAS.length + TEMAS.length) % TEMAS.length;
+    var t = TEMAS[temaAtual], r = document.documentElement.style;
+    [['--board',t.bg],['--g1',t.g1],['--g2',t.g2],['--board2',t.card],['--chalk',t.chalk],['--dim',t.dim],
+     ['--yellow',t.a1],['--sky',t.a2],['--coral',t.coral],['--ok',t.ok],['--line',t.line]].forEach(function(p){ r.setProperty(p[0], p[1]); });
+    r.setProperty('color-scheme', claro(t.bg) ? 'light' : 'dark');
+  }
+  (function(){
+    var m = /^#tema(\d+)$/.exec(location.hash || ''), ini = 0;
+    if (m) ini = parseInt(m[1], 10) - 1;
+    aplicarTema(ini);
+  })();
+
+  function el(tag, attrs, parent){
+    var e = document.createElementNS(NS, tag);
+    if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  // *palavra* = destaque em amarelo
+  function txt(str, attrs, parent){
+    var t = el('text', attrs, parent);
+    String(str).split('*').forEach(function(p, i){
+      if (!p) return;
+      if (i % 2){ var s = el('tspan', {'class':'c-yellow b'}, t); s.textContent = p; }
+      else t.appendChild(document.createTextNode(p));
+    });
+    return t;
+  }
+
+  if (!window.gsap){
+    txt('Não foi possível carregar a animação.', {x:800, y:430, 'text-anchor':'middle', 'font-size':44, 'class':'c-chalk'});
+    txt('Verifique a internet e recarregue a página.', {x:800, y:490, 'text-anchor':'middle', 'font-size':32, 'class':'c-dim'});
+    btnAvancar.disabled = true; btnVoltar.disabled = true;
+    return;
+  }
+
+  // ============================================================
+  // CONTEÚDO DA AULA
+  // Fonte: Currículo em Ação SEDUC-SP, 2ª série EM, 4º bimestre,
+  // "Medindo superfícies". Todo termo novo tem definição + explicação.
+  // ============================================================
+  var AULA = {
+    titulo: 'Medindo superfícies',
+    assinatura: 'Aula elaborada por Thiago Fernando, professor, graduando em Engenharia da Computação, licenciado em Matemática.',
+    termos: {
+      area: {chip:'Área', titulo:'ÁREA', secoes:[
+        {rotulo:'O QUE É', linhas:['É a medida do tamanho','de uma superfície.']},
+        {rotulo:'EXPLICANDO', linhas:['Contamos quantos quadrados de','tamanho conhecido cabem nela.']},
+        {rotulo:'EXEMPLO', linhas:['O retângulo ao lado tem','área de 12 quadradinhos.']}]},
+      m2: {chip:'m²', titulo:'METRO QUADRADO (m²)', secoes:[
+        {rotulo:'O QUE É', linhas:['Área de um quadrado com','1 metro de cada lado.']},
+        {rotulo:'EXPLICANDO', linhas:['O ² (lê-se "ao quadrado")','lembra: lado × lado.']},
+        {rotulo:'EXEMPLO', linhas:['1 m × 1 m = 1 m²:','o tamanho de um tapete pequeno.']}]},
+      km2: {chip:'km²', titulo:'QUILÔMETRO QUADRADO (km²)', secoes:[
+        {rotulo:'O QUE É', linhas:['Área de um quadrado com','1 quilômetro de cada lado.']},
+        {rotulo:'EXPLICANDO', linhas:['1 km = 1 000 metros.','Serve para medir cidades.']},
+        {rotulo:'EXEMPLO', linhas:['Igarapava (SP) tem','468,2 km².']}]},
+      ha: {chip:'hectare', titulo:'HECTARE (ha)', secoes:[
+        {rotulo:'O QUE É', linhas:['Área de um quadrado com','100 metros de cada lado.']},
+        {rotulo:'EXPLICANDO', linhas:['100 m × 100 m = 10 000 m².','Serve para medir fazendas.']},
+        {rotulo:'EXEMPLO', linhas:['1 hectare é um pouco maior','que um campo de futebol.']}]},
+      milhao: {chip:'milhão', titulo:'MILHÃO', secoes:[
+        {rotulo:'O QUE É', linhas:['1 milhão = 1 000 000','(mil vezes mil).']},
+        {rotulo:'EXPLICANDO', linhas:['2,66 milhões = 2,66 × 1 000 000','= 2 660 000.']},
+        {rotulo:'EXEMPLO', linhas:['Meio milhão = 0,5 milhão','= 500 000.']}]},
+      cm2: {chip:'cm²', titulo:'CENTÍMETRO QUADRADO (cm²)', secoes:[
+        {rotulo:'O QUE É', linhas:['Área de um quadrado com','1 centímetro de cada lado.']},
+        {rotulo:'EXPLICANDO', linhas:['1 cm é a distância entre dois','números seguidos da régua.']},
+        {rotulo:'EXEMPLO', linhas:['A unha do dedo mindinho','tem mais ou menos 1 cm².']}]}
+    }
+  };
+  var MOMENTOS = ['Curiosidade','Ver','Montar','Sua vez','Fechamento'];
+  var MOMENTO_DO_PASSO = [0], momentoAtual = 0;
+
+  var reduz = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var pronto = (document.fonts && document.fonts.ready)
+    ? Promise.race([document.fonts.ready, new Promise(function(r){ setTimeout(r, 2500); })])
+    : Promise.resolve();
+  pronto.then(construir);
+
+  function construir(){
+    // ---------- camadas ----------
+    var defs = el('defs');
+    var grad = el('radialGradient', {id:'giz', cx:'50%', cy:'45%', r:'75%'}, defs);
+    el('stop', {offset:'0%', style:'stop-color:var(--g1)'}, grad);
+    el('stop', {offset:'100%', style:'stop-color:var(--g2)'}, grad);
+    el('rect', {x:0, y:0, width:1600, height:900, rx:22, fill:'url(#giz)'});
+    var L = {};
+    ['quadro','painel','conta','faixa','cards','fecho','topo','legenda','chips','popup'].forEach(function(n){ L[n] = el('g'); });
+
+    var tl = gsap.timeline({paused:true});
+    var nPasso = 0;
+    tl.addLabel('b0', 0);
+    function fimPasso(){ MOMENTO_DO_PASSO.push(momentoAtual); nPasso++; var t = tl.duration(); tl.addLabel('b' + nPasso, t); tl.set({}, {}, t); }
+
+    // ---------- utilidades de animação ----------
+    function oculto(e){ gsap.set(e, {opacity:0}); return e; }
+    function aparecer(e, pos, d){ tl.to(e, {opacity:1, duration:d || .45}, pos); }
+    function sumir(e, pos, d){ tl.to(e, {opacity:0, duration:d || .3}, pos); }
+    var nClip = 0;
+    function escrever(t, pos, vel){ // efeito de "escrever com giz": revela da esquerda para a direita
+      var bb = t.getBBox();
+      var id = 'cl' + (++nClip);
+      var cp = el('clipPath', {id:id, clipPathUnits:'userSpaceOnUse'}, defs);
+      var r = el('rect', {x:bb.x - 8, y:bb.y - 14, width:0, height:bb.height + 28}, cp);
+      t.setAttribute('clip-path', 'url(#' + id + ')');
+      var w = bb.width + 16;
+      tl.to(r, {attr:{width:w}, duration:Math.max(.35, w / (vel || 1000)), ease:'none'}, pos);
+    }
+    function tracar(e, pos, d){
+      var len = e.getTotalLength();
+      e.style.strokeDasharray = len; e.style.strokeDashoffset = len;
+      tl.to(e, {strokeDashoffset:0, duration:d || .6, ease:'power1.inOut'}, pos);
+    }
+    var legAtual = null;
+    function legenda(str, pos){
+      var t = txt(str, {x:800, y:782, 'text-anchor':'middle', 'font-size':40, 'class':'c-chalk'}, L.legenda);
+      if (legAtual){ sumir(legAtual, pos, .2); pos = '>'; }
+      escrever(t, pos, 1500);
+      legAtual = t;
+      return t;
+    }
+
+    // ---------- topo: título + momentos da aula ----------
+    txt(AULA.titulo, {x:60, y:66, 'font-size':34, 'class':'c-chalk b'}, L.topo);
+    var momEls = MOMENTOS.map(function(m, i){ return txt((i + 1) + '  ' + m, {x:0, y:66, 'font-size':25, 'class':'c-dim'}, L.topo); });
+    var totalW = momEls.reduce(function(s, e){ return s + e.getBBox().width; }, 0) + 34 * (momEls.length - 1);
+    var mx = 1540 - totalW;
+    momEls.forEach(function(e){ e.setAttribute('x', mx); mx += e.getBBox().width + 34; });
+
+    // ---------- barra de palavras (glossário) ----------
+    var chipsLabel = oculto(txt('Palavras da aula:', {x:60, y:855, 'font-size':26, 'class':'c-dim'}, L.chips));
+    var chipX = 60 + chipsLabel.getBBox().width + 22;
+    var chips = {};
+    ['area','m2','km2','ha','milhao','cm2'].forEach(function(k){
+      var g = el('g', {'class':'chip'}, L.chips);
+      var r = el('rect', {x:chipX, y:822, width:10, height:48, rx:24}, g);
+      var t = txt(AULA.termos[k].chip, {x:0, y:855, 'font-size':27, 'class':'c-chalk b', 'text-anchor':'middle'}, g);
+      var w = t.getBBox().width + 48;
+      r.setAttribute('width', w);
+      t.setAttribute('x', chipX + w / 2);
+      chips[k] = {g:g, cx:chipX + w / 2, cy:846};
+      chipX += w + 16;
+      oculto(g);
+      g.addEventListener('click', function(ev){ ev.stopPropagation(); abrirPopup(k); });
+    });
+
+    // ---------- cartões de definição ----------
+    var cards = {};
+    Object.keys(AULA.termos).forEach(function(k){
+      var def = AULA.termos[k];
+      var g = el('g', {}, L.cards);
+      el('rect', {x:860, y:150, width:680, height:560, rx:26, 'class':'card-box'}, g);
+      var y = 222;
+      var tit = txt(def.titulo, {x:900, y:y, 'font-size':42, 'class':'c-yellow b'}, g);
+      var tw0 = tit.getBBox().width;
+      if (tw0 > 600) tit.setAttribute('font-size', Math.floor(42 * 600 / tw0));
+      y += 22;
+      def.secoes.forEach(function(s){
+        y += 48; txt(s.rotulo, {x:900, y:y, 'font-size':23, 'class':'c-sky b ls'}, g);
+        s.linhas.forEach(function(l){ y += 46; txt(l, {x:900, y:y, 'font-size':35, 'class':'c-chalk'}, g); });
+        y += 8;
+      });
+      cards[k] = oculto(g);
+    });
+    function cartaoEntra(k, pos){
+      gsap.set(cards[k], {scale:.9, transformOrigin:'50% 50%'});
+      tl.to(cards[k], {opacity:1, scale:1, duration:.55, ease:'back.out(1.5)'}, pos);
+    }
+    function cartaoVaiParaPalavras(k, pos){
+      var c = chips[k];
+      tl.to(cards[k], {x:c.cx - 1200, y:c.cy - 430, scale:.1, opacity:0, duration:.75, ease:'power2.inOut'}, pos);
+      if (k === 'area') aparecer(chipsLabel, '<.4', .3);
+      aparecer(c.g, '<.45', .3);
+      tl.fromTo(c.g, {scale:1.25, transformOrigin:'50% 50%'}, {scale:1, duration:.4, ease:'back.out(2)'}, '<');
+    }
+
+    // ---------- janela para rever uma palavra ----------
+    var popupAberto = false;
+    function abrirPopup(k){
+      fecharPopup();
+      var fundo = el('rect', {x:0, y:0, width:1600, height:900, style:'fill:var(--g2)', opacity:.92}, L.popup);
+      var clone = cards[k].cloneNode(true);
+      clone.removeAttribute('style');
+      clone.setAttribute('transform', 'translate(-400,20)');
+      L.popup.appendChild(clone);
+      txt('Toque em qualquer lugar para fechar', {x:800, y:800, 'text-anchor':'middle', 'font-size':28, 'class':'c-dim'}, L.popup);
+      gsap.fromTo(L.popup, {opacity:0}, {opacity:1, duration:.25});
+      popupAberto = true;
+      void fundo;
+    }
+    function fecharPopup(){ while (L.popup.firstChild) L.popup.removeChild(L.popup.firstChild); popupAberto = false; }
+    L.popup.addEventListener('click', function(ev){ ev.stopPropagation(); fecharPopup(); });
+
+    // ============================================================
+    // PASSO 0 — CURIOSIDADE (estado inicial, com votação)
+    // ============================================================
+    var enun = el('g', {}, L.painel);
+    txt('A cidade de Igarapava (SP) tem', {x:800, y:212, 'text-anchor':'middle', 'font-size':52, 'class':'c-chalk'}, enun);
+    txt('468,2 km²', {x:800, y:318, 'text-anchor':'middle', 'font-size':104, 'class':'c-yellow b'}, enun);
+    txt('Quanto é isso em hectares?', {x:800, y:398, 'text-anchor':'middle', 'font-size':52, 'class':'c-chalk'}, enun);
+    var altsG = el('g', {}, L.painel);
+    var ALTS = ['4,68 ha','468,2 ha','46 820 ha','468 200 000 ha'], LETRAS = 'ABCD', CORRETA = 2;
+    var altRects = [];
+    ALTS.forEach(function(a, i){
+      var x = 180 + (i % 2) * 640, y = 452 + Math.floor(i / 2) * 110;
+      var g = el('g', {'class':'alt'}, altsG);
+      altRects.push(el('rect', {x:x, y:y, width:600, height:92, rx:18, 'class':'alt-box'}, g));
+      el('circle', {cx:x + 52, cy:y + 46, r:28, 'class':'alt-circ'}, g);
+      txt(LETRAS[i], {x:x + 52, y:y + 57, 'text-anchor':'middle', 'font-size':32, 'class':'c-board b'}, g);
+      txt(a, {x:x + 110, y:y + 61, 'font-size':44, 'class':'c-chalk'}, g);
+      g.addEventListener('click', function(ev){ ev.stopPropagation(); votar(i); });
+    });
+    legAtual = txt('Vote com a turma: *qual vocês acham?*', {x:800, y:782, 'text-anchor':'middle', 'font-size':40, 'class':'c-chalk'}, L.legenda);
+
+    var voto = null;
+    function votar(i){ if (atual !== 0) return; voto = i; marcarVoto(); }
+    function marcarVoto(){ altRects.forEach(function(r, j){ r.classList.toggle('sel', j === voto); }); }
+
+    // faixa com o problema (fica visível enquanto trabalhamos)
+    function criarFaixa(pre, num, pos){
+      var g = el('g', {}, L.faixa);
+      var a = txt(pre, {x:60, y:122, 'font-size':32, 'class':'c-dim'}, g);
+      var n = txt(num, {x:0, y:122, 'font-size':32, 'class':'c-yellow b'}, g);
+      var c = txt(pos, {x:0, y:122, 'font-size':32, 'class':'c-dim'}, g);
+      var x = 60 + a.getBBox().width + 12; n.setAttribute('x', x);
+      c.setAttribute('x', x + n.getBBox().width + 12);
+      oculto(g);
+      return {g:g, numX:x};
+    }
+    var faixaA = criarFaixa('Problema: Igarapava (SP) tem', '468,2 km²', '→ quantos hectares?');
+
+    // ============================================================
+    // PASSO 1 — VER: o que é ÁREA (contar quadradinhos)
+    // ============================================================
+    momentoAtual = 1;
+    tl.to([enun, altsG], {opacity:0, y:-30, duration:.45}, 0);
+    aparecer(faixaA.g, '<.25', .5);
+    var areaG = el('g', {}, L.quadro);
+    var areaQs = [];
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 4; c++){
+      var gq = el('g', {}, areaG);
+      el('rect', {x:220 + c * 100, y:310 + r * 100, width:100, height:100, 'class':'quad-area'}, gq);
+      txt(String(r * 4 + c + 1), {x:270 + c * 100, y:372 + r * 100, 'text-anchor':'middle', 'font-size':38, 'class':'c-yellow b'}, gq);
+      areaQs.push(oculto(gq));
+    }
+    gsap.set(areaQs, {scale:.5, transformOrigin:'50% 50%'});
+    cartaoEntra('area', '>');
+    tl.to(areaQs, {opacity:1, scale:1, duration:.3, stagger:.14, ease:'back.out(2)'}, '<.2');
+    legenda('Área = quantos quadradinhos *cabem* na figura. Aqui: *12*.', '<.6');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 2 — VER: metro quadrado
+    // ============================================================
+    var X0 = 170, Y0 = 210, S = 500, P = 50; // quadrado grande: 1 km, 10 pedaços de 100 m
+    var quadrado = el('rect', {x:350, y:390, width:140, height:140, 'class':'traco'}, L.quadro);
+    var m2Top = oculto(txt('1 m', {x:420, y:374, 'text-anchor':'middle', 'font-size':34, 'class':'c-sky b'}, L.quadro));
+    var m2Esq = oculto(txt('1 m', {x:328, y:460, 'text-anchor':'middle', 'font-size':34, 'class':'c-sky b', transform:'rotate(-90 328 460)'}, L.quadro));
+    var m2Cen = oculto(txt('1 m²', {x:420, y:474, 'text-anchor':'middle', 'font-size':44, 'class':'c-yellow b'}, L.quadro));
+    cartaoVaiParaPalavras('area', '>');
+    tl.to(areaQs, {opacity:0, scale:.6, duration:.35, stagger:.03}, '<');
+    tracar(quadrado, '>', .8);
+    aparecer([m2Top, m2Esq], '>-.2');
+    aparecer(m2Cen, '>');
+    cartaoEntra('m2', '<');
+    legenda('1 m² = um quadrado com *1 metro* de cada lado.', '<.3');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 3 — VER: quilômetro quadrado (o quadrado cresce)
+    // ============================================================
+    var kmTop = oculto(txt('1 km', {x:X0 + S / 2, y:166, 'text-anchor':'middle', 'font-size':36, 'class':'c-sky b'}, L.quadro));
+    var kmEsq = oculto(txt('1 km', {x:96, y:Y0 + S / 2, 'text-anchor':'middle', 'font-size':36, 'class':'c-sky b', transform:'rotate(-90 96 ' + (Y0 + S / 2) + ')'}, L.quadro));
+    var kmCen = oculto(txt('1 km²', {x:X0 + S / 2, y:Y0 + S / 2 + 22, 'text-anchor':'middle', 'font-size':64, 'class':'c-yellow b'}, L.quadro));
+    cartaoVaiParaPalavras('m2', '>');
+    sumir([m2Top, m2Esq, m2Cen], '<');
+    tl.set(quadrado, {strokeDasharray:'none'}, '<');
+    tl.to(quadrado, {attr:{x:X0, y:Y0, width:S, height:S}, duration:1.1, ease:'power3.inOut'}, '<.2');
+    aparecer([kmTop, kmEsq], '>-.3');
+    aparecer(kmCen, '<.2');
+    cartaoEntra('km2', '<');
+    legenda('1 km² = um quadrado com *1 quilômetro* de cada lado.', '<.3');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 4 — VER: hectare (um quadradinho no canto) + chute
+    // ============================================================
+    var haQ = oculto(el('rect', {x:X0, y:Y0, width:P, height:P, 'class':'celula', opacity:0}, L.quadro));
+    var haLbl = oculto(txt('1 ha', {x:X0 + P + 14, y:Y0 + 36, 'font-size':30, 'class':'c-yellow b'}, L.quadro));
+    cartaoVaiParaPalavras('km2', '>');
+    tl.fromTo(haQ, {opacity:0, scale:2.2, transformOrigin:'50% 50%'}, {opacity:.8, scale:1, duration:.6, ease:'back.out(1.8)'}, '>');
+    aparecer(haLbl, '<.3');
+    cartaoEntra('ha', '<');
+    legenda('Quantos de *1 ha* cabem no quadrado grande? *Chutem!*', '<.3');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 5 — VER: cada lado = 10 pedaços de 100 m
+    // ============================================================
+    var numsTop = [], numsEsq = [], marcas = [];
+    for (var k = 0; k < 10; k++){
+      numsTop.push(oculto(txt(String(k + 1), {x:X0 + k * P + P / 2, y:Y0 - 12, 'text-anchor':'middle', 'font-size':24, 'class':'c-chalk b'}, L.quadro)));
+      numsEsq.push(oculto(txt(String(k + 1), {x:X0 - 12, y:Y0 + k * P + P / 2 + 8, 'text-anchor':'end', 'font-size':24, 'class':'c-chalk b'}, L.quadro)));
+      if (k > 0){
+        marcas.push(el('line', {x1:X0 + k * P, y1:Y0 - 10, x2:X0 + k * P, y2:Y0 + 10, 'class':'traco-y'}, L.quadro));
+        marcas.push(el('line', {x1:X0 - 10, y1:Y0 + k * P, x2:X0 + 10, y2:Y0 + k * P, 'class':'traco-y'}, L.quadro));
+      }
+    }
+    oculto(marcas);
+    var r1 = txt('1 km = 1 000 m', {x:880, y:245, 'font-size':48, 'class':'c-chalk b'}, L.painel);
+    var r2 = txt('1 000 m ÷ 100 m = *10*', {x:880, y:315, 'font-size':48, 'class':'c-chalk b'}, L.painel);
+    cartaoVaiParaPalavras('ha', '>');
+    sumir(kmCen, '<', .3);
+    tl.to(numsTop, {opacity:1, duration:.2, stagger:.13}, '>');
+    tl.to(marcas.filter(function(_, i){ return i % 2 === 0; }), {opacity:1, duration:.2, stagger:.13}, '<.1');
+    escrever(r1, '<.2');
+    tl.to(numsEsq, {opacity:1, duration:.2, stagger:.08}, '>');
+    tl.to(marcas.filter(function(_, i){ return i % 2 === 1; }), {opacity:1, duration:.2, stagger:.08}, '<');
+    escrever(r2, '<.3');
+    legenda('Cada lado tem *10* pedaços de 100 m.', '<.3');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 6 — VER: a grade corta o quadrado em hectares
+    // ============================================================
+    var linhasGrade = [];
+    for (var j = 1; j < 10; j++){
+      linhasGrade.push(el('line', {x1:X0 + j * P, y1:Y0, x2:X0 + j * P, y2:Y0 + S, 'class':'traco-fino'}, L.quadro));
+    }
+    for (var j2 = 1; j2 < 10; j2++){
+      linhasGrade.push(el('line', {x1:X0, y1:Y0 + j2 * P, x2:X0 + S, y2:Y0 + j2 * P, 'class':'traco-fino'}, L.quadro));
+    }
+    var r3a = txt('1 quadradinho = 100 m × 100 m', {x:880, y:388, 'font-size':38, 'class':'c-chalk'}, L.painel);
+    var r3b = txt('= 10 000 m² = *1 ha*', {x:880, y:434, 'font-size':38, 'class':'c-chalk'}, L.painel);
+    sumir(haLbl, '>', .25);
+    linhasGrade.forEach(function(ln, i){ tracar(ln, i === 0 ? '<' : '<.07', .35); });
+    escrever(r3a, '>-.2');
+    escrever(r3b, '>');
+    legenda('A grade divide o quadrado grande em *hectares*.', '<.2');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 7 — VER: contar → 10 × 10 = 100
+    // ============================================================
+    var celulas = [];
+    for (var cr = 0; cr < 10; cr++) for (var cc = 0; cc < 10; cc++){
+      if (cr === 0 && cc === 0) continue; // o primeiro já está aceso (haQ)
+      celulas.push(oculto(el('rect', {x:X0 + cc * P + 3, y:Y0 + cr * P + 3, width:P - 6, height:P - 6, rx:3, 'class':'celula'}, L.quadro)));
+    }
+    var contador = oculto(txt('Contando: 1', {x:880, y:505, 'font-size':44, 'class':'c-sky b'}, L.painel));
+    var cont = {v:1};
+    var r4 = txt('10 × 10 = *100*', {x:880, y:568, 'font-size':48, 'class':'c-chalk b'}, L.painel);
+    var caixaG = el('g', {}, L.painel);
+    var caixaR = el('rect', {x:935, y:606, width:520, height:84, rx:16, 'class':'traco-y'}, caixaG);
+    var caixaT = txt('1 km² = 100 ha', {x:1195, y:666, 'text-anchor':'middle', 'font-size':58, 'class':'c-yellow b'}, caixaG);
+    aparecer(contador, '>', .25);
+    tl.to(celulas, {opacity:.45, duration:.18, stagger:.024}, '>');
+    tl.to(cont, {v:100, duration:celulas.length * .024 + .18, ease:'none', onUpdate:function(){ contador.textContent = 'Contando: ' + Math.round(cont.v); }}, '<');
+    escrever(r4, '>');
+    tracar(caixaR, '>', .5);
+    escrever(caixaT, '<.1');
+    legenda('*100* hectares cabem em 1 km². Então: *1 km² = 100 ha*.', '<.2');
+    fimPasso();
+
+    // ============================================================
+    // CONTA ARMADA (reaproveitada no "Sua vez")
+    // ============================================================
+    var XR = 1000, SLOT = 72;
+    function cx(i){ return XR - (5 - i - .5) * SLOT; }
+    function bx(i){ return cx(i) + SLOT / 2; }
+    function criarConta(num, digitos, faixa){
+      var g = el('g', {}, L.conta);
+      var o = {g:g};
+      o.linha1 = oculto(txt(num, {x:XR, y:320, 'text-anchor':'end', 'font-size':100, 'class':'c-yellow b'}, g));
+      o.un1 = txt('km²', {x:XR + 20, y:320, 'font-size':56, 'class':'c-chalk'}, g);
+      o.linha2 = txt('× 100', {x:XR, y:440, 'text-anchor':'end', 'font-size':100, 'class':'c-chalk b'}, g);
+      o.nota2a = txt('100 ha em', {x:XR + 20, y:414, 'font-size':32, 'class':'c-sky'}, g);
+      o.nota2b = txt('cada km²', {x:XR + 20, y:450, 'font-size':32, 'class':'c-sky'}, g);
+      o.traco = el('line', {x1:640, y1:472, x2:XR + 10, y2:472, 'class':'traco'}, g);
+      o.dig = digitos.map(function(d, i){ return oculto(txt(d, {x:cx(i), y:630, 'text-anchor':'middle', 'font-size':100, 'class':'c-chalk b'}, g)); });
+      o.zero = oculto(txt('0', {x:cx(4), y:630, 'text-anchor':'middle', 'font-size':100, 'class':'c-yellow b'}, g));
+      o.virg = oculto(txt(',', {x:bx(2), y:630, 'text-anchor':'middle', 'font-size':100, 'class':'c-yellow b'}, g));
+      o.notaZero = oculto(txt('← completamos com 0', {x:XR + 24, y:612, 'font-size':30, 'class':'c-sky'}, g));
+      o.un3 = txt('ha', {x:XR + 20, y:630, 'font-size':56, 'class':'c-chalk'}, g);
+      o.arcos = [2, 3].map(function(de){
+        var a = bx(de), b = bx(de + 1), m = (a + b) / 2;
+        var ga = el('g', {}, g);
+        var p = el('path', {d:'M' + a + ' 548 Q ' + m + ' 492 ' + b + ' 548', 'class':'traco-y'}, ga);
+        var h = oculto(el('polygon', {points:(b - 11) + ',536 ' + (b + 9) + ',536 ' + (b - 1) + ',556', fill:'var(--yellow)'}, ga));
+        return {g:ga, p:p, h:h};
+      });
+      o.voador = oculto(txt(num, {x:faixa.numX, y:122, 'font-size':32, 'class':'c-yellow b'}, g));
+      o.alvoX = o.linha1.getBBox().x;
+      return o;
+    }
+    function animarNumeroParaConta(o){
+      tl.set(o.voador, {opacity:1}, '>');
+      tl.to(o.voador, {attr:{x:o.alvoX, y:320, 'font-size':100}, duration:1, ease:'power2.inOut'}, '>');
+      tl.set(o.linha1, {opacity:1}, '>');
+      tl.set(o.voador, {opacity:0}, '<');
+      escrever(o.un1, '>');
+    }
+    function armarMultiplicacao(o){
+      escrever(o.linha2, '>');
+      escrever(o.nota2a, '>');
+      escrever(o.nota2b, '>');
+      tracar(o.traco, '>', .5);
+    }
+    function animarVirgula(o){
+      gsap.set(o.dig, {y:-30});
+      tl.to(o.dig, {opacity:1, y:0, duration:.35, stagger:.12, ease:'back.out(2)'}, '>');
+      tl.to(o.virg, {opacity:1, duration:.3}, '>');
+      [0, 1].forEach(function(n){
+        var arco = o.arcos[n];
+        tracar(arco.p, '>.35', .45);
+        aparecer(arco.h, '>', .15);
+        tl.to(o.virg, {attr:{x:bx(3 + n)}, duration:.6, ease:'power2.inOut'}, '>');
+        sumir(arco.g, '>', .25);
+        if (n === 0){
+          tl.fromTo(o.zero, {opacity:0, scale:.3, transformOrigin:'50% 70%'}, {opacity:1, scale:1, duration:.4, ease:'back.out(2.2)'}, '>');
+          aparecer(o.notaZero, '<', .3);
+        }
+      });
+      sumir(o.virg, '>.25', .35);
+      sumir(o.notaZero, '<', .3);
+      tl.to([o.dig[0], o.dig[1]], {attr:{x:'-=26'}, duration:.45, ease:'power2.inOut'}, '>');
+      escrever(o.un3, '>');
+    }
+
+    // ============================================================
+    // PASSO 8 — MONTAR: o desenho vira "lembrete" e o número vai para a conta
+    // ============================================================
+    momentoAtual = 2;
+    var contaA = criarConta('468,2', ['4','6','8','2'], faixaA);
+    sumir([r1, r2, r3a, r3b, contador, r4], '>', .3);
+    tl.to(L.quadro, {scale:.42, x:-90, svgOrigin:X0 + ' ' + Y0, duration:.9, ease:'power2.inOut'}, '<');
+    tl.to(caixaG, {x:185 - 1195, y:482 - 648, scale:.6, transformOrigin:'50% 50%', duration:.9, ease:'power2.inOut'}, '<');
+    animarNumeroParaConta(contaA);
+    legenda('O número do problema vai para a *conta*.', '<');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 9 — MONTAR: × 100
+    // ============================================================
+    legenda('Cada km² tem 100 ha. Então multiplicamos: *× 100*.', '>');
+    armarMultiplicacao(contaA);
+    fimPasso();
+
+    // ============================================================
+    // PASSO 10 — MONTAR: a vírgula anda 2 casas
+    // ============================================================
+    var porqueVirg = txt('Por quê? ×10 → a vírgula anda *1* casa  ·  ×100 = ×10 × 10 → anda *2* casas', {x:800, y:715, 'text-anchor':'middle', 'font-size':30, 'class':'c-sky'}, contaA.g);
+    legenda('×100: a vírgula anda *2 casas* para a direita.', '>');
+    escrever(porqueVirg, '>', 1600);
+    animarVirgula(contaA);
+    fimPasso();
+
+    // ============================================================
+    // PASSO 11 — MONTAR: conferência + resposta da votação
+    // ============================================================
+    var respG = el('g', {}, L.conta);
+    el('rect', {x:1180, y:160, width:370, height:200, rx:20, 'class':'card-ok'}, respG);
+    txt('RESPOSTA', {x:1212, y:206, 'font-size':26, 'class':'c-dim b ls'}, respG);
+    txt('C  ·  46 820 ha', {x:1212, y:258, 'font-size':42, 'class':'c-ok b'}, respG);
+    var votoL1 = txt('', {x:1212, y:302, 'font-size':27, 'class':'c-chalk'}, respG);
+    var votoL2 = txt('', {x:1212, y:338, 'font-size':27, 'class':'c-chalk b'}, respG);
+    oculto(respG);
+    legenda('Confere: hectare é *menor* que km², então o número ficou *maior*. ✓', '>');
+    tl.fromTo(respG, {opacity:0, x:40}, {opacity:1, x:0, duration:.55, ease:'power2.out'}, '>-.3');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 12 — SUA VEZ: Jundiaí
+    // ============================================================
+    momentoAtual = 3;
+    var faixaB = criarFaixa('Sua vez: Jundiaí (SP) tem', '431,2 km²', '→ quantos hectares?');
+    var contaB = criarConta('431,2', ['4','3','1','2'], faixaB);
+    var interroga = oculto(txt('?', {x:cx(2), y:640, 'text-anchor':'middle', 'font-size':130, 'class':'c-yellow b'}, contaB.g));
+    sumir([contaA.g, respG, faixaA.g], '>', .4);
+    aparecer(faixaB.g, '>', .4);
+    animarNumeroParaConta(contaB);
+    armarMultiplicacao(contaB);
+    tl.fromTo(interroga, {opacity:0, scale:.4, transformOrigin:'50% 60%'}, {opacity:1, scale:1, duration:.5, ease:'back.out(2.5)'}, '>');
+    legenda('*Sua vez!* Façam no caderno. Depois conferimos.', '<');
+    fimPasso();
+
+    // ============================================================
+    // PASSO 13 — SUA VEZ: correção
+    // ============================================================
+    sumir(interroga, '>', .25);
+    animarVirgula(contaB);
+    legenda('Isso! 431,2 × 100 = *43 120 ha* ✓', '>');
+    fimPasso();
+
+    // ============================================================
+    // SUA VEZ 2 — material da Seduc (slide 16): área plantada em SP
+    // ============================================================
+    var faixaC = criarFaixa('Sua vez: plantações em SP:', '2,62 → 2,66 milhões de ha.', 'Quanto aumentou?');
+    var spG = el('g', {}, L.painel);
+    var spEnun = el('g', {}, spG);
+    txt('Em São Paulo, a área plantada passou de:', {x:420, y:215, 'font-size':40, 'class':'c-chalk'}, spEnun);
+    txt('2023/24 → *2,62 milhões de ha*', {x:420, y:300, 'font-size':48, 'class':'c-chalk'}, spEnun);
+    txt('2024/25 → *2,66 milhões de ha*', {x:420, y:372, 'font-size':48, 'class':'c-chalk'}, spEnun);
+    txt('Qual foi o aumento:', {x:420, y:462, 'font-size':40, 'class':'c-chalk'}, spEnun);
+    txt('a) em hectares?  ·  b) em km²?  ·  c) em m²?', {x:420, y:526, 'font-size':40, 'class':'c-sky b'}, spEnun);
+    oculto(spEnun); gsap.set(spEnun, {y:24});
+    sumir([contaB.g, faixaB.g], '>', .4);
+    aparecer(faixaC.g, '>', .4);
+    tl.to(spEnun, {opacity:1, y:0, duration:.55, ease:'power2.out'}, '<.1');
+    legenda('Do material da Seduc. *Virem e conversem*: como achar o aumento?', '<.2');
+    fimPasso();
+
+    // milhão
+    sumir(spEnun, '>', .35);
+    cartaoEntra('milhao', '<.2');
+    legenda('Antes de calcular: o que quer dizer *milhão*?', '<.2');
+    fimPasso();
+
+    // subtração armada — vírgula embaixo de vírgula
+    var subG = el('g', {}, spG);
+    // posições: inteiro | vírgula | décimos | centésimos (vírgula com coluna própria)
+    var SPOS = [560, 640, 694], SVX = 600;
+    function sx(i){ return SPOS[i]; }
+    function linhaNum(digs, y, cls){ return digs.map(function(d, i){ return txt(d, {x:sx(i), y:y, 'text-anchor':'middle', 'font-size':84, 'class':cls}, subG); }); }
+    var titSub = txt('Aumento = final − inicial', {x:420, y:190, 'font-size':34, 'class':'c-dim b'}, subG);
+    var n1 = linhaNum(['2','6','6'], 300, 'c-chalk b');
+    var v1 = txt(',', {x:SVX, y:300, 'text-anchor':'middle', 'font-size':84, 'class':'c-chalk b'}, subG);
+    var n2 = linhaNum(['2','6','2'], 395, 'c-chalk b');
+    var v2 = txt(',', {x:SVX, y:395, 'text-anchor':'middle', 'font-size':84, 'class':'c-chalk b'}, subG);
+    var menos = txt('−', {x:sx(0) - 84, y:395, 'text-anchor':'middle', 'font-size':84, 'class':'c-chalk b'}, subG);
+    var trSub = el('line', {x1:sx(0) - 118, y1:426, x2:sx(2) + 40, y2:426, 'class':'traco'}, subG);
+    var resS = linhaNum(['0','0','4'], 515, 'c-yellow b');
+    var vr = txt(',', {x:SVX, y:515, 'text-anchor':'middle', 'font-size':84, 'class':'c-yellow b'}, subG);
+    var unSub = txt('milhão de ha', {x:sx(0) - 118, y:566, 'font-size':32, 'class':'c-chalk'}, subG);
+    cartaoVaiParaPalavras('milhao', '>');
+    escrever(titSub, '>');
+    tl.fromTo(n1.concat([v1]), {opacity:0}, {opacity:1, duration:.3, stagger:.08}, '>');
+    tl.fromTo(n2.concat([v2, menos]), {opacity:0}, {opacity:1, duration:.3, stagger:.08}, '>');
+    tracar(trSub, '>', .4);
+    legenda('*Vírgula embaixo de vírgula.* Subtraímos da direita para a esquerda.', '<');
+    [2, 1, 0].forEach(function(i){
+      tl.fromTo(resS[i], {opacity:0, y:-24}, {opacity:1, y:0, duration:.35, ease:'back.out(2)'}, '>.25');
+      if (i === 1) tl.fromTo(vr, {opacity:0}, {opacity:1, duration:.2}, '>');
+    });
+    escrever(unSub, '>');
+    fimPasso();
+
+    // a) × 1 000 000 — a vírgula anda 6 casas
+    var aG = el('g', {}, spG);
+    var aT1 = txt('a) 0,04 milhão de ha:', {x:980, y:205, 'font-size':34, 'class':'c-chalk b'}, aG);
+    var aT2 = txt('0,04 × 1 000 000 =', {x:980, y:252, 'font-size':34, 'class':'c-chalk'}, aG);
+    var NX = 1000, NW = 44;
+    function nx(i){ return NX + i * NW; }
+    var nd = ['0','0','4'].map(function(d, i){ return oculto(txt(d, {x:nx(i), y:340, 'text-anchor':'middle', 'font-size':68, 'class':'c-yellow b'}, aG)); });
+    var zerosNovos = [3, 4, 5, 6].map(function(i){ return oculto(txt('0', {x:nx(i), y:340, 'text-anchor':'middle', 'font-size':68, 'class':'c-yellow b'}, aG)); });
+    var nv = oculto(txt(',', {x:nx(0) + NW / 2, y:340, 'text-anchor':'middle', 'font-size':68, 'class':'c-yellow b'}, aG));
+    var aUn = txt('ha', {x:nx(4) + NW / 2 + 14, y:340, 'font-size':44, 'class':'c-chalk'}, aG);
+    var aNota = txt('×1 000 000 → a vírgula anda *6* casas', {x:980, y:400, 'font-size':28, 'class':'c-sky'}, aG);
+    var aNota2 = txt('Zeros à esquerda não mudam o valor.', {x:980, y:438, 'font-size':26, 'class':'c-dim'}, aG);
+    escrever(aT1, '>');
+    escrever(aT2, '>');
+    legenda('1 milhão = 1 000 000. A vírgula anda *6 casas* para a direita.', '<');
+    tl.to(nd.concat([nv]), {opacity:1, duration:.3, stagger:.06}, '>');
+    escrever(aNota, '>');
+    for (var h = 1; h <= 6; h++){
+      if (h >= 3) tl.fromTo(zerosNovos[h - 3], {opacity:0, scale:.3, transformOrigin:'50% 70%'}, {opacity:1, scale:1, duration:.25, ease:'back.out(2)'}, '>');
+      tl.to(nv, {attr:{x:nx(h) + NW / 2}, duration:.35, ease:'power2.inOut'}, '>.05');
+    }
+    sumir(nv, '>.2', .25);
+    sumir([nd[0], nd[1]], '>', .35);
+    escrever(aNota2, '<');
+    tl.to([nd[2]].concat(zerosNovos), {attr:{x:'-=' + (2 * NW)}, duration:.45, ease:'power2.inOut'}, '>');
+    tl.to([nd[2], zerosNovos[0]], {attr:{x:'-=14'}, duration:.3}, '>');
+    escrever(aUn, '>');
+    fimPasso();
+
+    // b) ha → km²: ÷ 100
+    var bT1 = txt('b) em km²: ha → km² é ÷ 100', {x:980, y:510, 'font-size':32, 'class':'c-chalk b'}, spG);
+    var bT2 = txt('40 000 ÷ 100 = *400 km²*', {x:980, y:566, 'font-size':44, 'class':'c-chalk'}, spG);
+    var bNota = txt('÷100 → vírgula anda 2 casas à esquerda', {x:980, y:606, 'font-size':26, 'class':'c-sky'}, spG);
+    legenda('Lembra? *1 km² = 100 ha*. Então dividimos por 100.', '>');
+    tl.to(caixaG, {scale:.75, duration:.3, yoyo:true, repeat:1, ease:'power1.inOut'}, '<');
+    escrever(bT1, '>');
+    escrever(bT2, '>');
+    escrever(bNota, '>');
+    fimPasso();
+
+    // c) ha → m²: × 10 000
+    var cT1 = txt('c) em m²: 1 ha = 10 000 m²', {x:980, y:662, 'font-size':32, 'class':'c-chalk b'}, spG);
+    var cT2 = txt('40 000 × 10 000 = *400 000 000 m²*', {x:980, y:712, 'font-size':30, 'class':'c-chalk'}, spG);
+    legenda('Truque: 4 × 1 = 4 e juntamos os zeros: 4 + 4 = *8 zeros*.', '>');
+    escrever(cT1, '<.2');
+    escrever(cT2, '>');
+    fimPasso();
+
+    // confere + respostas
+    var respSP = el('g', {}, spG);
+    el('rect', {x:400, y:592, width:540, height:132, rx:18, 'class':'card-ok'}, respSP);
+    txt('RESPOSTAS', {x:428, y:626, 'font-size':22, 'class':'c-dim b ls'}, respSP);
+    txt('a) 40 000 ha  ·  b) 400 km²', {x:428, y:666, 'font-size':30, 'class':'c-ok b'}, respSP);
+    txt('c) 400 000 000 m²', {x:428, y:704, 'font-size':30, 'class':'c-ok b'}, respSP);
+    oculto(respSP);
+    legenda('Confere: 400 km² × 1 000 000 = *400 000 000 m²* ✓', '>');
+    tl.fromTo(respSP, {opacity:0, y:20}, {opacity:1, y:0, duration:.5, ease:'power2.out'}, '<.3');
+    fimPasso();
+
+    // ============================================================
+    // DESAFIO — UNICAMP 2021 (slide 18 do material da Seduc)
+    // ============================================================
+    var faixaD = criarFaixa('Desafio UNICAMP 2021:', 'área da região sombreada', '— está entre quais valores?');
+    var uG = el('g', {}, L.painel);
+    var FX = 110, FY = 190, K = 80; // figura em escala: 80 px = 1 cm
+    var fig = el('g', {}, uG);
+    el('rect', {x:FX, y:FY, width:5 * K, height:5 * K, 'class':'sombra'}, fig);
+    el('rect', {x:FX + 5 * K, y:FY + 5 * K, width:.5 * K, height:.5 * K, 'class':'sombra'}, fig);
+    var hl1 = oculto(el('rect', {x:FX, y:FY, width:5 * K, height:5 * K, 'class':'celula'}, fig));
+    var hl2 = oculto(el('rect', {x:FX + 5 * K, y:FY + 5 * K, width:.5 * K, height:.5 * K, 'class':'celula'}, fig));
+    el('rect', {x:FX, y:FY, width:5.5 * K, height:5.5 * K, 'class':'traco'}, fig);
+    el('line', {x1:FX + 5 * K, y1:FY, x2:FX + 5 * K, y2:FY + 5.5 * K, 'class':'traco'}, fig);
+    el('line', {x1:FX, y1:FY + 5 * K, x2:FX + 5.5 * K, y2:FY + 5 * K, 'class':'traco'}, fig);
+    function cota(x1, x2, y, rot, yRot){
+      el('line', {x1:x1 + 4, y1:y, x2:x2 - 4, y2:y, 'class':'traco-y'}, fig);
+      el('polygon', {points:x1 + ',' + y + ' ' + (x1 + 12) + ',' + (y - 7) + ' ' + (x1 + 12) + ',' + (y + 7), style:'fill:var(--yellow)'}, fig);
+      el('polygon', {points:x2 + ',' + y + ' ' + (x2 - 12) + ',' + (y - 7) + ' ' + (x2 - 12) + ',' + (y + 7), style:'fill:var(--yellow)'}, fig);
+      txt(rot, {x:(x1 + x2) / 2, y:yRot, 'text-anchor':'middle', 'font-size':30, 'class':'c-yellow b'}, fig);
+    }
+    cota(FX, FX + 5 * K, FY - 22, '5 cm', FY - 36);
+    cota(FX + 5 * K, FX + 5.5 * K, FY + 5.5 * K + 24, '0,5 cm', FY + 5.5 * K + 64);
+    var anel = el('circle', {cx:FX + 5.25 * K, cy:FY + 5.25 * K, r:48, 'class':'traco-y'}, fig);
+    oculto(fig);
+
+    var uQ = el('g', {}, uG);
+    txt('A região sombreada é formada por', {x:640, y:215, 'font-size':36, 'class':'c-chalk'}, uQ);
+    txt('dois quadrados. Sua área está entre:', {x:640, y:262, 'font-size':36, 'class':'c-chalk'}, uQ);
+    [['A','18 cm² e 20 cm²'],['B','27 cm² e 29 cm²'],['C','25 cm² e 27 cm²'],['D','20 cm² e 25 cm²']].forEach(function(a, i){
+      var x = 640 + (i % 2) * 450, y = 300 + Math.floor(i / 2) * 100;
+      el('rect', {x:x, y:y, width:430, height:84, rx:16, 'class':'alt-box'}, uQ);
+      el('circle', {cx:x + 44, cy:y + 42, r:25, 'class':'alt-circ'}, uQ);
+      txt(a[0], {x:x + 44, y:y + 52, 'text-anchor':'middle', 'font-size':28, 'class':'c-board b'}, uQ);
+      txt(a[1], {x:x + 88, y:y + 55, 'font-size':34, 'class':'c-chalk'}, uQ);
+    });
+    oculto(uQ);
+
+    sumir([spG, faixaC.g, L.quadro, caixaG], '>', .45);
+    aparecer(faixaD.g, '>', .4);
+    tl.fromTo(fig, {opacity:0, scale:.94, transformOrigin:'50% 50%'}, {opacity:1, scale:1, duration:.6, ease:'power2.out'}, '<');
+    tl.fromTo(uQ, {opacity:0, x:30}, {opacity:1, x:0, duration:.5}, '<.2');
+    legenda('Região sombreada = a parte *pintada*. *Virem e conversem!*', '<.2');
+    fimPasso();
+
+    // cm²
+    sumir(uQ, '>', .3);
+    cartaoEntra('cm2', '<.1');
+    legenda('A unidade aqui é o *centímetro quadrado* (cm²).', '<.2');
+    fimPasso();
+
+    // quadrado grande
+    var u1a = txt('Quadrado grande:', {x:640, y:215, 'font-size':32, 'class':'c-dim b'}, uG);
+    var u1b = txt('5 cm × 5 cm = *25 cm²*', {x:640, y:275, 'font-size':48, 'class':'c-chalk b'}, uG);
+    cartaoVaiParaPalavras('cm2', '>');
+    tl.to(hl1, {opacity:.5, duration:.4}, '>');
+    legenda('Área do quadrado = *lado × lado*.', '<');
+    escrever(u1a, '>');
+    escrever(u1b, '>');
+    fimPasso();
+
+    // quadrado pequeno
+    var u2a = txt('Quadrado pequeno:', {x:640, y:360, 'font-size':32, 'class':'c-dim b'}, uG);
+    var u2b = txt('0,5 cm × 0,5 cm = *0,25 cm²*', {x:640, y:420, 'font-size':44, 'class':'c-chalk b'}, uG);
+    var u2c = txt('5 × 5 = 25  ·  casas decimais: 1 + 1 = 2  →  0,25', {x:640, y:466, 'font-size':26, 'class':'c-sky'}, uG);
+    tl.to(hl1, {opacity:0, duration:.3}, '>');
+    tl.to(hl2, {opacity:.6, duration:.3}, '<');
+    tracar(anel, '<', .6);
+    legenda('Casas decimais = os algarismos *depois da vírgula*.', '<');
+    escrever(u2a, '>');
+    escrever(u2b, '>');
+    escrever(u2c, '>');
+    fimPasso();
+
+    // total
+    var u3a = txt('Total:', {x:640, y:545, 'font-size':32, 'class':'c-dim b'}, uG);
+    var u3b = txt('25 + 0,25 = *25,25 cm²*', {x:640, y:605, 'font-size':48, 'class':'c-chalk b'}, uG);
+    var u3c = txt('(25 = 25,00 → vírgula embaixo de vírgula)', {x:640, y:648, 'font-size':26, 'class':'c-sky'}, uG);
+    sumir(anel, '>', .25);
+    tl.to([hl1, hl2], {opacity:.5, duration:.35}, '<');
+    legenda('Somamos as duas partes *pintadas*.', '<');
+    escrever(u3a, '>');
+    escrever(u3b, '>');
+    escrever(u3c, '>');
+    fimPasso();
+
+    // reta numérica: onde fica 25,25?
+    var retaG = el('g', {}, uG);
+    var RX0 = 660, RX1 = 1520, V0 = 18, V1 = 29;
+    function rx(v){ return RX0 + (v - V0) * (RX1 - RX0) / (V1 - V0); }
+    var eixo = el('line', {x1:RX0 - 14, y1:380, x2:RX1 + 14, y2:380, 'class':'traco'}, retaG);
+    for (var v = V0; v <= V1; v++){
+      el('line', {x1:rx(v), y1:370, x2:rx(v), y2:390, 'class':'traco'}, retaG);
+      txt(String(v), {x:rx(v), y:420, 'text-anchor':'middle', 'font-size':22, 'class':'c-dim b'}, retaG);
+    }
+    var faixasAlt = [['A',18,20],['D',20,25],['C',25,27],['B',27,29]].map(function(a){
+      var g = el('g', {}, retaG);
+      el('rect', {x:rx(a[1]) + 3, y:322, width:rx(a[2]) - rx(a[1]) - 6, height:16, rx:8, 'class':'sombra'}, g);
+      txt(a[0], {x:(rx(a[1]) + rx(a[2])) / 2, y:308, 'text-anchor':'middle', 'font-size':28, 'class':'c-chalk b'}, g);
+      return g;
+    });
+    var barraC = oculto(el('rect', {x:rx(25) + 3, y:322, width:rx(27) - rx(25) - 6, height:16, rx:8, style:'fill:var(--ok)'}, retaG));
+    var ponto = el('circle', {cx:rx(25.25), cy:380, r:11, style:'fill:var(--yellow)'}, retaG);
+    var pontoTxt = txt('25,25', {x:rx(25.25), y:456, 'text-anchor':'middle', 'font-size':30, 'class':'c-yellow b'}, retaG);
+    var pegaU = txt('Cuidado: 25,25 é MAIOR que 25 → não é a D.', {x:640, y:500, 'font-size':28, 'class':'c-coral b'}, retaG);
+    oculto([retaG, ponto, pontoTxt]);
+    sumir([u1a, u1b, u2a, u2b, u2c], '>', .35);
+    aparecer(retaG, '>', .4);
+    tracar(eixo, '<', .5);
+    tl.fromTo(ponto, {opacity:0, attr:{cy:200}}, {opacity:1, attr:{cy:380}, duration:.7, ease:'bounce.out'}, '>');
+    aparecer(pontoTxt, '>', .3);
+    aparecer(barraC, '>', .35);
+    legenda('25,25 fica entre 25 e 27: *alternativa C* ✓', '<');
+    escrever(pegaU, '>');
+    fimPasso();
+
+    // ============================================================
+    // FECHAMENTO: regra + pegadinha + palavras da aula
+    // ============================================================
+    momentoAtual = 4;
+    var regra = el('g', {}, L.fecho);
+    el('rect', {x:80, y:150, width:680, height:570, rx:26, 'class':'card-box'}, regra);
+    txt('REGRA DE HOJE', {x:120, y:218, 'font-size':38, 'class':'c-yellow b ls'}, regra);
+    txt('km²  →  ha', {x:120, y:318, 'font-size':66, 'class':'c-chalk b'}, regra);
+    txt('multiplique por 100', {x:120, y:372, 'font-size':40, 'class':'c-sky'}, regra);
+    txt('ha  →  km²', {x:120, y:478, 'font-size':66, 'class':'c-chalk b'}, regra);
+    txt('divida por 100', {x:120, y:532, 'font-size':40, 'class':'c-sky'}, regra);
+    txt('Porque 1 km² = 100 ha.', {x:120, y:640, 'font-size':36, 'class':'c-dim'}, regra);
+    var pega = el('g', {}, L.fecho);
+    el('rect', {x:840, y:150, width:680, height:570, rx:26, 'class':'card-coral'}, pega);
+    txt('CUIDADO: PEGADINHA', {x:880, y:218, 'font-size':38, 'class':'c-coral b ls'}, pega);
+    txt('Hectare não é metro quadrado!', {x:880, y:284, 'font-size':35, 'class':'c-chalk b'}, pega);
+    txt('468,2 km² = 468 200 000 m²', {x:880, y:350, 'font-size':38, 'class':'c-chalk'}, pega);
+    txt('Essa é a alternativa D: está em m²,', {x:880, y:398, 'font-size':30, 'class':'c-dim'}, pega);
+    txt('não em hectares.', {x:880, y:436, 'font-size':30, 'class':'c-dim'}, pega);
+    txt('Por quê? 1 km² = 1 000 m × 1 000 m', {x:880, y:510, 'font-size':32, 'class':'c-chalk'}, pega);
+    txt('= 1 000 000 m²', {x:880, y:552, 'font-size':32, 'class':'c-chalk'}, pega);
+    txt('Confere: 100 ha × 10 000 m²', {x:880, y:626, 'font-size':30, 'class':'c-ok'}, pega);
+    txt('= 1 000 000 m² = 1 km² ✓', {x:880, y:666, 'font-size':30, 'class':'c-ok'}, pega);
+    var assin = txt(AULA.assinatura, {x:800, y:890, 'text-anchor':'middle', 'font-size':19, 'class':'c-dim'}, L.fecho);
+    oculto([regra, pega, assin]);
+    gsap.set([regra, pega], {y:30});
+    sumir([uG, faixaD.g], '>', .45);
+    tl.to(regra, {opacity:1, y:0, duration:.55, ease:'power2.out'}, '>');
+    tl.to(pega, {opacity:1, y:0, duration:.55, ease:'power2.out'}, '>.25');
+    aparecer(assin, '>.3', .6);
+    legenda('Palavras da aula aqui embaixo: *toquem para rever*.', '<');
+    fimPasso();
+
+    // ============================================================
+    // NAVEGAÇÃO
+    // ============================================================
+    var N = nPasso;
+    var atual = 0, tw = null;
+    function sync(){
+      var m = MOMENTO_DO_PASSO[atual] || 0;
+      momEls.forEach(function(e, i){ e.setAttribute('class', i === m ? 'c-yellow b' : 'c-dim'); });
+      altsG.style.pointerEvents = atual === 0 ? 'auto' : 'none';
+      contador.textContent = 'Contando: ' + (atual >= 7 ? 100 : 1);
+      if (voto === null){ votoL1.textContent = ''; votoL2.textContent = ''; }
+      else {
+        votoL1.textContent = 'A turma votou: ' + LETRAS[voto];
+        votoL2.textContent = voto === CORRETA ? 'Acertou! ✓' : 'Agora sabemos o porquê.';
+        votoL2.setAttribute('class', voto === CORRETA ? 'c-ok b' : 'c-yellow b');
+      }
+      btnVoltar.disabled = atual === 0;
+      btnAvancar.textContent = atual === 0 ? 'Começar' : (atual >= N ? 'Recomeçar' : 'Avançar');
+    }
+    function irPara(k, animar){
+      if (tw){ tw.kill(); tw = null; }
+      fecharPopup();
+      atual = k;
+      if (animar && !reduz){ tw = tl.tweenTo('b' + k, {onComplete:function(){ tw = null; }}); }
+      else tl.seek('b' + k);
+      sync();
+    }
+    function avancar(){
+      if (popupAberto){ fecharPopup(); return; }
+      if (tw && tw.isActive()){ tw.kill(); tw = null; tl.seek('b' + atual); return; }
+      if (atual >= N){ voto = null; marcarVoto(); irPara(0, false); return; }
+      irPara(atual + 1, true);
+    }
+    function voltar(){
+      if (popupAberto){ fecharPopup(); return; }
+      if (atual > 0) irPara(atual - 1, false);
+    }
+    btnAvancar.addEventListener('click', avancar);
+    btnVoltar.addEventListener('click', voltar);
+    svg.addEventListener('click', avancar);
+    document.addEventListener('keydown', function(e){
+      if (['ArrowRight','PageDown',' ','Enter'].indexOf(e.key) !== -1){ e.preventDefault(); avancar(); }
+      else if (['ArrowLeft','PageUp'].indexOf(e.key) !== -1){ e.preventDefault(); voltar(); }
+      else if (e.key === 'Escape') fecharPopup();
+    });
+    window.__aula = {irPara:irPara, total:N};
+    tl.seek('b0');
+    sync();
+  }
+})();
+</script>
+
+</body>
+</html>

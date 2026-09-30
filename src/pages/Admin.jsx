@@ -5,7 +5,7 @@ import {
   AlertTriangle, Video, FileText, FileCheck2, AlignLeft, Target,
   Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
   ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2,
-  ClipboardList, Copy
+  ClipboardList, Copy, Presentation
 } from "lucide-react";
 
 import { db, auth, storage } from "../firebase";
@@ -14,6 +14,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 import RevisaoMaterial from "../components/RevisaoMaterial";
+import { AULAS_ANIMADAS, acharAulaAnimada, ehDisciplinaDeExatas, linkAulaAnimada } from "../utils/aulasAnimadas";
 import { Toast, useConfirmacao } from "../components/Notificacao";
 import { pendenciasMaterial, escolherVisual, visuaisRecentes, visualDoMaterial } from "../utils/temasMaterial";
 import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
@@ -140,7 +141,7 @@ export default function Admin() {
 
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
-    introducao: "", utilidade: "", materialTexto: "", registroAula: "",
+    introducao: "", utilidade: "", materialTexto: "", registroAula: "", aulaAnimada: "", roteiroLousa: "",
     videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
   });
 
@@ -410,7 +411,7 @@ export default function Admin() {
     });
 
     setForm({
-      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "", registroAula: "",
+      id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "", registroAula: "", aulaAnimada: "", roteiroLousa: "",
       videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
     });
     setArquivosPdf([]);
@@ -428,6 +429,7 @@ export default function Admin() {
 
     setForm({
       id: aula.id, turmaId, moduloId, numeroAula: aula.numeroAula || "", titulo: aula.titulo, semana: aula.semana || "", introducao: aula.introducao || "", utilidade: aula.utilidade || "", materialTexto: aula.materialTexto || "", registroAula: aula.registroAula || "",
+      aulaAnimada: aula.aulaAnimada || "", roteiroLousa: aula.roteiroLousa || "",
       videos: videosMigrados.length > 0 ? videosMigrados : [{ videoId: "", duracao: "" }],
       pdfs: pdfsMigrados,
       materialEstudo: null,
@@ -650,6 +652,24 @@ export default function Admin() {
     }
   };
 
+  // ─── ROTEIRO DA LOUSA (SÓ DO PROFESSOR, TURMAS DE EXATAS) ───
+  const usarRoteiroPronto = () => {
+    const pronto = acharAulaAnimada(form.aulaAnimada)?.roteiroLousa;
+    if (!pronto) return;
+    setForm(prev => ({ ...prev, roteiroLousa: pronto }));
+  };
+
+  const copiarRoteiro = async () => {
+    const roteiro = String(form.roteiroLousa || "").trim();
+    if (!roteiro) return;
+    try {
+      await navigator.clipboard.writeText(roteiro);
+      setToast({ mensagem: "Roteiro da lousa copiado!" });
+    } catch {
+      setToast({ mensagem: "Não foi possível copiar automaticamente. Selecione o texto e copie manualmente (Ctrl+C).", erro: true });
+    }
+  };
+
   // ─── SUGESTAO DE VIDEOS DO YOUTUBE (EM PORTUGUES, COM AJUDA DA IA) ───
   const buscarVideosYoutube = async (termoManual) => {
     const t = String(termoManual ?? buscaVideo).trim();
@@ -809,6 +829,8 @@ export default function Admin() {
       pdfs: pdfsFinais.length > 0 ? pdfsFinais : null,
       materialTexto: form.materialTexto || null,
       registroAula: form.registroAula || "",
+      ...(form.aulaAnimada ? { aulaAnimada: form.aulaAnimada } : {}),
+      ...(String(form.roteiroLousa || "").trim() ? { roteiroLousa: form.roteiroLousa } : {}),
       materialProntoPdf: materialProntoPdfFinal,
       temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo,
       visualMaterial: visualAula
@@ -1056,6 +1078,8 @@ export default function Admin() {
                         <option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option>
                         <option value="Carreira e Competências">Carreira e Competências</option>
                         <option value="Lógica de Programação">Lógica de Programação</option>
+                        <option value="Matemática">Matemática</option>
+                        <option value="Física">Física</option>
                         <option value="Outra">+ Outra Disciplina</option>
                       </select>
                     </div>
@@ -1684,6 +1708,68 @@ export default function Admin() {
                     <Copy className="w-3.5 h-3.5" /> Copiar registro
                   </button>
                 </div>
+
+                {ehDisciplinaDeExatas(bancoDados?.[form.turmaId]?.disciplina) && (
+                  <div className="space-y-3 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/5">
+                    <h3 className="text-xs sm:text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase flex items-center gap-2"><Presentation className="w-4 h-4"/> Aula animada (quadro passo a passo)</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
+                      O quadro que você usa na TV. Depois de salvar, o aluno também vê o botão "Aula animada" nesta aula, para rever quando quiser.
+                    </p>
+                    <select
+                      disabled={salvando}
+                      value={form.aulaAnimada || ""}
+                      onChange={e => setForm({ ...form, aulaAnimada: e.target.value })}
+                      className={`${inputBaseClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                      <option value="">Nenhuma</option>
+                      {AULAS_ANIMADAS.map(a => <option key={a.id} value={a.id}>{a.titulo}</option>)}
+                    </select>
+                    {form.aulaAnimada && acharAulaAnimada(form.aulaAnimada) && (
+                      <a
+                        href={linkAulaAnimada(form.aulaAnimada, form.numeroAula)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Abrir o quadro (TV)
+                      </a>
+                    )}
+
+                    <h3 className="pt-3 text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><ClipboardList className="w-4 h-4"/> Roteiro da lousa</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
+                      O que escrever no quadro da sala, com o gabarito. Só você vê — o aluno nunca vê isso.
+                    </p>
+                    <textarea
+                      rows={10}
+                      disabled={salvando}
+                      value={form.roteiroLousa || ""}
+                      onChange={e => setForm({ ...form, roteiroLousa: e.target.value })}
+                      placeholder="Ex: 1) ÁREA: medida do tamanho de uma superfície..."
+                      className={`${inputBaseClass} resize-y font-mono disabled:opacity-60 disabled:cursor-not-allowed`}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {acharAulaAnimada(form.aulaAnimada)?.roteiroLousa && (
+                        <button
+                          type="button"
+                          disabled={salvando || !!String(form.roteiroLousa || "").trim()}
+                          onClick={usarRoteiroPronto}
+                          title={String(form.roteiroLousa || "").trim() ? "Apague o texto acima para usar o roteiro pronto" : ""}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" /> Usar o roteiro pronto desta aula
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={salvando || !String(form.roteiroLousa || "").trim()}
+                        onClick={copiarRoteiro}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-300 hover:border-indigo-400 dark:hover:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Copy className="w-3.5 h-3.5" /> Copiar roteiro
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <div className="flex justify-between items-center mb-3">

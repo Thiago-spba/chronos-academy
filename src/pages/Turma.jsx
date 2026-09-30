@@ -1,12 +1,13 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Play, Calendar, Download, FileText, FileCheck2, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History, BookOpen } from 'lucide-react';
+import { Play, Calendar, Download, FileText, FileCheck2, Target, Rocket, AlignLeft, ChevronDown, ChevronUp, FolderOpen, X, ListPlus, ListMinus, Search, History, BookOpen, Presentation } from 'lucide-react';
 import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { lerModulo, ordenarModulos, anoAtualDaTurma, buscarAulas } from '../utils/bimestres';
 import MaterialEstudo from '../components/MaterialEstudo';
+import { acharAulaAnimada, linkAulaAnimada } from '../utils/aulasAnimadas';
 
 function VideoPlayer({ titulo, videoId, duracao }) {
   const [ativo, setAtivo] = useState(false);
@@ -423,6 +424,22 @@ export default function Turma() {
                   </div>
                 </details>
               </div>
+
+              {aulaAtiva.aulaAnimada && acharAulaAnimada(aulaAtiva.aulaAnimada) && (
+                <a
+                  href={linkAulaAnimada(aulaAtiva.aulaAnimada, obterNumeroAula(aulaAtiva, 0))}
+                  className="mb-8 flex items-center justify-between gap-4 p-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/20 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Presentation className="w-7 h-7 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Aula animada</p>
+                      <p className="text-sm sm:text-base font-bold">Rever a resolução passo a passo, no quadro</p>
+                    </div>
+                  </div>
+                  <Play className="w-6 h-6 shrink-0" />
+                </a>
+              )}
 
               {aulaAtiva.temMaterialEstudo && (materialEstudo.carregando || materialEstudo.dados) && (
                 <div className="mb-8 border-t border-stone-100 dark:border-slate-800 pt-8">

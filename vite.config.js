@@ -12,6 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         navigateFallback: 'index.html', // ← PWA redireciona para index em qualquer rota
+        // As aulas animadas são páginas próprias (public/aulas-animadas): não trocar pelo app.
+        navigateFallbackDenylist: [/^\/aulas-animadas\//],
       },
       manifest: {
         name: 'Chronos Academy - História e Tecnologia',

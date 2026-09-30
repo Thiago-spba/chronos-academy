@@ -35,6 +35,32 @@ export function temaPelaOrdem(turmaId, ordem) {
   return ((Number(ordem) || 0) + hashTexto(turmaId)) % 30 + 1;
 }
 
+// Temas (1 a 30) que a turma ja usou em aulas animadas, para nunca repetir antes da 31a aula.
+// Aula pronta do site: tema = numero da aula (mesma regra do link antigo). Aula gerada: tema guardado nela.
+export function temasUsados(turma, exceto) {
+  const usados = new Set();
+  (turma?.modulos || []).forEach((m) => (m.aulas || []).forEach((a) => {
+    if (a.id === exceto) return;
+    if (a.aulaGerada && Number(a.temaAnimada) >= 1) usados.add(Number(a.temaAnimada));
+    else if (a.aulaAnimada) {
+      const n = parseInt((String(a.numeroAula || "").match(/\d+/) || [])[0], 10);
+      if (Number.isFinite(n) && n > 0) usados.add(((n - 1) % 30) + 1);
+    }
+  }));
+  return usados;
+}
+
+// Primeiro tema livre a partir do ponto de partida da turma (e a partir do tema "depois").
+export function escolherTema(turma, turmaId, exceto, depois) {
+  const usados = temasUsados(turma, exceto);
+  const inicio = depois ? (depois % 30) + 1 : temaPelaOrdem(turmaId, contarAulasAnimadas(turma, exceto));
+  for (let i = 0; i < 30; i++) {
+    const t = ((inicio - 1 + i) % 30) + 1;
+    if (!usados.has(t) && t !== depois) return t;
+  }
+  return inicio; // as 30 ja foram usadas: recomeca o ciclo
+}
+
 // Quantas aulas animadas (prontas ou geradas) a turma ja tem, sem contar a aula "exceto".
 export function contarAulasAnimadas(turma, exceto) {
   let n = 0;

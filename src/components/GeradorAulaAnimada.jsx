@@ -26,7 +26,7 @@ async function chamarApi(payload) {
 
 // Bloco "Aula animada com IA" do painel: gera, mostra a prévia, deixa o professor conferir e aprovar.
 // valor = { aula, plano, tema, aprovada, respostas } (ou null). Nada é publicado sem "Aprovar" + salvar a aula.
-export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, getToken, contexto, temaInicial = 1, nivelPadrao = 'Ensino Médio', desabilitado, avisar }) {
+export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, getToken, contexto, temaInicial = 1, proximoTema, nivelPadrao = 'Ensino Médio', desabilitado, avisar }) {
   const [gerando, setGerando] = useState('');
   const [nivel, setNivel] = useState(nivelPadrao);
   const [respostasNovas, setRespostasNovas] = useState({});
@@ -138,7 +138,7 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
             <AulaAnimadaJanela aula={valor.aula} tema={temaAtual} titulo="Prévia da aula animada" />
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs">
-            <button type="button" onClick={() => onChange({ ...valor, tema: (temaAtual % 30) + 1 })} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-stone-700 dark:text-slate-300 font-bold hover:bg-white dark:hover:bg-slate-900"><Palette className="w-3.5 h-3.5" /> Outro visual (tema {temaAtual})</button>
+            <button type="button" onClick={() => onChange({ ...valor, tema: proximoTema ? proximoTema(temaAtual) : (temaAtual % 30) + 1 })} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-stone-700 dark:text-slate-300 font-bold hover:bg-white dark:hover:bg-slate-900"><Palette className="w-3.5 h-3.5" /> Outro visual (tema {temaAtual})</button>
             <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold"><ShieldCheck className="w-4 h-4" /> {analise.verificacao.verificadas} conferências matemáticas feitas</span>
           </div>
 

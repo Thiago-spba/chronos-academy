@@ -16,7 +16,7 @@ import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharMo
 import RevisaoMaterial from "../components/RevisaoMaterial";
 import { AULAS_ANIMADAS, acharAulaAnimada, ehDisciplinaDeExatas, linkAulaAnimada } from "../utils/aulasAnimadas";
 import GeradorAulaAnimada from "../components/GeradorAulaAnimada";
-import { docIdAnimada, empacotarAula, desempacotarAula, temaPelaOrdem, contarAulasAnimadas } from "../utils/aulaGerada";
+import { docIdAnimada, empacotarAula, desempacotarAula, escolherTema } from "../utils/aulaGerada";
 import { Toast, useConfirmacao } from "../components/Notificacao";
 import { pendenciasMaterial, escolherVisual, visuaisRecentes, visualDoMaterial } from "../utils/temasMaterial";
 import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
@@ -457,7 +457,7 @@ export default function Admin() {
       materialEstudo: null,
       materialProntoPdf: aula.materialProntoPdf || null,
       visualMaterial: aula.visualMaterial || null,
-      aulaGerada: null, aulaGeradaErro: false, aulaGeradaAntes: !!aula.aulaGerada
+      aulaGerada: null, aulaGeradaErro: false, aulaGeradaAntes: !!aula.aulaGerada, temaAnimadaAntes: aula.temaAnimada || null
     });
     setArquivosPdf([]);
     setArquivoMaterialPronto(null);
@@ -913,7 +913,7 @@ export default function Admin() {
       materialTexto: form.materialTexto || null,
       registroAula: form.registroAula || "",
       ...(form.aulaAnimada ? { aulaAnimada: form.aulaAnimada } : {}),
-      ...(mantemGerada ? { aulaGerada: true } : {}),
+      ...(mantemGerada ? { aulaGerada: true, temaAnimada: (form.aulaGerada && form.aulaGerada.tema) || form.temaAnimadaAntes || 1 } : {}),
       ...(String(form.roteiroLousa || "").trim() ? { roteiroLousa: form.roteiroLousa } : {}),
       materialProntoPdf: materialProntoPdfFinal,
       temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo,
@@ -1826,7 +1826,8 @@ export default function Admin() {
                         coletarMaterial={coletarMaterialParaIA}
                         getToken={() => auth.currentUser.getIdToken()}
                         contexto={{ tituloAula: form.titulo, disciplina: bancoDados?.[form.turmaId]?.disciplina || "", prioridades: prioridadesIA.trim() }}
-                        temaInicial={temaPelaOrdem(form.turmaId, contarAulasAnimadas(bancoDados?.[form.turmaId], form.id))}
+                        temaInicial={escolherTema(bancoDados?.[form.turmaId], form.turmaId, form.id)}
+                        proximoTema={(atual) => escolherTema(bancoDados?.[form.turmaId], form.turmaId, form.id, atual)}
                         nivelPadrao={/s[eé]rie|m[eé]dio/i.test(bancoDados?.[form.turmaId]?.nome || "") ? "Ensino Médio" : "Fundamental II"}
                         desabilitado={salvando || gerandoMaterial}
                         avisar={(mensagem, erro) => setToast({ mensagem, erro: !!erro })}

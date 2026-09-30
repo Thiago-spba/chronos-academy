@@ -1,0 +1,14 @@
+{"titulo":"Conversão de unidades",
+"termos":[{"chave":"unidade","chip":"Unidade","titulo":"UNIDADE","oQueE":["Padrão usado para medir","um comprimento."],"explicando":["Ex.: metro, quilômetro."],"exemplo":["1 km = 1 000 m"]}],
+"abertura":{"antes":"Uma corrida tem 3,5 km.","destaque":"3,5 km","depois":"Quantos metros são?","alternativas":["350 m","3 500 m","35 m","0,35 m"],"calculo":"3,5 × 1000"},
+"blocos":[
+{"tipo":"termo","chave":"unidade","momento":"ver","legenda":"Cada medida tem sua *unidade*."},
+{"tipo":"conta","momento":"montar","numero":"2,5","op":"mul","fator":"1000","unidadeDe":"km","unidadePara":"m","nota":["cada zero = 1 casa"],"legenda":"Multiplicar por 1 000: a vírgula anda 3 casas."},
+{"tipo":"conta","momento":"montar","numero":"750","op":"div","fator":"100","unidadeDe":"cm","unidadePara":"m","legenda":"Dividir por 100: a vírgula anda para a esquerda."},
+{"tipo":"revelar","momento":"montar"},
+{"tipo":"coluna","momento":"montar","op":"add","a":"12,5","b":"3,75","titulo":"Somando medidas","unidade":"m"},
+{"tipo":"formula","momento":"montar","nome":"Velocidade média","formula":"v = d ÷ t","valores":{"d":"150","t":"2"},"unidades":{"v":"km/h","d":"km","t":"h"},"variaveis":{"v":"velocidade","d":"distância","t":"tempo"}},
+{"tipo":"expressoes","momento":"suavez","titulo":"Sua vez","itens":[{"rotulo":"a)","expr":"4,2 × 1000","unidade":"m"},{"rotulo":"b)","expr":"850 ÷ 100","unidade":"m"}]},
+{"tipo":"equacao","momento":"suavez","titulo":"Qual é o número?","equacao":"2x + 3 = 11"},
+{"tipo":"fecho","momento":"fechamento","regra":["Unidade menor: multiplica","Unidade maior: divide"],"pegaTitulo":"CUIDADO","pega":["Não confunda o sentido!"]}
+]}

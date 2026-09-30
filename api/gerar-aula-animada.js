@@ -35,7 +35,11 @@ const REGRAS = `REGRAS OBRIGATORIAS:
 5. Linguagem simples, curta, para o aluno. Frases de ate 90 letras. Use o nivel indicado (Fundamental II ou Ensino Medio).
 6. Numeros no formato brasileiro: virgula nos decimais (3,5) e espaco nos milhares (1 000).
 7. Use apenas os tipos de bloco do catalogo. Se o assunto pedir algo que o catalogo nao tem (ex.: grafico de funcao, fracoes desenhadas), use "ideia" para explicar em texto e escreva em "duvidas" que essa parte ficou sem animacao.
-8. A abertura e uma pergunta curta com 4 alternativas cuja resposta sera descoberta durante a aula. Informe "calculo" quando a resposta for numerica (o sistema decide a alternativa certa).`;
+8. Toda palavra listada em "termos" precisa ter um bloco "termo" que a apresente (antes de usa-la); nao liste palavras que nao serao apresentadas.
+9. Use o bloco "revelar" UMA unica vez, logo depois do bloco (figura, formula, conta, expressoes) que responde a pergunta de abertura.
+10. Todo bloco, exceto "fecho", deve trazer uma "legenda" curta que explique ao aluno o que esta acontecendo.
+11. Em "expressoes", o sistema mostra primeiro as contas com "= ?" e depois as respostas: nao escreva as respostas.
+12. A abertura e uma pergunta curta com 4 alternativas cuja resposta sera descoberta durante a aula. Informe "calculo" quando a resposta for numerica (o sistema decide a alternativa certa).`;
 
 const FORMATO = `Responda SOMENTE com um JSON (sem texto antes ou depois) neste formato:
 {

@@ -304,7 +304,19 @@ export function resolverEquacao(bruto) {
   const B = menos(R.b, L.b);
   const sol = dividido(B, A);
   const passos = [];
-  passos.push({ texto: bonitaConta(bruto), nota: "A equação" });
+  passos.push({ texto: bonitaConta(bruto), nota: "Vamos resolver a equação, passo a passo." });
+  // 1º: organiza cada lado (parênteses, contas com o x, etc.), se o texto original ainda não estiver assim
+  const ladoTxt = (co) => {
+    if (!ehZero(co.a) && co.a.n === 1n && co.a.d !== 1n) return null; // x/4: não vira 0,25x
+    let t = ehZero(co.a) ? formatar(co.b) : coefTxt(co.a, x);
+    if (!ehZero(co.a) && !ehZero(co.b)) t += ` ${co.b.n < 0n ? "−" : "+"} ${formatar(co.b.n < 0n ? neg(co.b) : co.b)}`;
+    return t;
+  };
+  const semEsp = (t) => String(t).replace(/[\s*×]/g, "").replace(/-/g, "−");
+  const orgEsq = ladoTxt(L), orgDir = ladoTxt(R);
+  if (orgEsq != null && orgDir != null && (semEsp(orgEsq) !== semEsp(partes[0]) || semEsp(orgDir) !== semEsp(partes[1]))) {
+    passos.push({ texto: `${orgEsq} = ${orgDir}`, nota: "Organizamos cada lado: fazemos as contas que dá para fazer" });
+  }
   // passar termos: x para a esquerda, números para a direita
   const temX_dir = !ehZero(R.a), temCte_esq = !ehZero(L.b);
   if (temX_dir || temCte_esq) {
@@ -318,7 +330,11 @@ export function resolverEquacao(bruto) {
     passos.push({ texto: `${coefTxt(A, x)} = ${formatar(B)}`, nota: "Fazemos as contas de cada lado" });
   }
   if (!igual(A, UM)) {
-    passos.push({ texto: `${x} = ${formatar(B)} ÷ ${A.n < 0n ? "(" + formatar(A) + ")" : formatar(A)}`, nota: `O ${formatar(A)} está multiplicando o ${x}: passa dividindo` });
+    if (A.n === 1n && A.d !== 1n) {
+      passos.push({ texto: `${x} = ${formatar(B)} × ${A.d}`, nota: `O ${A.d} está dividindo o ${x}: passa multiplicando` });
+    } else {
+      passos.push({ texto: `${x} = ${formatar(B)} ÷ ${A.n < 0n ? "(" + formatar(A) + ")" : formatar(A)}`, nota: `O ${formatar(A)} está multiplicando o ${x}: passa dividindo` });
+    }
   }
   passos.push({ texto: `${x} = *${formatarComAprox(sol)}*`, nota: "Resultado", resultado: true });
   // conferência: coloca o valor no lugar do x

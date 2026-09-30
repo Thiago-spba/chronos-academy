@@ -244,6 +244,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
   // ---------- abertura ----------
   const ab = plano.abertura;
   let respostaAbertura = null; // {letra, texto}
+  let jaRevelou = false;
   const inicio = { acoes: [], legenda: "Vote com a turma: *qual vocês acham?*" };
   if (!ab || !ab.antes || !ab.destaque || !ab.depois) erros.push("A abertura (pergunta com votação) está incompleta.");
   else if (ab.alternativas.length !== 4) erros.push("A abertura precisa de exatamente 4 alternativas.");
@@ -312,7 +313,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
   plano.blocos.forEach((bl, idx) => {
     iBloco = idx + 1; blocoAtual = bl;
     const info = { n: iBloco, tipo: bl.tipo, momento: bl.momento, fonte: bl.fonte || "", complemento: bl.complemento, resumo: "", contas: [] };
-    if (bl.complemento) duvidas.push(`Bloco ${iBloco} (${bl.tipo}): trecho que NÃO está no material; a IA acrescentou. Confirme antes de publicar.`);
+    if (bl.complemento) avisos.push(`Bloco ${iBloco} (${bl.tipo}): conteúdo que NÃO está no material (a IA acrescentou). Confira antes de aprovar.`);
     try {
       if (bl.tipo === "ideia") {
         if (!bl.titulo && !bl.linhas.length && !bl.destaque) throw new Error("bloco vazio");
@@ -325,13 +326,13 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         if (bl.destaque) flow.push({ t: bl.destaque, tam: 48, neg: true, x: 160, y: (flow.length ? flow[flow.length - 1].y : 200) + 90, caixa: true, quebrar: false });
         push(p, { tipo: "linhas", id, regiao: "T", linhas: flow.map(({ t, tam, neg, cor, x, y, caixa }) => ({ t, tam, neg, cor, x, y, caixa })) });
         registrar(id);
-        legendaEm(p, bl.legenda);
+        legendaEm(p, bl.legenda || (bl.destaque ? `Guardem esta ideia: *${bl.destaque}*.` : bl.titulo));
         info.resumo = [bl.titulo, ...bl.linhas, bl.destaque].filter(Boolean).join(" · ");
       } else if (bl.tipo === "termo") {
         if (!termos[bl.chave]) throw new Error(`a palavra "${bl.chave}" não está na lista de termos.`);
         const p = novoPasso(bl.momento);
         push(p, { tipo: "termo", chave: bl.chave });
-        legendaEm(p, bl.legenda);
+        legendaEm(p, bl.legenda || `Palavra-chave: *${termos[bl.chave].chip}*.`);
         guardar.push(bl.chave);
         info.resumo = `Cartão da palavra "${termos[bl.chave].chip}"`;
       } else if (bl.tipo === "faixa") {
@@ -341,7 +342,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         if (faixaAtual) { /* já saiu no limpar */ }
         push(p, { tipo: "faixa", id, antes: bl.antes, numero: bl.numero, depois: bl.depois || "" });
         faixaAtual = id; faixaMomento = bl.momento; registrar(id);
-        legendaEm(p, bl.legenda);
+        legendaEm(p, bl.legenda || "Este é o *problema* de hoje.");
         info.resumo = `${bl.antes} ${bl.numero} ${bl.depois}`.trim();
       } else if (bl.tipo === "conta") {
         let num1;
@@ -394,7 +395,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           try { r = M.avaliar(it.expr, { implicita: false }); } catch (e) { throw new Error(`não consegui calcular "${it.expr}" (${e.message})`); }
           const rt = M.formatarComAprox(r);
           const un = it.unidade ? " " + it.unidade : "";
-          linhas.push({ item: it, texto: `${it.rotulo ? it.rotulo + " " : ""}${bonita(it.expr)} = *${rt}${un}*`, calculado: `${bonita(it.expr)} = ${M.formatar(r)}` });
+          linhas.push({ item: it, texto: `${it.rotulo ? it.rotulo + " " : ""}${bonita(it.expr)} = *${rt}${un}*`, pergunta: `${it.rotulo ? it.rotulo + " " : ""}${bonita(it.expr)} = ?`, calculado: `${bonita(it.expr)} = ${M.formatar(r)}` });
           info.contas.push(`${bonita(it.expr)} = ${M.formatar(r)}`);
         });
         info.resumo = info.contas.join(" · ");
@@ -402,17 +403,33 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         let yCursor = 230;
         for (let ini = 0; ini < linhas.length; ini += porPasso) {
           const fatia = linhas.slice(ini, ini + porPasso);
-          const p = novoPasso(bl.momento, { limpar: ini === 0 });
-          const id = nid("e");
-          const itens = [];
-          if (bl.titulo && ini === 0) itens.push({ t: bl.titulo, tam: 44, neg: true, cor: "yellow", depois: 12 });
-          fatia.forEach((l) => { itens.push({ t: l.texto, tam: 52, neg: true, depois: 6 }); if (l.item.nota) itens.push({ t: l.item.nota, tam: 30, cor: "sky", depois: 10 }); });
-          const fl = linhasFlow(160, yCursor, itens, { maxChars: 42 });
-          if (fl.length) { const u = fl[fl.length - 1]; yCursor = u.y + u.tam * 1.5; }
+          const itensR = [], itensQ = [];
+          if (bl.titulo && ini === 0) { const t = { t: bl.titulo, tam: 44, neg: true, cor: "yellow", depois: 12, quebrar: false }; itensR.push(t); itensQ.push(t); }
+          fatia.forEach((l) => {
+            const tam = l.texto.replace(/\*/g, "").length > 40 ? 44 : 52;
+            itensR.push({ t: l.texto, tam, neg: true, depois: 6, quebrar: false });
+            itensQ.push({ t: l.pergunta, tam, neg: true, depois: 6, quebrar: false });
+            if (l.item.nota) { const n = { t: l.item.nota, tam: 30, cor: "sky", depois: 10, quebrar: false }; itensR.push(n); itensQ.push(n); }
+          });
+          const fl = linhasFlow(160, yCursor, itensR);
+          const flQ = fl.map((f, i) => ({ ...f, t: itensQ[i].t }));
+          if (fl.length) { const u = fl[fl.length - 1]; yCursor = u.y + 84; }
           if (yCursor > 700) aviso("muitas contas na mesma tela; algumas podem ficar fora do quadro.");
-          push(p, { tipo: "linhas", id, regiao: "T", linhas: fl.map(({ t, tam, neg, cor, x, y }) => ({ t, tam, neg, cor, x, y })) });
-          registrar(id);
-          legendaEm(p, bl.legenda);
+          const cortar = ({ t, tam, neg, cor, x, y }) => ({ t, tam, neg, cor, x, y });
+          // 1) a turma vê as contas sem resposta ("= ?")
+          const pQ = novoPasso(bl.momento, { limpar: ini === 0 });
+          const idQ = nid("e");
+          push(pQ, { tipo: "linhas", id: idQ, regiao: "T", linhas: flQ.map(cortar) });
+          registrar(idQ);
+          legendaEm(pQ, bl.legenda || "Resolvam no caderno e depois *conferimos*.");
+          // 2) as mesmas contas, agora com as respostas (calculadas pelo sistema)
+          const pR = novoPasso(bl.momento, { limpar: false });
+          const idR = nid("e");
+          push(pR, { tipo: "sai", alvos: [idQ], dur: 0.25 }, { sequencial: true });
+          cena = cena.filter((c) => c !== idQ);
+          push(pR, { tipo: "linhas", id: idR, regiao: "T", linhas: fl.map(cortar) });
+          registrar(idR);
+          legendaEm(pR, bl.legenda2 || "Conferindo as *respostas*.");
         }
       } else if (bl.tipo === "formula") {
         if (!bl.formula) throw new Error("faltou a fórmula");
@@ -426,7 +443,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         const fl = linhasFlow(160, 230, itens, { maxChars: 40 });
         push(p, { tipo: "linhas", id, regiao: "T", linhas: fl.map(({ t, tam, neg, cor, x, y, caixa }) => ({ t, tam, neg, cor, x, y, caixa })) });
         registrar(id);
-        legendaEm(p, bl.legenda);
+        legendaEm(p, bl.legenda || `A fórmula: *${r.formula.replace(/\//g, "÷")}*.`);
         const p2 = novoPasso(bl.momento, { limpar: false });
         const id2 = nid("f");
         const yBase = (fl.length ? fl[fl.length - 1].y : 300) + 90;
@@ -519,11 +536,12 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         passosEq.forEach((s, i) => {
           const p = novoPasso(bl.momento, { limpar: i === 0 });
           const id = `${idBase}_${i}`;
-          const y = 300 + i * 92;
+          const y = (passosEq.length > 4 ? 282 : 300) + i * (passosEq.length > 4 ? 76 : 92);
+          const tamEq = passosEq.length > 4 ? 56 : 64;
           const ls = [];
           if (i === 0) ls.push({ t: bl.titulo || "Resolvendo a equação", tam: 40, neg: true, cor: "yellow", x: 160, y: 220 });
-          ls.push({ t: s.texto, tam: 64, neg: true, x: 160, y });
-          if (i === passosEq.length - 1 && conf) ls.push({ t: conf.texto, tam: 34, cor: "sky", x: 160, y: y + 78 });
+          ls.push({ t: s.texto, tam: tamEq, neg: true, x: 160, y });
+          if (i === passosEq.length - 1 && conf) ls.push({ t: conf.texto, tam: 34, cor: "sky", x: 160, y: y + 70 });
           push(p, { tipo: "linhas", id, regiao: "T", linhas: ls });
           registrar(id);
           legendaEm(p, i === 0 && bl.legenda ? bl.legenda : (s.resultado ? `Resposta: *${r.variavel} = ${M.formatar(r.solucao)}*` : s.nota));
@@ -566,6 +584,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         if (valor) info.contas.push(`${bonita(bl.calculo)} = ${M.formatar(valor)}`);
       } else if (bl.tipo === "revelar") {
         if (!respostaAbertura) throw new Error("não há pergunta de abertura para revelar");
+        if (jaRevelou) { aviso("a resposta da abertura já foi revelada antes; este bloco repetido foi ignorado."); info.resumo = "(repetido, ignorado)"; resumo.push(info); return; }
+        jaRevelou = true;
         const p = novoPasso(bl.momento);
         const id = nid("r");
         push(p, { tipo: "cartao", id, estilo: "ok", x: 400, y: 230, w: 800, rx: 24, entrada: "sobe", comVoto: true, linhas: [{ t: "RESPOSTA", tam: 30, cor: "dim", neg: true, ls: true, dy: 56 }, { t: `${respostaAbertura.letra}  ·  ${respostaAbertura.texto}`, tam: 60, cor: "ok", neg: true, dy: 140 }] });
@@ -609,7 +629,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
   if (passos.length < 5) erros.push("A aula ficou curta demais (menos de 5 passos).");
   if (passos.length > 45) erros.push("A aula ficou longa demais (mais de 45 passos).");
   // toda palavra do glossário usada?
-  plano.termos.forEach((t) => { if (!plano.blocos.some((b) => b.tipo === "termo" && b.chave === t.chave)) avisos.push(`A palavra "${t.chip}" existe na lista mas nenhum bloco a apresenta.`); });
+  // palavras da lista que nenhum bloco apresenta simplesmente não entram na aula
+  Object.keys(termos).forEach((k) => { if (!plano.blocos.some((b) => b.tipo === "termo" && b.chave === k)) delete termos[k]; });
 
   const aula = { titulo: plano.titulo, assinatura, termos, inicio, passos };
   return { aula, plano, relatorio: { erros, avisos, duvidas, blocos: resumo } };

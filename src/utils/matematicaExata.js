@@ -366,7 +366,7 @@ export function calcularFormula(formula, valores, unidades = {}) {
   return {
     alvo,
     formula: bonitaConta(String(formula)),
-    substituido: `${alvo} = ${bonitaConta(trocado).replace(/\*/g, "×").replace(/\//g, "÷")}`,
+    substituido: `${alvo} = ${bonitaConta(trocado).replace(/\*/g, "×").replace(/\//g, "÷").replace(/\^2/g, "²").replace(/\^3/g, "³")}`,
     resultado,
     resultadoTxt: formatarComAprox(resultado),
     unidade: un,

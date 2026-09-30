@@ -497,6 +497,10 @@ function iniciar(AULA, temaIdx){
         if (f.tipo === 'ret') e = el('rect', {x:X(f.x), y:Y(f.y), width:f.w * K, height:f.h * K, 'class':c}, g);
         else if (f.tipo === 'linha') e = el('line', {x1:X(f.x1), y1:Y(f.y1), x2:X(f.x2), y2:Y(f.y2), 'class':c}, g);
         else if (f.tipo === 'poli') e = el('polygon', {points:f.pontos.map(function(p){ return X(p[0]) + ',' + Y(p[1]); }).join(' '), 'class':c}, g);
+        else if (f.tipo === 'curva'){
+          e = el('polyline', {points:f.pontos.map(function(p){ return X(p[0]) + ',' + Y(p[1]); }).join(' '), 'class':c, fill:'none', 'stroke-linejoin':'round'}, g);
+          if (f.tracar){ var len = e.getTotalLength(); e.style.strokeDasharray = len; e.style.strokeDashoffset = len; }
+        }
         else if (f.tipo === 'circulo') e = el('circle', {cx:X(f.x), cy:Y(f.y), r:(f.raio || .5) * K, 'class':c}, g);
         else if (f.tipo === 'texto') e = txt(f.t, {x:X(f.x), y:Y(f.y), 'font-size':f.tam || 30, 'text-anchor':f.ancora === 'fim' ? 'end' : (f.ancora === 'inicio' ? 'start' : 'middle'), 'class':(COR[f.cor || 'yellow'] || 'c-yellow') + ' b'}, g);
         else { falha('figura: forma desconhecida ' + f.tipo); return; }

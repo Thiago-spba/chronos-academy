@@ -5,10 +5,11 @@
 // Sem dependências de navegador: roda no painel e no servidor.
 
 import * as M from "./matematicaExata.js";
+import { fracaoCena, graficoCena, movimentoCena } from "./blocosExtra.js";
 
 export const MOMENTOS = ["curiosidade", "ver", "montar", "suavez", "fechamento"];
-export const TIPOS_BLOCO = ["ideia", "termo", "faixa", "conta", "coluna", "expressoes", "formula", "figura", "equacao", "desafio", "revelar", "fecho"];
-const MOMENTO_PADRAO = { ideia: 1, termo: 1, faixa: 1, figura: 1, conta: 2, coluna: 2, expressoes: 2, formula: 2, equacao: 2, desafio: 3, revelar: 2, fecho: 4 };
+export const TIPOS_BLOCO = ["ideia", "termo", "faixa", "conta", "coluna", "expressoes", "formula", "figura", "equacao", "desafio", "revelar", "fecho", "fracao", "grafico", "movimento"];
+const MOMENTO_PADRAO = { ideia: 1, termo: 1, faixa: 1, figura: 1, conta: 2, coluna: 2, expressoes: 2, formula: 2, equacao: 2, desafio: 3, revelar: 2, fecho: 4, fracao: 2, grafico: 2, movimento: 2 };
 const LETRAS = "ABCD";
 
 /* ------------------------------------------------------------------ */
@@ -100,10 +101,15 @@ export function normalizarPlano(bruto) {
       const itens = (Array.isArray(x?.itens) ? x.itens : []).slice(0, 6).map((it) => (typeof it === "string" ? { expr: limpa(it, 90) } : { rotulo: limpa(it?.rotulo, 12), expr: limpa(it?.expr, 90), unidade: limpa(it?.unidade, 24), nota: limpa(it?.nota, 70) })).filter((it) => it.expr);
       blk = { ...base, titulo: limpa(x?.titulo, 60), itens, passoAPasso: x?.passoAPasso === true };
     } else if (tipo === "formula") blk = { ...base, nome: limpa(x?.nome, 50), formula: limpa(x?.formula, 60), valores: mapaTextos(x?.valores), unidades: mapaTextos(x?.unidades), variaveis: mapaTextos(x?.variaveis, 6), legenda2: limpa(x?.legenda2, 90) };
-    else if (tipo === "figura") blk = { ...base, forma: limpa(x?.forma, 20).toLowerCase(), medidas: mapaTextos(x?.medidas, 6), unidade: limpa(x?.unidade, 8), legendas: lista(x?.legendas, 3, 90), grade: x?.grade !== false };
+    else if (tipo === "figura") blk = { ...base, forma: limpa(x?.forma, 20).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""), mostrar: /comp|perim|volta|circunf/i.test(limpa(x?.mostrar, 20)) ? "comprimento" : "area", medidas: mapaTextos(x?.medidas, 6), unidade: limpa(x?.unidade, 8), legendas: lista(x?.legendas, 3, 90), grade: x?.grade !== false };
     else if (tipo === "equacao") blk = { ...base, titulo: limpa(x?.titulo, 50), equacao: limpa(x?.equacao, 60) };
     else if (tipo === "desafio") blk = { ...base, enunciado: lista(x?.enunciado, 4, 140), alternativas: lista(x?.alternativas, 4, 30), calculo: limpa(x?.calculo, 120), unidade: limpa(x?.unidade, 16), correta: inteiro(x?.correta, 0, 3), legenda2: limpa(x?.legenda2, 90) };
     else if (tipo === "revelar") blk = { ...base };
+    else if (tipo === "fracao") {
+      const o = limpa(x?.op, 20).toLowerCase();
+      blk = { ...base, op: /soma|adi|\+/.test(o) ? "soma" : /subtr|menos|-/.test(o) ? "subtracao" : /equiv/.test(o) ? "equivalente" : "representar", a: limpa(x?.a, 12), b: limpa(x?.b, 12), fator: limpa(x?.fator, 4), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
+    } else if (tipo === "grafico") blk = { ...base, funcao: limpa(x?.funcao, 40), xmin: inteiro(x?.xmin, -12, 0), xmax: inteiro(x?.xmax, 0, 12), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
+    else if (tipo === "movimento") blk = { ...base, velocidade: limpa(x?.velocidade, 16), tempo: limpa(x?.tempo, 16), deslocamento: limpa(x?.deslocamento, 16), unidadeVelocidade: limpa(x?.unidadeVelocidade, 10), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
     else blk = { ...base, titulo: limpa(x?.titulo, 40), regra: lista(x?.regra, 5, 80), pegaTitulo: limpa(x?.pegaTitulo, 40), pega: lista(x?.pega, 4, 80) };
     plano.blocos.push(blk);
   });
@@ -149,7 +155,7 @@ function montarFigura(bl, id) {
   const forma = bl.forma, m = bl.medidas, un = bl.unidade || "";
   const areaUn = areaDe(un);
   const f = (k) => paraN(num(m, k));
-  let W, H, formas = [], cotas = [], formula, valores, medidasTxt, gradeOk = false, animacao = null, nomeForma, dimBH = null;
+  let W, H, formas = [], cotas = [], formula, valores, medidasTxt, gradeOk = false, animacao = null, nomeForma, dimBH = null, grandeza = "área";
   const U = un ? " " + un : "";
   const sufixo = (k) => `${m[k]}${U}`;
   if (forma === "retangulo" || forma === "quadrado") {
@@ -206,11 +212,32 @@ function montarFigura(bl, id) {
     medidasTxt = [`base maior B = ${sufixo("baseMaior")}`, `base menor b = ${sufixo("baseMenor")}`, `altura h = ${sufixo("altura")}`];
     animacao = { tipo: "trapezio", id: id + "_t2" };
     nomeForma = "trapézio";
+  } else if (forma === "circulo") {
+    let R;
+    if (m.raio != null) R = num(m, "raio");
+    else if (m.diametro != null) R = M.dividido(num(m, "diametro"), M.F(2n));
+    else throw new Error('Faltou a medida "raio" (ou "diametro").');
+    const rTxt = M.formatar(R), dTxt = M.formatar(M.vezes(R, M.F(2n)));
+    const r = paraN(R);
+    W = 2 * r; H = 2 * r;
+    formas.push({ tipo: "circulo", x: r, y: r, raio: r, estilo: "area" });
+    formas.push({ tipo: "linha", x1: 0, y1: r, x2: 2 * r, y2: r, estilo: "traco", oculta: true, id: id + "_d" });
+    formas.push({ tipo: "linha", x1: r, y1: r, x2: 2 * r, y2: r, estilo: "tracejado" });
+    formas.push({ tipo: "texto", x: r * 1.5, y: r - 0.09 * r, t: `r = ${rTxt}${U}`, tam: 28, cor: "yellow" });
+    formas.push({ tipo: "circulo", x: r, y: r, raio: Math.max(0.04 * r, 0.05), estilo: "sombra" });
+    const perim = bl.mostrar === "comprimento";
+    formula = perim ? "C = 2 × π × r" : "A = π × r²";
+    valores = { r: rTxt, pi: "3,14" };
+    medidasTxt = [`raio r = ${rTxt}${U}`, `diâmetro d = ${dTxt}${U}`, "π ≈ 3,14"];
+    animacao = { tipo: "circulo", id: id + "_d", d: `d = 2 × ${rTxt} = ${dTxt}${U}` };
+    nomeForma = "círculo";
+    grandeza = perim ? "comprimento" : "área";
+    gradeOk = false;
   } else {
-    throw new Error(`Figura "${forma}" ainda não existe (use retangulo, quadrado, paralelogramo, triangulo ou trapezio).`);
+    throw new Error(`Figura "${forma}" ainda não existe (use retangulo, quadrado, paralelogramo, triangulo, trapezio ou circulo).`);
   }
-  const unidades = { A: areaUn, b: un, h: un, l: un, B: un };
-  return { W, H, formas, cotas, formula, valores, unidades, medidasTxt, gradeOk, animacao, nomeForma, dim: dimBH };
+  const unidades = { A: areaUn, C: un, b: un, h: un, l: un, B: un };
+  return { grandeza, W, H, formas, cotas, formula, valores, unidades, medidasTxt, gradeOk, animacao, nomeForma, dim: dimBH };
 }
 const paraN = (fr) => M.paraNumero(fr);
 
@@ -477,7 +504,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         const un = bl.unidade;
         const calc = M.calcularFormula(g.formula, g.valores, g.unidades);
         info.contas.push(`${calc.substituido} = ${M.formatar(calc.resultado)}${calc.unidade ? " " + calc.unidade : ""}`);
-        info.resumo = `${g.nomeForma}: ${g.medidasTxt.join(", ")} → área ${calc.resultadoTxt} ${calc.unidade}`.trim();
+        info.resumo = `${g.nomeForma}: ${g.medidasTxt.join(", ")} → ${g.grandeza} ${calc.resultadoTxt} ${calc.unidade}`.trim();
         // escala e posição (região da esquerda: x 100–800, y 200–650)
         const K = Math.max(20, Math.min(560 / g.W, 300 / g.H, 95));
         const ox = 130 + (560 - g.W * K) / 2, oy = 230 + (300 - g.H * K) / 2;
@@ -515,6 +542,12 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         } else if (g.animacao && g.animacao.tipo === "triangulo") {
           push(p2, { tipo: "mostrar", alvo: g.animacao.id, op: 0.85, dur: 0.8 }, { sequencial: true });
           leg2 = leg2 || "Dois triângulos iguais formam um paralelogramo. Cada um é *metade*.";
+        } else if (g.animacao && g.animacao.tipo === "circulo") {
+          push(p2, { tipo: "mostrar", alvo: g.animacao.id, dur: 0.6 }, { sequencial: true });
+          const idc = nid("q");
+          push(p2, { tipo: "linhas", id: idc, regiao: "D", linhas: [{ t: g.animacao.d, tam: 40, neg: true, x: 900, y: 500, cor: "sky" }] }, { sequencial: true });
+          registrar(idc);
+          leg2 = leg2 || "O *diâmetro* passa pelo centro e é o dobro do raio.";
         } else if (g.animacao && g.animacao.tipo === "trapezio") {
           push(p2, { tipo: "mostrar", alvo: g.animacao.id, op: 0.85, dur: 0.8 }, { sequencial: true });
           leg2 = leg2 || "Dois trapézios iguais formam um paralelogramo de base *B + b*.";
@@ -530,12 +563,30 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           { t: "Fórmula", tam: 32, neg: true, cor: "dim", x: 900, y: 235 },
           { t: g.formula.replace(/\//g, "÷"), tam: 56, neg: true, x: 900, y: 305 },
           { t: calc.substituido, tam: 46, x: 900, y: 395 },
-          { t: `A = *${calc.resultadoTxt}${un3}*`, tam: 60, neg: true, x: 900, y: 490 },
+          { t: `${calc.alvo} = *${calc.resultadoTxt}${un3}*`, tam: 60, neg: true, x: 900, y: 490 },
         ];
         push(p3, { tipo: "linhas", id: id3, regiao: "D", linhas: fl3 }, { sequencial: true });
         registrar(id3);
-        legendaEm(p3, bl.legendas[2] || `A área do ${g.nomeForma} é *${calc.resultadoTxt}${un3}*.`);
+        legendaEm(p3, bl.legendas[2] || (g.grandeza === "área" ? `A área do ${g.nomeForma} é *${calc.resultadoTxt}${un3}*.` : `O comprimento da circunferência é *${calc.resultadoTxt}${un3}*.`));
         void un;
+      } else if (bl.tipo === "fracao" || bl.tipo === "grafico" || bl.tipo === "movimento") {
+        const idc = nid("x");
+        const cenaX = bl.tipo === "fracao" ? fracaoCena(bl, idc) : bl.tipo === "grafico" ? graficoCena(bl, idc) : movimentoCena(bl, idc);
+        info.resumo = `${cenaX.nome}: ${cenaX.resumo}`;
+        cenaX.contas.forEach((c) => info.contas.push(c));
+        let idLinhas = null;
+        cenaX.passos.forEach((ps, k) => {
+          const p = novoPasso(bl.momento, { limpar: k === 0 || ps.limpar === true });
+          if (ps.tiraLinhas && idLinhas && cena.includes(idLinhas)) { push(p, { tipo: "sai", alvos: [idLinhas], dur: 0.3 }, { sequencial: true }); cena = cena.filter((cid) => cid !== idLinhas); }
+          if (ps.figura) { push(p, { tipo: "figura", id: ps.figura.id, origem: ps.figura.origem, escala: ps.figura.escala, formas: ps.figura.formas, cotas: [] }); registrar(ps.figura.id); }
+          if (ps.linhas) {
+            idLinhas = nid("l");
+            push(p, { tipo: "linhas", id: idLinhas, regiao: "D", linhas: ps.linhas.map(({ t, tam, neg, cor, x, y }) => ({ t: String(t), tam, neg, cor, x, y })) });
+            registrar(idLinhas);
+          }
+          (ps.acoes || []).forEach((a) => push(p, { ...a }, { sequencial: true }));
+          legendaEm(p, ps.legenda);
+        });
       } else if (bl.tipo === "equacao") {
         if (!bl.equacao) throw new Error("faltou a equação");
         const r = M.resolverEquacao(bl.equacao);

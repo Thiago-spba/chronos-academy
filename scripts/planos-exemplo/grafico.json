@@ -1,0 +1,15 @@
+{
+  "titulo": "Gráfico da função",
+  "termos": [
+    {"chave": "raiz", "chip": "Raiz", "titulo": "Raiz da função", "oQueE": ["É o x em que y vale zero."], "explicando": ["No gráfico, é onde a linha corta o eixo x."], "exemplo": ["Em y = 2x − 4, a raiz é x = 2."]}
+  ],
+  "abertura": {"antes": "Se y = 2x + 1 e x = 3,", "destaque": "2 × 3 + 1 = ?", "depois": "Quanto vale y?", "alternativas": ["5", "6", "7", "8"], "correta": 2, "calculo": "2 × 3 + 1"},
+  "blocos": [
+    {"tipo": "ideia", "momento": 1, "titulo": "Função", "linhas": ["Uma função liga cada x a um único y."], "destaque": "y depende de x"},
+    {"tipo": "termo", "momento": 1, "chave": "raiz"},
+    {"tipo": "grafico", "momento": 2, "funcao": "y = 2x + 1", "xmin": -3, "xmax": 3},
+    {"tipo": "grafico", "momento": 3, "funcao": "y = x² − 4", "xmin": -3, "xmax": 3},
+    {"tipo": "revelar", "momento": 3},
+    {"tipo": "fecho", "momento": 4, "titulo": "Regra do dia", "regra": ["Tabela de valores → pontos → gráfico."], "pegaTitulo": "Cuidado", "pega": ["Troque o x com atenção aos sinais."]}
+  ]
+}

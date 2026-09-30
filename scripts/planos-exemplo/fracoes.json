@@ -1,0 +1,17 @@
+{
+  "titulo": "Frações: representar e somar",
+  "termos": [
+    {"chave": "denominador", "chip": "Denominador", "titulo": "Denominador", "oQueE": ["É o número de baixo da fração."], "explicando": ["Diz em quantas partes iguais o inteiro foi dividido."], "exemplo": ["Em 3/4, o denominador é 4."]}
+  ],
+  "abertura": {"antes": "Uma pizza foi dividida em 8 partes. Você comeu", "destaque": "2 × 3 = ?", "depois": "partes. Quantas?", "alternativas": ["5", "6", "8", "9"], "correta": 1, "calculo": "2 × 3"},
+  "blocos": [
+    {"tipo": "ideia", "momento": 1, "titulo": "Fração", "linhas": ["Fração é uma parte de um inteiro.", "O inteiro é dividido em partes iguais."], "destaque": "3/4 quer dizer 3 de 4 partes"},
+    {"tipo": "termo", "momento": 1, "chave": "denominador"},
+    {"tipo": "fracao", "momento": 2, "op": "representar", "a": "3/4"},
+    {"tipo": "fracao", "momento": 2, "op": "equivalente", "a": "1/2", "fator": "3"},
+    {"tipo": "fracao", "momento": 2, "op": "soma", "a": "1/2", "b": "1/4"},
+    {"tipo": "fracao", "momento": 3, "op": "subtracao", "a": "5/6", "b": "1/3"},
+    {"tipo": "revelar", "momento": 3},
+    {"tipo": "fecho", "momento": 4, "titulo": "Regra do dia", "regra": ["Para somar, o denominador precisa ser igual.", "Some só os numeradores."], "pegaTitulo": "Cuidado", "pega": ["Não some os denominadores."]}
+  ]
+}

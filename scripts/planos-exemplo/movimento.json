@@ -1,0 +1,15 @@
+{
+  "titulo": "Movimento uniforme",
+  "termos": [
+    {"chave": "velocidade", "chip": "Velocidade", "titulo": "Velocidade", "oQueE": ["Mostra quanto o corpo anda a cada unidade de tempo."], "explicando": ["20 m/s: anda 20 metros a cada segundo."], "exemplo": ["Um carro a 20 m/s."]}
+  ],
+  "abertura": {"antes": "Um carro anda 20 metros por segundo. Em 5 segundos, quantos metros?", "destaque": "20 × 5 = ?", "depois": "metros", "alternativas": ["25 m", "60 m", "100 m", "120 m"], "correta": 2, "calculo": "20 × 5"},
+  "blocos": [
+    {"tipo": "ideia", "momento": 1, "titulo": "Movimento uniforme", "linhas": ["A velocidade não muda."], "destaque": "S = v × t"},
+    {"tipo": "termo", "momento": 1, "chave": "velocidade"},
+    {"tipo": "movimento", "momento": 2, "velocidade": "20", "tempo": "5", "unidadeVelocidade": "m/s"},
+    {"tipo": "movimento", "momento": 3, "deslocamento": "180", "tempo": "3", "unidadeVelocidade": "km/h"},
+    {"tipo": "revelar", "momento": 3},
+    {"tipo": "fecho", "momento": 4, "titulo": "Regra do dia", "regra": ["S = v × t", "v = S ÷ t", "t = S ÷ v"], "pegaTitulo": "Cuidado", "pega": ["Use as mesmas unidades."]}
+  ]
+}

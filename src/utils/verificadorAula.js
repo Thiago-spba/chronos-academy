@@ -129,7 +129,7 @@ function verificar(aula) {
     if (a.tipo === "figura") {
       (Array.isArray(a.formas) ? a.formas : []).forEach((f) => {
         if (!f || typeof f !== "object") return;
-        const ns = [f.x, f.y, f.w, f.h, f.x1, f.y1, f.x2, f.y2];
+        const ns = [f.x, f.y, f.w, f.h, f.x1, f.y1, f.x2, f.y2, f.raio];
         if (ns.some((v) => v != null && !Number.isFinite(v))) err(onde + ": figura com medida inválida.");
         (f.pontos || []).forEach((pt) => { if (!Array.isArray(pt) || !pt.every(Number.isFinite)) err(onde + ": figura com ponto inválido."); });
       });
@@ -159,7 +159,9 @@ function verificar(aula) {
   const perg = (aula.inicio && aula.inicio.acoes || []).find((a) => a.tipo === "pergunta");
   if (perg && /^[0-3]$/.test(String(perg.correta))) {
     const m = String(perg.destaque || "").match(/(\d+(?:,\d+)?)\s*[a-z²³]*\s*[×x]\s*(\d+(?:,\d+)?)/i);
-    if (m) {
+    // só confere quando o destaque é UMA multiplicação (ex.: "12 × 5 = ?"), não "2 × 3 + 1"
+    const resto = m ? String(perg.destaque || "").replace(m[0], "") : "";
+    if (m && !/[+\-−÷/×*]/.test(resto.replace(/^\s*[a-z²³]*\s*/i, ""))) {
       const val = vezes(num(m[1]), num(m[2]));
       const alt = String(perg.alternativas[Number(perg.correta)] || "");
       const mn = alt.match(/^\s*(\d+(?:[ .]\d{3})*(?:,\d+)?)/);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles, Bell } from 'lucide-react';
+import { ArrowRight, ScrollText, MonitorPlay, Target, Award, Lightbulb, ChevronDown, Sparkles, Bell, Calculator } from 'lucide-react';
 import AnuncioPopup from '../components/AnuncioPopup';
 import NomesFlutuantes from '../components/NomesFlutuantes';
 import { db } from '../firebase';
@@ -16,6 +16,8 @@ function quandoFoiCriada(aula) {
 }
 
 const turmas = [
+  // Matemática (nova) fica em primeiro: a turma mais recente aparece antes das demais.
+  { id: '2hmatematica', grupo: 'fgb', serie: '2ª Série H', disciplina: 'Matemática', curso: 'Novo Ensino Médio', icone: Calculator, corBadge: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800' },
   { id: '2h', grupo: 'fgb', serie: '2ª Série H', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
   { id: '2l', grupo: 'fgb', serie: '2ª Série L', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },
   { id: '1g', grupo: 'fgb', serie: '1ª Série G', disciplina: 'História', curso: 'Novo Ensino Médio', icone: ScrollText, corBadge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800' },

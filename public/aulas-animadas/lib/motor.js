@@ -78,7 +78,11 @@ function erro(t1, t2){
 }
 function ligarFechar(){
   var f = $('btnFechar');
-  if (f) f.addEventListener('click', function(){ if (window.history.length > 1) window.history.back(); else window.location.href = '/'; });
+  if (f) f.addEventListener('click', function(){
+    if (window.parent !== window) window.parent.postMessage({tipo:'chronos-fechar'}, location.origin);
+    else if (window.history.length > 1) window.history.back();
+    else window.location.href = '/';
+  });
 }
 
 /* ---------- temas ---------- */
@@ -152,6 +156,7 @@ function iniciar(AULA, temaIdx){
     var legAtual = null;
     function legenda(str, pos){
       var t = txt(str, {x:800, y:782, 'text-anchor':'middle', 'font-size':40, 'class':'c-chalk'}, L.legenda);
+      var lw = t.getBBox().width; if (lw > 1480) t.setAttribute('font-size', Math.floor(40 * 1480 / lw));
       if (legAtual){ sumir(legAtual, pos, .2); pos = '>'; }
       escrever(t, pos, 1500);
       legAtual = t;
@@ -290,9 +295,10 @@ function iniciar(AULA, temaIdx){
     // {tipo:'pergunta', antes, destaque, depois, alternativas:[...], correta}  (só no estado inicial)
     PECAS.pergunta = function(a){
       var g = el('g', {}, L.painel); O[a.id || 'pergunta'] = {g:g};
-      txt(a.antes, {x:800, y:212, 'text-anchor':'middle', 'font-size':52, 'class':'c-chalk'}, g);
-      txt(a.destaque, {x:800, y:318, 'text-anchor':'middle', 'font-size':104, 'class':'c-yellow b'}, g);
-      txt(a.depois, {x:800, y:398, 'text-anchor':'middle', 'font-size':52, 'class':'c-chalk'}, g);
+      [[a.antes, 212, 52, 'c-chalk'], [a.destaque, 318, 104, 'c-yellow b'], [a.depois, 398, 52, 'c-chalk']].forEach(function(q){
+        var tq = txt(q[0], {x:800, y:q[1], 'text-anchor':'middle', 'font-size':q[2], 'class':q[3]}, g);
+        var wq = tq.getBBox().width; if (wq > 1440) tq.setAttribute('font-size', Math.floor(q[2] * 1440 / wq));
+      });
       var altsG = el('g', {}, g), rects = [];
       var LETRAS = 'ABCD';
       (a.alternativas || []).slice(0, 4).forEach(function(t, i){
@@ -481,7 +487,7 @@ function iniciar(AULA, temaIdx){
 
     // Figura em escala (formas + medidas). Coordenadas em unidades (ex.: cm), y para baixo.
     // {tipo:'figura', id, origem:[px,py], escala:px por unidade, formas:[{tipo:'ret'|'linha'|'poli', ..., estilo, id, oculta}], cotas:[{de:[x,y], ate:[x,y], lado:'cima'|'baixo'|'esq'|'dir', texto}]}
-    var ESTILO = {sombra:'sombra', celula:'celula', traco:'traco', tracoY:'traco-y', fino:'traco-fino', area:'quad-area'};
+    var ESTILO = {sombra:'sombra', celula:'celula', traco:'traco', tracoY:'traco-y', fino:'traco-fino', area:'quad-area', tracejado:'traco-tj'};
     PECAS.figura = function(a){
       var g = el('g', {}, L.painel), K = a.escala || 80, ox = a.origem ? a.origem[0] : 110, oy = a.origem ? a.origem[1] : 190;
       O[a.id || 'figura'] = {g:g};
@@ -492,6 +498,7 @@ function iniciar(AULA, temaIdx){
         else if (f.tipo === 'linha') e = el('line', {x1:X(f.x1), y1:Y(f.y1), x2:X(f.x2), y2:Y(f.y2), 'class':c}, g);
         else if (f.tipo === 'poli') e = el('polygon', {points:f.pontos.map(function(p){ return X(p[0]) + ',' + Y(p[1]); }).join(' '), 'class':c}, g);
         else if (f.tipo === 'circulo') e = el('circle', {cx:X(f.x), cy:Y(f.y), r:(f.raio || .5) * K, 'class':c}, g);
+        else if (f.tipo === 'texto') e = txt(f.t, {x:X(f.x), y:Y(f.y), 'font-size':f.tam || 30, 'text-anchor':f.ancora === 'fim' ? 'end' : (f.ancora === 'inicio' ? 'start' : 'middle'), 'class':(COR[f.cor || 'yellow'] || 'c-yellow') + ' b'}, g);
         else { falha('figura: forma desconhecida ' + f.tipo); return; }
         if (f.oculta) oculto(e);
         if (f.id) O[f.id] = {g:e, tr:e};

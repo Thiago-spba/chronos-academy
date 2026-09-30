@@ -30,6 +30,7 @@
   .c-coral{fill:var(--coral)} .c-ok{fill:var(--ok)} .c-board{fill:var(--board)}
   .b{font-weight:700} .ls{letter-spacing:.12em}
   .traco{stroke:var(--chalk); stroke-width:5; fill:none; stroke-linecap:round}
+  .traco-tj{stroke:var(--sky); stroke-width:4; stroke-dasharray:14 10; fill:none; stroke-linecap:round}
   .traco-fino{stroke:var(--line); stroke-width:2.5; fill:none; opacity:.75}
   .traco-y{stroke:var(--yellow); stroke-width:4; fill:none; stroke-linecap:round}
   .quad-area{fill:var(--board2); stroke:var(--chalk); stroke-width:3}
@@ -82,12 +83,29 @@
 <script src="/aulas-animadas/lib/motor.js"></script>
 <script>
 // Página única para todas as aulas animadas geradas pelo motor.
-// Endereço: /aulas-animadas/aula.html#id=<aula>&tema=<1-30>
+// Dois jeitos de abrir:
+//   /aulas-animadas/aula.html#id=<aula>&tema=<1-30>     -> lê /aulas-animadas/dados/<aula>.js (aulas prontas no site)
+//   /aulas-animadas/aula.html#modo=mensagem&tema=<1-30> -> o Chronos (página de fora) manda os dados da aula
+//                                                        por mensagem (aulas geradas pela IA e guardadas na nuvem;
+//                                                        também é a prévia do painel do professor).
 // (o "#" não muda o arquivo em cache, então funciona offline).
 (function(){
   var h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
-  var id = (h.get('id') || '').toLowerCase();
   var tema = parseInt(h.get('tema') || '1', 10) || 1;
+  if (h.get('modo') === 'mensagem'){
+    var iniciada = false;
+    window.addEventListener('message', function(ev){
+      if (ev.origin !== location.origin || iniciada) return;
+      var d = ev.data;
+      if (!d || d.tipo !== 'chronos-aula' || !d.aula) return;
+      iniciada = true;
+      window.ChronosMotor.iniciar(d.aula, (parseInt(d.tema, 10) || tema) - 1);
+    });
+    if (window.parent !== window) window.parent.postMessage({tipo:'chronos-pronto'}, location.origin);
+    else window.ChronosMotor.erro('Esta aula abre pelo Chronos.', 'Volte ao site e abra a aula de lá.');
+    return;
+  }
+  var id = (h.get('id') || '').toLowerCase();
   if (!/^[a-z0-9-]{1,60}$/.test(id)){ window.ChronosMotor.erro('Aula não encontrada.', 'Volte ao Chronos e abra a aula de novo.'); return; }
   var s = document.createElement('script');
   s.src = '/aulas-animadas/dados/' + id + '.js';

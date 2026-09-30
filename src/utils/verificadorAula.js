@@ -4,7 +4,8 @@
 //  2) matemática: recalcula contas/colunas/vírgulas e confere toda frase "A op B = C";
 //  3) pergunta/alternativas: 4 opções, única correta válida.
 // Não grava nada. Devolve { ok, erros, avisos, verificadas }.
-import { lerNumero, vezes, dividido, soma, menos, igual, conferirTexto } from "./matematicaExata.js";
+import { lerNumero, vezes, dividido, soma, menos, igual, conferirTexto, avaliar, acharAlternativa, formatar } from "./matematicaExata.js";
+import { conferirFormulas, contextosDeFormula } from "./formulasConhecidas.js";
 
 const PECAS = [
   "sai", "mover", "pulsar", "mostrar", "tracar", "legenda", "termo", "guardar", "pergunta", "faixa",
@@ -107,6 +108,12 @@ function verificar(aula) {
         } else verificadas++;
       }
     }
+    if (a.tipo === "coluna" || a.tipo === "conta" || a.tipo === "virgula") {
+      // o motor desenha os algarismos sem sinal e só entende vírgula decimal
+      [a.a, a.b, a.numero, a.fator, a.resultado].forEach((v) => {
+        if (v != null && /[-−.]/.test(String(v))) err(onde + ": número \"" + v + "\" com sinal ou ponto não pode ir para a conta armada.");
+      });
+    }
     if (a.tipo === "coluna") {
       const A = num(a.a), B = num(a.b);
       if (!A || !B) err(onde + ": coluna com número inválido (" + a.a + ", " + a.b + ").");
@@ -134,6 +141,35 @@ function verificar(aula) {
         (f.pontos || []).forEach((pt) => { if (!Array.isArray(pt) || !pt.every(Number.isFinite)) err(onde + ": figura com ponto inválido."); });
       });
     }
+    // pergunta/desafio: o cálculo guardado precisa dar o valor da alternativa marcada
+    if (a.conferencia && a.conferencia.calculo) {
+      try {
+        const v = avaliar(a.conferencia.calculo);
+        const alts = a.tipo === "pergunta" ? (a.alternativas || []) : [a.conferencia.alternativa];
+        const idx = a.tipo === "pergunta" ? Number(a.correta) : 0;
+        const r = acharAlternativa(alts, v);
+        if (a.tipo === "pergunta" && r.indice !== idx && !(r.indice == null && r.motivo === "ilegivel")) err(onde + ": a alternativa marcada não é a que tem o valor de " + a.conferencia.calculo + " (" + formatar(v) + ").");
+        else if (a.tipo !== "pergunta" && r.indice !== 0 && r.motivo !== "ilegivel") err(onde + ": a alternativa revelada não tem o valor de " + a.conferencia.calculo + " (" + formatar(v) + ").");
+        else verificadas++;
+      } catch (e) { err(onde + ": não consegui recalcular a conferência (" + e.message + ")."); }
+    }
+    // quadros com "A = 8 × 6" seguido de "A = 48": o valor precisa bater
+    if (a.tipo === "linhas" && Array.isArray(a.linhas)) {
+      const ls = a.linhas.map((l) => String((l && l.t) || "").replace(/\*/g, ""));
+      const re = /^\s*([\p{L}Δ])\s*([=≈])\s*(.+)$/u;
+      for (let i = 0; i < ls.length; i++) {
+        const mi = re.exec(ls[i]);
+        if (!mi || !/\d/.test(mi[3]) || !/[×÷+\-−^²³]/.test(mi[3]) || /[\p{L}]/u.test(mi[3].replace(/π/g, ""))) continue;
+        for (let j = i + 1; j < Math.min(ls.length, i + 3); j++) {
+          const mj = re.exec(ls[j]);
+          if (!mj || mj[1] !== mi[1]) continue;
+          const c = conferirTexto(mi[3] + " " + mj[2] + " " + mj[3]);
+          verificadas += c.conferidas;
+          c.erros.forEach((e) => err(onde + ": \"" + ls[i] + "\" e \"" + ls[j] + "\" não batem (" + e.esperado + ")."));
+          break;
+        }
+      }
+    }
     registra(a);
   };
 
@@ -155,21 +191,17 @@ function verificar(aula) {
   verificadas += c.conferidas;
   c.erros.forEach((e) => err("Conta escrita errada: \"" + e.trecho + "\" — o certo seria " + e.esperado + "."));
 
-  // pergunta de abertura: a correta precisa estar coerente com a conta do destaque, quando houver
-  const perg = (aula.inicio && aula.inicio.acoes || []).find((a) => a.tipo === "pergunta");
-  if (perg && /^[0-3]$/.test(String(perg.correta))) {
-    const m = String(perg.destaque || "").match(/(\d+(?:,\d+)?)\s*[a-z²³]*\s*[×x]\s*(\d+(?:,\d+)?)/i);
-    // só confere quando o destaque é UMA multiplicação (ex.: "12 × 5 = ?"), não "2 × 3 + 1"
-    const resto = m ? String(perg.destaque || "").replace(m[0], "") : "";
-    if (m && !/[+\-−÷/×*]/.test(resto.replace(/^\s*[a-z²³]*\s*/i, ""))) {
-      const val = vezes(num(m[1]), num(m[2]));
-      const alt = String(perg.alternativas[Number(perg.correta)] || "");
-      const mn = alt.match(/^\s*(\d+(?:[ .]\d{3})*(?:,\d+)?)/);
-      const lido = mn ? num(mn[1]) : null;
-      if (lido && !igual(lido, val)) err("Abertura: a alternativa marcada como correta (" + alt + ") não bate com " + m[1] + " × " + m[2] + ".");
-      else if (lido) verificadas++;
-    }
-  }
+  // fórmulas escritas em textos (ex.: "triângulo: A = b × h" está errado)
+  const grupos = [];
+  const juntar = (x) => todasAsStrings(x);
+  (aula.inicio && aula.inicio.acoes || []).forEach((a) => grupos.push(juntar(a)));
+  aula.passos.forEach((p) => (p && p.acoes || []).forEach((a) => grupos.push(juntar(a))));
+  Object.values(termos).forEach((t) => grupos.push(juntar(t)));
+  const vistosF = new Set();
+  grupos.forEach((strs) => {
+    const ctxGrupo = contextosDeFormula(strs.join(" "));
+    strs.forEach((t) => conferirFormulas(t, ctxGrupo).forEach((e) => { if (!vistosF.has(e)) { vistosF.add(e); err(e); } }));
+  });
 
   return { ok: erros.length === 0, erros, avisos, verificadas };
 }
@@ -179,7 +211,7 @@ function conferirTexto_todas(aula) {
   const erros = [];
   const vistos = new Set();
   todasAsStrings(aula).forEach((s) => {
-    if (!s.includes("=")) return;
+    if (!/[=≈<>≤≥]|(^|\s)(é|vale|dá)(\s|$)/.test(s)) return;
     const r = conferirTexto(s);
     conferidas += r.conferidas;
     r.erros.forEach((e) => { const k = e.trecho + "|" + e.esperado; if (!vistos.has(k)) { vistos.add(k); erros.push(e); } });

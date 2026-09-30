@@ -158,8 +158,113 @@ secao("3b) Blocos novos (círculo, fração, gráfico, movimento)");
   console.log(`  ${n} somas de frações conferidas contra ponto flutuante`);
 }
 
-/* 5 — contas exatas x ponto flutuante */
-secao("4) Aritmética exata confere com ponto flutuante");
+/* 5 — rigor: cada erro já encontrado numa auditoria vira um teste permanente */
+secao("5) Rigor matemático (casos da auditoria)");
+{
+  const base = (bloco, extra = {}) => ({ titulo: "T", termos: [], abertura: { antes: "a", destaque: "2 × 3", depois: "b", alternativas: ["5", "6", "7", "8"], calculo: "2 × 3", ...(extra.abertura || {}) }, blocos: [{ tipo: "ideia", momento: 1, titulo: "A", linhas: ["um"] }, { tipo: "ideia", momento: 1, titulo: "B", linhas: ["dois"] }, { tipo: "ideia", momento: 1, titulo: "C", linhas: ["tres"] }, bloco, { tipo: "fecho", titulo: "R", regra: ["x"], pegaTitulo: "C", pega: ["y"] }] });
+  const roda = (b, extra) => { const r = compilarAula(base(b, extra), { assinatura: "t" }); return { r, erros: r.relatorio.erros, v: verificarAula(r.aula), textos: JSON.stringify(r.aula) }; };
+  const aprova = (nome, b, extra) => { const x = roda(b, extra); ok(x.erros.length === 0 && x.v.ok, `${nome}: devia passar: ${x.erros.concat(x.v.erros).join(" | ")}`); return x; };
+  const barra = (nome, b, extra) => { const x = roda(b, extra); ok(x.erros.length > 0 || !x.v.ok, `${nome}: devia ser barrado e passou`); return x; };
+  const tem = (x, t, nome) => ok(x.textos.includes(t), `${nome}: esperava ver "${t}"`);
+  const naoTem = (x, t, nome) => ok(!x.textos.includes(t), `${nome}: não podia aparecer "${t}"`);
+
+  // equações
+  let x = aprova("2x/3 = 4", { tipo: "equacao", equacao: "2x/3 = 4" }); naoTem(x, "÷ 2/3", "2x/3"); tem(x, "x = 4 × (3/2)", "2x/3");
+  x = aprova("x/3 − x/4 = 1", { tipo: "equacao", equacao: "x/3 - x/4 = 1" }); tem(x, "x/12 = 1", "x/3 − x/4");
+  x = aprova("0,5x = 2", { tipo: "equacao", equacao: "0,5x = 2" }); tem(x, "x = 2 ÷ 0,5", "0,5x"); naoTem(x, "O 2 está dividindo", "0,5x");
+  x = aprova("11 = 2x + 3", { tipo: "equacao", equacao: "11 = 2x + 3" }); naoTem(x, "0 x", "11 = 2x + 3"); naoTem(x, "0x", "11 = 2x + 3");
+  barra("x usado como vezes", { tipo: "equacao", equacao: "10 x 3 = 3x" });
+  barra("equação longa não é cortada", { tipo: "equacao", equacao: "3(x - 2) + 4(x + 1) + 7(x - 9) = 2(x - 3) + 5(x + 7) - 10x + 25 - 40000x + 8(x - 1)" });
+  aprova("equação de 62 letras é resolvida inteira", { tipo: "equacao", equacao: "3(x - 2) + 4(x + 1) = 2(x - 3) + 5(x + 7) - 10x + 25 - 40000x" });
+  barra("sem solução", { tipo: "equacao", equacao: "2x + 1 = 2x + 3" });
+  // fórmula com multiplicação implícita
+  x = aprova("y = 2x + 1", { tipo: "formula", formula: "y = 2x + 1", valores: { x: "3" } }); tem(x, "y = 2 × 3 + 1", "2x com x=3"); naoTem(x, "23 + 1", "2x com x=3");
+  x = aprova("F = m a", { tipo: "formula", formula: "F = m a", valores: { m: "5", a: "3" } }); tem(x, "F = 5 × 3", "F = m a");
+  x = aprova("C = 2πr", { tipo: "formula", formula: "C = 2πr", valores: { r: "5" } }); tem(x, "C ≈ 2 × 3,14 × 5", "C = 2πr"); tem(x, "C ≈ *31,4", "C = 2πr");
+  // π sempre com ≈
+  x = aprova("expressão com π", { tipo: "expressoes", itens: [{ expr: "π × 5²" }, { expr: "2 × π × 3" }] }); tem(x, "π × 5² ≈ *78,5*", "π expr"); naoTem(x, "= *78,5", "π expr"); tem(x, "usando π ≈ 3,14", "π expr");
+  x = aprova("círculo com ≈", { tipo: "figura", forma: "circulo", medidas: { raio: "5" }, unidade: "cm" }); tem(x, "A ≈ *78,5 cm²*", "círculo"); tem(x, "(usando π ≈ 3,14)", "círculo"); naoTem(x, "A = *78,5", "círculo");
+  x = aprova("círculo pequeno", { tipo: "figura", forma: "circulo", medidas: { raio: "0,125" }, unidade: "m" }); naoTem(x, "0,0490625", "círculo pequeno");
+  // potências e o asterisco
+  x = aprova("2^3^2", { tipo: "expressoes", itens: [{ expr: "2^3^2" }] }); tem(x, "*512*", "2^3^2");
+  x = aprova("asterisco é vezes", { tipo: "expressoes", itens: [{ expr: "2*3" }, { expr: "12*5 + 3*4" }] }); tem(x, "2 × 3 = *6*", "2*3"); tem(x, "12 × 5 + 3 × 4 = *72*", "12*5+3*4");
+  x = aprova("desafio com *", { tipo: "desafio", enunciado: ["Área de 25 por 12?"], alternativas: ["37 m²", "300 m²", "150 m²", "600 m²"], calculo: "25*12", unidade: "m²" }); tem(x, "25 × 12 = *300 m²*", "calculo 25*12");
+  // conta armada e conversões
+  barra("coluna com negativo (sub)", { tipo: "coluna", op: "sub", a: "-2", b: "-5" });
+  barra("coluna com negativo (add)", { tipo: "coluna", op: "add", a: "-2", b: "5" });
+  x = aprova("coluna com ponto decimal", { tipo: "coluna", op: "add", a: "2.5", b: "1,2" }); tem(x, "\"resultado\":\"3,7\"", "2.5 + 1,2");
+  barra("m² para cm² não é × 100", { tipo: "conta", numero: "5", op: "mul", fator: "100", unidadeDe: "m²", unidadePara: "cm²" });
+  aprova("m² para cm² é × 10 000", { tipo: "conta", numero: "5", op: "mul", fator: "10000", unidadeDe: "m²", unidadePara: "cm²" });
+  barra("km para m não é × 100", { tipo: "conta", numero: "3", op: "mul", fator: "100", unidadeDe: "km", unidadePara: "m" });
+  aprova("cm para m é ÷ 100", { tipo: "conta", numero: "250", op: "div", fator: "100", unidadeDe: "cm", unidadePara: "m" });
+  barra("figura com unidade de área", { tipo: "figura", forma: "retangulo", medidas: { base: "3", altura: "2" }, unidade: "cm²" });
+  aprova("subtração com sinal unicode", { tipo: "coluna", op: "−", a: "9", b: "4" });
+  // alternativas
+  barra("alternativa negativa não confunde", { tipo: "desafio", enunciado: ["2 + 3?"], alternativas: ["−5", "3", "10", "1"], calculo: "2 + 3" });
+  barra("fração na alternativa não vira faixa", { tipo: "desafio", enunciado: ["6 ÷ 2?"], alternativas: ["1/4", "2", "6", "12"], calculo: "6 ÷ 2", correta: 2 });
+  x = aprova("potência na alternativa", { tipo: "desafio", enunciado: ["5 + 5?"], alternativas: ["10²", "10", "1 000", "10 000"], calculo: "5 + 5" }); tem(x, "Alternativa B ✓", "10² vs 10");
+  x = aprova("milhar com ponto", { tipo: "desafio", enunciado: ["150 × 10?"], alternativas: ["1.500", "200", "400", "600"], calculo: "150 × 10" }); tem(x, "Alternativa A ✓", "1.500");
+  barra("duas alternativas com o mesmo valor", { tipo: "desafio", enunciado: ["1 ÷ 2?"], alternativas: ["0,5", "1/2", "2", "3"], calculo: "1 ÷ 2" });
+  barra("IA marcou outra alternativa", { tipo: "desafio", enunciado: ["(15 + 5) × 4 ÷ 2?"], alternativas: ["20 m²", "40 m²", "60 m²", "300 m²"], calculo: "(15 + 5) × 4 ÷ 2", correta: 2 });
+  barra("abertura com correta errada", { tipo: "ideia", titulo: "x", linhas: ["y"] }, { abertura: { correta: 0 } });
+  // gráfico
+  x = aprova("parábola com raiz 0,5", { tipo: "grafico", funcao: "y = 2x² − 3x + 1" }); tem(x, "x = 0,5 e x = 1", "2x²−3x+1");
+  x = aprova("raiz irracional", { tipo: "grafico", funcao: "y = x² − 2" }); tem(x, "x ≈ −1,41 e x ≈ 1,41", "x²−2");
+  x = aprova("parábola sem raiz", { tipo: "grafico", funcao: "y = x² + 1" }); tem(x, "não corta", "x²+1");
+  x = aprova("parábola que toca", { tipo: "grafico", funcao: "y = (x − 1)²" }); tem(x, "toca o eixo x", "(x−1)²");
+  x = aprova("reta com raiz 1/3", { tipo: "grafico", funcao: "y = 3x − 1" }); tem(x, "1/3", "3x−1");
+  x = aprova("função fatorada", { tipo: "grafico", funcao: "y = x(x − 2)" });
+  barra("hipérbole não é desenhada como curva contínua", { tipo: "grafico", funcao: "y = 2/(x − 0,4)" });
+  barra("3º grau", { tipo: "grafico", funcao: "y = x^3" });
+  // movimento
+  barra("aceleração não é velocidade", { tipo: "movimento", velocidade: "2", tempo: "3", unidadeVelocidade: "m/s²" });
+  // números pequenos e 0^0
+  ok(M.aproximar(M.F(1n, 3000n)) === "0,000333", "1/3000 não pode virar 0");
+  let zz = false; try { M.avaliar("0^0"); } catch { zz = true; } ok(zz, "0^0 precisa dar erro");
+  // textos livres da IA: erros de conta e de fórmula precisam ser pegos
+  const falsos = ["2 + 3 × 4 = 20", "8 m × 5 m = 45 m²", "5 cm × 3 cm = 15 cm", "1/2 + 1/3 = 2/5", "π × 5² = 78,6", "π × 5² = 78,5", "√9 = 4", "2 + 2 ≈ 5", "−3² = 9", "−2 × −3 = −6", "5 × 3 = 15 = 16", "1 m² = 100 cm²", "1 km = 100 m", "3/4 > 4/5", "R$ 5 + R$ 3 = R$ 9", "2^3^2 = 64", "7 ÷ 2 = 3 resto 2", "10 ÷ 3 = 3,334...", "√2 = 1,41", "0,5 = 1/3", "O dobro de 7 é 15", "25% de 80 é 25", "72 km/h = 72 m/s"];
+  falsos.forEach((t) => { const y = roda({ tipo: "ideia", titulo: "Veja", linhas: [t] }); ok(!y.v.ok, `texto falso passou: "${t}"`); });
+  const verdadeiros = ["2 + 3 × 4 = 14", "0,1 + 0,2 = 0,3", "8 m × 5 m = 40 m²", "1 m² = 10 000 cm²", "π × 5² ≈ 78,5", "7 ÷ 2 = 3 resto 1", "10 ÷ 3 = 3,333...", "2(3 + 1) = 8", "3/4 > 2/3", "72 km/h = 20 m/s", "O dobro de 7 é 14", "2x + 3 = 11", "3 + 4 = 2x + 1"];
+  verdadeiros.forEach((t) => { const y = roda({ tipo: "ideia", titulo: "Veja", linhas: [t] }); ok(y.v.ok, `texto verdadeiro foi acusado: "${t}": ${y.v.erros.join(" | ")}`); });
+  const formulasErradas = [["Área do triângulo", "A = b × h"], ["Círculo", "A = 2 × π × r"], ["Trapézio", "A = (B + b) × h"], ["Quadrado", "P = l²"], ["Velocidade média", "v = S × t"], ["Circunferência", "C = π × r²"]];
+  formulasErradas.forEach(([tit, f]) => { const y = roda({ tipo: "ideia", titulo: tit, linhas: [f] }); ok(!y.v.ok, `fórmula errada passou: ${tit}: ${f}`); });
+  const formulasCertas = [["Área do triângulo", "A = b × h ÷ 2"], ["Círculo", "A = π × r²"], ["Trapézio", "A = (B + b) × h ÷ 2"], ["Quadrado", "P = 4 × l"], ["Velocidade média", "v = S ÷ t"], ["Circunferência", "C = 2 × π × r"], ["Retângulo", "A = b × h"]];
+  formulasCertas.forEach(([tit, f]) => { const y = roda({ tipo: "ideia", titulo: tit, linhas: [f] }); ok(y.v.ok, `fórmula certa acusada: ${tit}: ${f}: ${y.v.erros.join(" | ")}`); });
+  console.log(`  ${falsos.length} frases falsas, ${verdadeiros.length} verdadeiras, ${formulasErradas.length + formulasCertas.length} fórmulas conferidas`);
+}
+
+/* 6 — equações aleatórias: todo passo mostrado tem a mesma solução e confere em ponto flutuante */
+secao("6) Equações aleatórias (todos os passos conferidos)");
+{
+  let n = 0;
+  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  const nz = () => { let v = 0; while (!v) v = ri(-9, 9); return v; };
+  const modelos = [
+    () => `${nz()}x + ${ri(0, 20)} = ${ri(-30, 30)}`,
+    () => `${nz()}x - ${ri(0, 20)} = ${nz()}x + ${ri(0, 20)}`,
+    () => `x/${ri(2, 9)} + ${ri(0, 9)} = ${ri(-9, 9)}`,
+    () => `${ri(2, 9)}x/${ri(2, 9)} = ${ri(-20, 20)}`,
+    () => `${ri(2, 5)}(x - ${ri(1, 9)}) = ${ri(2, 5)}(x + ${ri(1, 9)}) + ${ri(1, 9)}`,
+    () => `x/${ri(2, 6)} - x/${ri(2, 6)} = ${ri(1, 5)}`,
+    () => `${ri(1, 9)},${ri(1, 9)}x + ${ri(1, 9)},${ri(1, 9)} = ${ri(1, 20)}`,
+    () => `${ri(-20, 20)} = ${nz()}x + ${ri(-9, 9)}`,
+  ];
+  for (let i = 0; i < 3000; i++) {
+    const e = modelos[i % modelos.length]();
+    let r;
+    try { r = M.resolverEquacao(e); } catch (err) { if (!/infinitas|não tem solução/.test(err.message)) ok(false, `equação "${e}" deu erro: ${err.message}`); continue; }
+    n++;
+    const flt = (t, xv) => Function("x", `return ${t.replace(/,/g, ".").replace(/(\d)x/g, "$1*x").replace(/(\d)\(/g, "$1*(")}`)(xv);
+    const [ea, eb] = e.split("=");
+    const sol = M.paraNumero(r.solucao);
+    ok(r.ok && Math.abs(flt(ea, sol) - flt(eb, sol)) < 1e-6, `equação "${e}": solução ${sol} não confere`);
+    ok(!r.passos.some((p) => /\b0 ?x\b|÷ \d+\/\d+/.test(p.texto)), `equação "${e}": passo com escrita ruim`);
+  }
+  console.log(`  ${n} equações resolvidas e conferidas passo a passo`);
+}
+
+/* 7 — contas exatas x ponto flutuante */
+secao("7) Aritmética exata confere com ponto flutuante");
 {
   let erros = 0;
   for (let i = 0; i < 4000; i++) {

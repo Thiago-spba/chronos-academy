@@ -11,6 +11,6 @@
 {"tipo":"revelar","momento":"ver","legenda":"O terreno tem essa área total."},
 {"tipo":"expressoes","momento":"suavez","titulo":"Sua vez: calcule as áreas","passoAPasso":true,"itens":[{"rotulo":"a)","expr":"9 × 4 ÷ 2","unidade":"cm²","nota":"base 9 cm, altura 4 cm"},{"rotulo":"b)","expr":"(10 + 6) × 3 ÷ 2","unidade":"cm²","nota":"B = 10 cm, b = 6 cm, h = 3 cm"}]},
 {"tipo":"equacao","momento":"suavez","titulo":"Resolva: 8 × h ÷ 2 = 24","equacao":"8 × h ÷ 2 = 24"},
-{"tipo":"desafio","momento":"suavez","complemento":true,"enunciado":["Um trapézio tem base maior 15 m,","base menor 5 m e altura 4 m.","Qual é a sua área?"],"alternativas":["20 m²","40 m²","60 m²","300 m²"],"calculo":"(15 + 5) × 4 ÷ 2","unidade":"m²","correta":2},
+{"tipo":"desafio","momento":"suavez","complemento":true,"enunciado":["Um trapézio tem base maior 15 m,","base menor 5 m e altura 4 m.","Qual é a sua área?"],"alternativas":["20 m²","40 m²","60 m²","300 m²"],"calculo":"(15 + 5) × 4 ÷ 2","unidade":"m²","correta":1},
 {"tipo":"fecho","momento":"fechamento","titulo":"REGRA DE HOJE","regra":["Triângulo: A = b × h ÷ 2","Trapézio: A = (B + b) × h ÷ 2","Em ambos, divide por 2!"],"pegaTitulo":"CUIDADO: PEGADINHA","pega":["A altura é sempre a linha","*perpendicular*, nunca o lado inclinado."]}
 ]}

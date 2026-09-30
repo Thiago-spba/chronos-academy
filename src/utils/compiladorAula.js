@@ -30,13 +30,26 @@ function limpa(v, max) {
   if ((r.match(/\*/g) || []).length % 2) r = r.replace(/\*/g, "");
   return r;
 }
+// Campos de CONTA (expressão, cálculo, equação, função, fórmula, números): nunca são cortados nem
+// perdem o "*" (vira ×). Ponto como vírgula decimal ("2.5") vira "2,5"; "1.500" vira "1 500".
+// Se passar do tamanho, o campo fica marcado como longo (vira erro no compilador, nunca corte silencioso).
+const LONGO = "\u0000LONGO";
+function limpaConta(v, max) {
+  if (typeof v === "number" && Number.isFinite(v)) v = String(v).replace(".", ",");
+  if (typeof v !== "string") return "";
+  let s = v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/\*/g, "×").replace(/(\d)\.(\d{3})(?![\d])/g, "$1 $2").replace(/(\d)\.(\d)/g, "$1,$2");
+  if (s.length > max) return LONGO + s.slice(0, 40);
+  return s;
+}
+const ehLongo = (t) => typeof t === "string" && t.startsWith(LONGO);
 const lista = (v, n, max) => (Array.isArray(v) ? v : []).map((x) => limpa(x, max)).filter(Boolean).slice(0, n);
 const slug = (t) => limpa(t, 40).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "termo";
 function inteiro(v, min, max) { const n = Number.parseInt(v, 10); return Number.isFinite(n) && n >= min && n <= max ? n : null; }
-function mapaTextos(v, maxChaves = 8) {
+function mapaTextos(v, maxChaves = 8, conta = false) {
   const out = {};
   if (v && typeof v === "object" && !Array.isArray(v)) {
-    Object.keys(v).slice(0, maxChaves).forEach((k) => { const val = limpa(v[k], 30); if (val && limpa(k, 12)) out[limpa(k, 12)] = val; });
+    Object.keys(v).slice(0, maxChaves).forEach((k) => { const val = conta ? limpaConta(v[k], 30) : limpa(v[k], 30); if (val && limpa(k, 12)) out[limpa(k, 12)] = val; });
   }
   return out;
 }
@@ -81,7 +94,7 @@ export function normalizarPlano(bruto) {
     const alternativas = lista(a.alternativas, 4, 30);
     plano.abertura = {
       antes: limpa(a.antes, 60), destaque: limpa(a.destaque, 24), depois: limpa(a.depois, 60),
-      alternativas, correta: inteiro(a.correta, 0, 3), calculo: limpa(a.calculo, 120), legenda: limpa(a.legenda, 80),
+      alternativas, correta: inteiro(a.correta, 0, 3), calculo: limpaConta(a.calculo, 160), legenda: limpa(a.legenda, 80),
     };
   }
 
@@ -95,21 +108,21 @@ export function normalizarPlano(bruto) {
     if (tipo === "ideia") blk = { ...base, titulo: limpa(x?.titulo, 60), linhas: lista(x?.linhas, 5, 120), destaque: limpa(x?.destaque, 80) };
     else if (tipo === "termo") blk = { ...base, chave: slug(x?.chave) };
     else if (tipo === "faixa") blk = { ...base, antes: limpa(x?.antes, 60), numero: limpa(x?.numero, 30), depois: limpa(x?.depois, 60) };
-    else if (tipo === "conta") blk = { ...base, numero: limpa(x?.numero, 20), op: x?.op === "div" ? "div" : "mul", fator: limpa(x?.fator, 12), unidadeDe: limpa(x?.unidadeDe, 14), unidadePara: limpa(x?.unidadePara, 14), nota: lista(x?.nota, 4, 60).filter((n) => n.length <= 22).slice(0, 2), legenda2: limpa(x?.legenda2, 90) };
-    else if (tipo === "coluna") blk = { ...base, op: /sub|menos|-/i.test(limpa(x?.op, 20)) ? "sub" : "add", a: limpa(x?.a, 20), b: limpa(x?.b, 20), titulo: limpa(x?.titulo, 40), unidade: limpa(x?.unidade, 24), notas: lista(x?.notas, 3, 60) };
+    else if (tipo === "conta") blk = { ...base, numero: limpaConta(x?.numero, 20), op: x?.op === "div" ? "div" : "mul", fator: limpaConta(x?.fator, 12), unidadeDe: limpa(x?.unidadeDe, 14), unidadePara: limpa(x?.unidadePara, 14), nota: lista(x?.nota, 4, 60).filter((n) => n.length <= 22).slice(0, 2), legenda2: limpa(x?.legenda2, 90) };
+    else if (tipo === "coluna") blk = { ...base, op: /sub|menos|-|−/i.test(limpa(x?.op, 20)) ? "sub" : "add", a: limpaConta(x?.a, 20), b: limpaConta(x?.b, 20), titulo: limpa(x?.titulo, 40), unidade: limpa(x?.unidade, 24), notas: lista(x?.notas, 3, 60) };
     else if (tipo === "expressoes") {
-      const itens = (Array.isArray(x?.itens) ? x.itens : []).slice(0, 6).map((it) => (typeof it === "string" ? { expr: limpa(it, 90) } : { rotulo: limpa(it?.rotulo, 12), expr: limpa(it?.expr, 90), unidade: limpa(it?.unidade, 24), nota: limpa(it?.nota, 70) })).filter((it) => it.expr);
+      const itens = (Array.isArray(x?.itens) ? x.itens : []).slice(0, 6).map((it) => (typeof it === "string" ? { expr: limpaConta(it, 120) } : { rotulo: limpa(it?.rotulo, 12), expr: limpaConta(it?.expr, 120), unidade: limpa(it?.unidade, 24), nota: limpa(it?.nota, 70) })).filter((it) => it.expr);
       blk = { ...base, titulo: limpa(x?.titulo, 60), itens, passoAPasso: x?.passoAPasso === true };
-    } else if (tipo === "formula") blk = { ...base, nome: limpa(x?.nome, 50), formula: limpa(x?.formula, 60), valores: mapaTextos(x?.valores), unidades: mapaTextos(x?.unidades), variaveis: mapaTextos(x?.variaveis, 6), legenda2: limpa(x?.legenda2, 90) };
-    else if (tipo === "figura") blk = { ...base, forma: limpa(x?.forma, 20).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""), mostrar: /comp|perim|volta|circunf/i.test(limpa(x?.mostrar, 20)) ? "comprimento" : "area", medidas: mapaTextos(x?.medidas, 6), unidade: limpa(x?.unidade, 8), legendas: lista(x?.legendas, 3, 90), grade: x?.grade !== false };
-    else if (tipo === "equacao") blk = { ...base, titulo: limpa(x?.titulo, 50), equacao: limpa(x?.equacao, 60) };
-    else if (tipo === "desafio") blk = { ...base, enunciado: lista(x?.enunciado, 4, 140), alternativas: lista(x?.alternativas, 4, 30), calculo: limpa(x?.calculo, 120), unidade: limpa(x?.unidade, 16), correta: inteiro(x?.correta, 0, 3), legenda2: limpa(x?.legenda2, 90) };
+    } else if (tipo === "formula") blk = { ...base, nome: limpa(x?.nome, 50), formula: limpaConta(x?.formula, 80), valores: mapaTextos(x?.valores, 8, true), unidades: mapaTextos(x?.unidades), variaveis: mapaTextos(x?.variaveis, 6), legenda2: limpa(x?.legenda2, 90) };
+    else if (tipo === "figura") blk = { ...base, forma: limpa(x?.forma, 20).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""), mostrar: /comp|perim|volta|circunf/i.test(limpa(x?.mostrar, 20)) ? "comprimento" : "area", medidas: mapaTextos(x?.medidas, 6, true), unidade: limpa(x?.unidade, 8), legendas: lista(x?.legendas, 3, 90), grade: x?.grade !== false };
+    else if (tipo === "equacao") blk = { ...base, titulo: limpa(x?.titulo, 50), equacao: limpaConta(x?.equacao, 80) };
+    else if (tipo === "desafio") blk = { ...base, enunciado: lista(x?.enunciado, 4, 140), alternativas: lista(x?.alternativas, 4, 30), calculo: limpaConta(x?.calculo, 160), unidade: limpa(x?.unidade, 16), correta: inteiro(x?.correta, 0, 3), legenda2: limpa(x?.legenda2, 90) };
     else if (tipo === "revelar") blk = { ...base };
     else if (tipo === "fracao") {
       const o = limpa(x?.op, 20).toLowerCase();
-      blk = { ...base, op: /soma|adi|\+/.test(o) ? "soma" : /subtr|menos|-/.test(o) ? "subtracao" : /equiv/.test(o) ? "equivalente" : "representar", a: limpa(x?.a, 12), b: limpa(x?.b, 12), fator: limpa(x?.fator, 4), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
-    } else if (tipo === "grafico") blk = { ...base, funcao: limpa(x?.funcao, 40), xmin: inteiro(x?.xmin, -12, 0), xmax: inteiro(x?.xmax, 0, 12), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
-    else if (tipo === "movimento") blk = { ...base, velocidade: limpa(x?.velocidade, 16), tempo: limpa(x?.tempo, 16), deslocamento: limpa(x?.deslocamento, 16), unidadeVelocidade: limpa(x?.unidadeVelocidade, 10), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
+      blk = { ...base, op: /soma|adi|\+/.test(o) ? "soma" : /subtr|menos|-|−/.test(o) ? "subtracao" : /equiv/.test(o) ? "equivalente" : "representar", a: limpaConta(x?.a, 12), b: limpaConta(x?.b, 12), fator: limpaConta(x?.fator, 4), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
+    } else if (tipo === "grafico") blk = { ...base, funcao: limpaConta(x?.funcao, 60), xmin: inteiro(x?.xmin, -12, 0), xmax: inteiro(x?.xmax, 0, 12), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
+    else if (tipo === "movimento") blk = { ...base, velocidade: limpaConta(x?.velocidade, 16), tempo: limpaConta(x?.tempo, 16), deslocamento: limpaConta(x?.deslocamento, 16), unidadeVelocidade: limpa(x?.unidadeVelocidade, 10), legenda2: limpa(x?.legenda2, 90), legenda3: limpa(x?.legenda3, 90) };
     else blk = { ...base, titulo: limpa(x?.titulo, 40), regra: lista(x?.regra, 5, 80), pegaTitulo: limpa(x?.pegaTitulo, 40), pega: lista(x?.pega, 4, 80) };
     plano.blocos.push(blk);
   });
@@ -125,25 +138,32 @@ function areaDe(un) { if (!un) return ""; return /²$/.test(un) ? un : un + "²"
 function ehPotenciaDe10(s) { return /^10*$/.test(String(s).replace(/\s/g, "")) && String(s).replace(/\s/g, "").length >= 2; }
 const digitosInteiros = (s) => String(s).replace(/\s/g, "").split(",")[0].replace("-", "").length;
 const casas = (s) => (String(s).split(",")[1] || "").length;
-function numerosDoTexto(t) {
-  const ns = [];
-  const re = /\d{1,3}(?: \d{3})+(?:,\d+)?|\d+(?:,\d+)?/g;
-  let m;
-  while ((m = re.exec(String(t).replace(/ /g, " ")))) { try { ns.push(M.lerNumero(m[0])); } catch { /* ignora */ } }
-  return ns;
+// "150 + 10%" é ambíguo para o aluno (a calculadora e a matemática discordam): exige "10% de 150".
+function porcentagemAmbigua(expr) {
+  return /%\s*[+\-−]|[+\-−]\s*\d+(?:,\d+)?\s*%(?!\s*(?:de\b|×|\*))/.test(String(expr));
 }
-// Descobre qual alternativa contém o valor calculado. Devolve {indice|null, motivo}
-function alternativaCerta(alternativas, valor) {
-  const acertos = [];
-  alternativas.forEach((alt, i) => {
-    const ns = numerosDoTexto(alt);
-    if (ns.length === 1 && M.igual(ns[0], valor)) acertos.push(i);
-    else if (ns.length === 2) {
-      const [lo, hi] = M.comparar(ns[0], ns[1]) <= 0 ? [ns[0], ns[1]] : [ns[1], ns[0]];
-      if (M.comparar(valor, lo) >= 0 && M.comparar(valor, hi) <= 0) acertos.push(i);
-    }
-  });
-  return acertos.length === 1 ? { indice: acertos[0] } : { indice: null, quantas: acertos.length };
+// Decide a alternativa certa de uma pergunta a partir do "calculo" (feito aqui) e confere com a da IA.
+// Qualquer desacordo ou ambiguidade vira ERRO (a aula não pode ser aprovada assim).
+function decidirCorreta(alternativas, calculo, corretaIA, onde) {
+  const L = (i) => LETRAS[i];
+  if (!calculo) {
+    if (corretaIA == null) return { erro: `${onde}: não sei qual é a alternativa correta (faltou o cálculo).` };
+    return { correta: corretaIA, duvida: `${onde}: a IA não mandou o cálculo; confira se a alternativa ${L(corretaIA)} (${alternativas[corretaIA]}) é mesmo a certa.` };
+  }
+  if (porcentagemAmbigua(calculo)) return { erro: `${onde}: escreva a porcentagem como "10% de 150" (a conta "${calculo}" fica ambígua).` };
+  let v;
+  try { v = M.avaliar(calculo); } catch (e) { return { erro: `${onde}: não consegui calcular "${calculo}" (${e.message}).` }; }
+  const pi = M.usaPi(calculo);
+  const vt = pi ? `≈ ${M.aproximar(v, 2)}` : M.formatarComAprox(v);
+  const r = M.acharAlternativa(alternativas, v);
+  if (r.indice != null) {
+    if (corretaIA != null && corretaIA !== r.indice) return { erro: `${onde}: a IA marcou a alternativa ${L(corretaIA)}, mas a conta ${bonita(calculo)} dá ${vt}, que é a alternativa ${L(r.indice)}. Uma das duas está errada; gere de novo.` };
+    return { correta: r.indice, valor: v, pi };
+  }
+  if (r.motivo === "varias") return { erro: `${onde}: mais de uma alternativa (${r.quais.map(L).join(" e ")}) vale ${vt}. A pergunta teria duas respostas certas.` };
+  if (r.motivo === "nenhuma") return { erro: `${onde}: nenhuma alternativa tem o valor certo (${bonita(calculo)} = ${vt}).` };
+  if (corretaIA == null) return { erro: `${onde}: não consegui ler as alternativas para achar o valor ${vt}.` };
+  return { correta: corretaIA, valor: v, pi, duvida: `${onde}: não consegui ler as alternativas sozinho; confira se a ${L(corretaIA)} (${alternativas[corretaIA]}) corresponde a ${vt}.` };
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,6 +173,7 @@ function num(m, k) { const v = m[k]; if (v == null) throw new Error(`Faltou a me
 
 function montarFigura(bl, id) {
   const forma = bl.forma, m = bl.medidas, un = bl.unidade || "";
+  if (un && !/^(mm|cm|dm|m|dam|hm|km)$/.test(un)) throw new Error(`a unidade das medidas precisa ser de comprimento (mm, cm, m, km), não "${un}"; o sistema escreve a área em ${un.replace(/[²³]/g, "")}² sozinho.`);
   const areaUn = areaDe(un);
   const f = (k) => paraN(num(m, k));
   let W, H, formas = [], cotas = [], formula, valores, medidasTxt, gradeOk = false, animacao = null, nomeForma, dimBH = null, grandeza = "área";
@@ -285,20 +306,14 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
   if (!ab || !ab.antes || !ab.destaque || !ab.depois) erros.push("A abertura (pergunta com votação) está incompleta.");
   else if (ab.alternativas.length !== 4) erros.push("A abertura precisa de exatamente 4 alternativas.");
   else {
-    let correta = ab.correta;
-    if (ab.calculo) {
-      try {
-        const v = M.avaliar(ab.calculo);
-        const r = alternativaCerta(ab.alternativas, v);
-        if (r.indice != null) {
-          if (correta != null && correta !== r.indice) avisos.push(`Na abertura, a IA marcou a alternativa ${LETRAS[correta]}, mas a conta (${bonita(ab.calculo)} = ${M.formatar(v)}) aponta a ${LETRAS[r.indice]}. Usei a ${LETRAS[r.indice]}.`);
-          correta = r.indice;
-        } else duvidas.push(`Não consegui achar sozinho qual alternativa da abertura tem o valor ${M.formatar(v)}. Confira a alternativa certa.`);
-      } catch (e) { avisos.push(`Abertura: não consegui calcular "${ab.calculo}" (${e.message}).`); }
-    }
-    if (correta == null) erros.push("Não sei qual é a alternativa correta da abertura.");
+    const dc = ehLongo(ab.calculo) ? { erro: "Abertura: o cálculo é longo demais." } : decidirCorreta(ab.alternativas, ab.calculo, ab.correta, "Abertura");
+    if (dc.duvida) duvidas.push(dc.duvida);
+    const correta = dc.erro ? null : dc.correta;
+    if (dc.erro) erros.push(dc.erro);
     else {
-      inicio.acoes.push({ tipo: "pergunta", antes: ab.antes, destaque: ab.destaque, depois: ab.depois, alternativas: ab.alternativas, correta });
+      const perg = { tipo: "pergunta", antes: ab.antes, destaque: ab.destaque, depois: ab.depois, alternativas: ab.alternativas, correta };
+      if (ab.calculo) perg.conferencia = { calculo: ab.calculo };
+      inicio.acoes.push(perg);
       respostaAbertura = { letra: LETRAS[correta], texto: ab.alternativas[correta] };
     }
     if (ab.legenda) inicio.legenda = ab.legenda;
@@ -350,9 +365,13 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
     iBloco = idx + 1; blocoAtual = bl;
     if (bl.momento < momentoMax) bl.momento = momentoMax; // o quadro de progresso só anda para a frente
     momentoMax = bl.momento;
+    const longos = [];
+    const acharLongos = (o, onde) => { if (ehLongo(o)) longos.push(onde); else if (o && typeof o === "object") Object.entries(o).forEach(([k, v]) => acharLongos(v, k)); };
+    acharLongos(bl, "");
     const info = { n: iBloco, tipo: bl.tipo, momento: bl.momento, fonte: bl.fonte || "", complemento: bl.complemento, resumo: "", contas: [] };
     if (bl.complemento) avisos.push(`Bloco ${iBloco} (${bl.tipo}): conteúdo que NÃO está no material (a IA acrescentou). Confira antes de aprovar.`);
     try {
+      if (longos.length) throw new Error(`a conta do campo "${longos[0]}" é longa demais; divida em contas menores (nunca corto uma conta).`);
       if (bl.tipo === "ideia") {
         if (!bl.titulo && !bl.linhas.length && !bl.destaque) throw new Error("bloco vazio");
         const p = novoPasso(bl.momento);
@@ -386,7 +405,17 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         let num1;
         try { num1 = M.lerNumero(bl.numero); } catch { throw new Error(`número inválido: ${bl.numero}`); }
         if (!ehPotenciaDe10(bl.fator)) throw new Error(`o fator precisa ser 10, 100, 1000...: ${bl.fator}`);
+        if (num1.n < 0n) throw new Error("a conta com vírgula só aceita números positivos.");
         const k = bl.fator.replace(/\s/g, "").length - 1;
+        // conversão de unidades: o fator precisa ser o certo (m² → cm² é × 10 000, não × 100)
+        const uDe = M.infoUnidade(bl.unidadeDe), uPara = M.infoUnidade(bl.unidadePara);
+        if (bl.unidadeDe && bl.unidadePara && (!uDe || !uPara)) aviso(`não conheço a unidade "${!uDe ? bl.unidadeDe : bl.unidadePara}"; confira o fator da conversão.`);
+        if (uDe && uPara) {
+          if (uDe.familia !== uPara.familia) throw new Error(`não dá para converter ${bl.unidadeDe} em ${bl.unidadePara} (grandezas diferentes).`);
+          const certo = M.dividido(uDe.fator, uPara.fator); // quanto 1 unidadeDe vale em unidadePara
+          const usado = bl.op === "mul" ? M.potencia(M.F(10), k) : M.dividido(M.UM, M.potencia(M.F(10), k));
+          if (!M.igual(certo, usado)) throw new Error(`de ${bl.unidadeDe} para ${bl.unidadePara} a conta certa é ${M.comparar(certo, M.UM) >= 0 ? "× " + M.formatar(certo) : "÷ " + M.formatar(M.dividido(M.UM, certo))}, não ${bl.op === "mul" ? "×" : "÷"} ${bl.fator}.`);
+        }
         const res = bl.op === "mul" ? M.vezes(num1, M.potencia(M.F(10), k)) : M.dividido(num1, M.potencia(M.F(10), k));
         const resTxt = M.formatar(res, { milhar: false });
         const ns = bl.numero.replace(/\s/g, ""), vp = ns.indexOf(","), Dg = ns.replace(",", "").length, pp = vp < 0 ? Dg : vp;
@@ -406,6 +435,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
       } else if (bl.tipo === "coluna") {
         let A, B;
         try { A = M.lerNumero(bl.a); B = M.lerNumero(bl.b); } catch { throw new Error("números inválidos na conta armada"); }
+        if (A.n < 0n || B.n < 0n || /[-−]/.test(bl.a + bl.b)) throw new Error("a conta armada só aceita números positivos (use expressoes para negativos).");
         const res = bl.op === "add" ? M.soma(A, B) : M.menos(A, B);
         if (res.n < 0n) throw new Error("o resultado da subtração seria negativo; troque a ordem dos números.");
         const larg = Math.max(digitosInteiros(bl.a), digitosInteiros(bl.b)) + Math.max(casas(bl.a), casas(bl.b));
@@ -430,11 +460,15 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         const linhas = [];
         bl.itens.forEach((it) => {
           let r;
-          try { r = M.avaliar(it.expr, { implicita: false }); } catch (e) { throw new Error(`não consegui calcular "${it.expr}" (${e.message})`); }
-          const rt = M.formatarComAprox(r);
+          let ex;
+          if (porcentagemAmbigua(it.expr)) throw new Error(`escreva a porcentagem como "10% de 150" ("${it.expr}" fica ambígua).`);
+          try { r = M.avaliar(it.expr, { implicita: false }); ex = M.escreverConta(it.expr); } catch (e) { throw new Error(`não consegui calcular "${it.expr}" (${e.message})`); }
+          if (!M.igual(M.avaliar(ex), r)) throw new Error(`erro interno ao escrever "${it.expr}"`);
+          const mr = M.mostrarResultado(r, { pi: M.usaPi(it.expr) });
+          if (M.usaPi(it.expr) && !it.nota) it.nota = "usando π ≈ 3,14";
           const un = it.unidade ? " " + it.unidade : "";
-          linhas.push({ item: it, texto: `${it.rotulo ? it.rotulo + " " : ""}${bonita(it.expr)} = *${rt}${un}*`, pergunta: `${it.rotulo ? it.rotulo + " " : ""}${bonita(it.expr)} = ?`, calculado: `${bonita(it.expr)} = ${M.formatar(r)}` });
-          info.contas.push(`${bonita(it.expr)} = ${M.formatar(r)}`);
+          linhas.push({ item: it, texto: `${it.rotulo ? it.rotulo + " " : ""}${ex} ${mr.sinal} *${mr.texto}${un}*`, pergunta: `${it.rotulo ? it.rotulo + " " : ""}${ex} = ?`, calculado: `${ex} ${mr.sinal} ${mr.texto}` });
+          info.contas.push(`${ex} ${mr.sinal} ${mr.texto}`);
         });
         info.resumo = info.contas.join(" · ");
         const porPasso = bl.passoAPasso ? 1 : linhas.length;
@@ -489,24 +523,25 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         const un = r.unidade ? " " + r.unidade : "";
         const l2 = [
           { t: r.substituido, tam: 52, x: 160, y: yBase },
-          { t: `${r.alvo} = *${r.resultadoTxt}${un}*`, tam: 64, neg: true, x: 160, y: yBase + 84 },
+          { t: `${r.alvo} ${r.sinal} *${r.resultadoTxt}${un}*`, tam: 64, neg: true, x: 160, y: yBase + 84 },
         ];
         if (r.usaPi) l2.push({ t: `(usando π ≈ ${r.pi})`, tam: 28, cor: "dim", x: 160, y: yBase + 140 });
         push(p2, { tipo: "linhas", id: id2, regiao: "T", linhas: l2 }, { sequencial: true });
         registrar(id2);
         legendaEm(p2, bl.legenda2 || "Trocamos as letras pelos números e calculamos.");
-        info.resumo = `${r.formula} → ${r.substituido} = ${r.resultadoTxt}${un}`;
-        info.contas.push(`${r.substituido} = ${M.formatar(r.resultado)}`);
+        info.resumo = `${r.formula} → ${r.substituido} ${r.sinal} ${r.resultadoTxt}${un}`;
+        info.contas.push(`${r.substituido} ${r.sinal} ${r.resultadoTxt}`);
       } else if (bl.tipo === "figura") {
         const id = nid("fig");
         let g;
         try { g = montarFigura(bl, id); } catch (e) { throw new Error(e.message); }
         const un = bl.unidade;
         const calc = M.calcularFormula(g.formula, g.valores, g.unidades);
-        info.contas.push(`${calc.substituido} = ${M.formatar(calc.resultado)}${calc.unidade ? " " + calc.unidade : ""}`);
+        info.contas.push(`${calc.substituido} ${calc.sinal} ${calc.resultadoTxt}${calc.unidade ? " " + calc.unidade : ""}`);
         info.resumo = `${g.nomeForma}: ${g.medidasTxt.join(", ")} → ${g.grandeza} ${calc.resultadoTxt} ${calc.unidade}`.trim();
         // escala e posição (região da esquerda: x 100–800, y 200–650)
-        const K = Math.max(20, Math.min(560 / g.W, 300 / g.H, 95));
+        const K = Math.min(560 / g.W, 300 / g.H, 95); // proporção verdadeira, sempre dentro do quadro
+        if (Math.min(g.W, g.H) * K < 24) aviso("a figura ficou muito fina para enxergar bem (as medidas são muito diferentes).");
         const ox = 130 + (560 - g.W * K) / 2, oy = 230 + (300 - g.H * K) / 2;
         const formas = g.formas.map((f) => ({ ...f }));
         const textoGrade = [];
@@ -563,11 +598,12 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           { t: "Fórmula", tam: 32, neg: true, cor: "dim", x: 900, y: 235 },
           { t: g.formula.replace(/\//g, "÷"), tam: 56, neg: true, x: 900, y: 305 },
           { t: calc.substituido, tam: 46, x: 900, y: 395 },
-          { t: `${calc.alvo} = *${calc.resultadoTxt}${un3}*`, tam: 60, neg: true, x: 900, y: 490 },
+          { t: `${calc.alvo} ${calc.sinal} *${calc.resultadoTxt}${un3}*`, tam: 60, neg: true, x: 900, y: 490 },
         ];
+        if (calc.usaPi) fl3.push({ t: "(usando π ≈ 3,14)", tam: 30, cor: "dim", x: 900, y: 550 });
         push(p3, { tipo: "linhas", id: id3, regiao: "D", linhas: fl3 }, { sequencial: true });
         registrar(id3);
-        legendaEm(p3, bl.legendas[2] || (g.grandeza === "área" ? `A área do ${g.nomeForma} é *${calc.resultadoTxt}${un3}*.` : `O comprimento da circunferência é *${calc.resultadoTxt}${un3}*.`));
+        legendaEm(p3, bl.legendas[2] || (g.grandeza === "área" ? `A área do ${g.nomeForma} é ${calc.usaPi ? "aproximadamente " : ""}*${calc.resultadoTxt}${un3}*.` : `O comprimento da circunferência é ${calc.usaPi ? "aproximadamente " : ""}*${calc.resultadoTxt}${un3}*.`));
         void un;
       } else if (bl.tipo === "fracao" || bl.tipo === "grafico" || bl.tipo === "movimento") {
         const idc = nid("x");
@@ -611,8 +647,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         });
       } else if (bl.tipo === "desafio") {
         if (!bl.enunciado.length) throw new Error("faltou o enunciado");
-        let valor = null;
-        if (bl.calculo) { try { valor = M.avaliar(bl.calculo); } catch (e) { throw new Error(`não consegui calcular "${bl.calculo}" (${e.message})`); } }
+        let valor = null, comPi = false;
+        if (bl.calculo) { try { valor = M.avaliar(bl.calculo); comPi = M.usaPi(bl.calculo); } catch (e) { throw new Error(`não consegui calcular "${bl.calculo}" (${e.message})`); } }
         const p = novoPasso(bl.momento);
         const id = nid("d");
         const fl = linhasFlow(160, 205, bl.enunciado.map((t) => ({ t, tam: 40 })), { maxChars: 44 });
@@ -624,13 +660,10 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           const ida = nid("a");
           push(p, { tipo: "alternativas", id: ida, x: 160, y: Math.min(yAlt, 480), w: 660, h: 84, titulo: [], itens: bl.alternativas.map((t, i) => [LETRAS[i], t]) }, { sequencial: true });
           registrar(ida);
-          if (valor) {
-            const r = alternativaCerta(bl.alternativas, valor);
-            if (r.indice != null) {
-              if (indiceCerto != null && indiceCerto !== r.indice) avisos.push(`Bloco ${iBloco}: a IA marcou a alternativa ${LETRAS[indiceCerto]}, mas a conta dá ${M.formatar(valor)} (alternativa ${LETRAS[r.indice]}). Usei a ${LETRAS[r.indice]}.`);
-              indiceCerto = r.indice;
-            } else duvidas.push(`Bloco ${iBloco}: não achei sozinho a alternativa com o valor ${M.formatar(valor)}. Confira qual é a certa.`);
-          }
+          const dc = decidirCorreta(bl.alternativas, bl.calculo, bl.correta, `Bloco ${iBloco} (desafio)`);
+          if (dc.erro) throw new Error(dc.erro.replace(/^Bloco \d+ \(desafio\): /, ""));
+          if (dc.duvida) duvidas.push(dc.duvida);
+          indiceCerto = dc.correta;
         }
         legendaEm(p, bl.legenda || "*Sua vez!* Resolvam no caderno.");
         if (valor || indiceCerto != null) {
@@ -638,13 +671,17 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           const id2 = nid("d");
           const un = bl.unidade ? " " + bl.unidade : "";
           const ls = [];
-          if (bl.calculo) ls.push({ t: `${bonita(bl.calculo)} = *${M.formatar(valor)}${un}*`, tam: 40, neg: true, x: 160, y: 716 });
+          if (bl.calculo) { const mr = M.mostrarResultado(valor, { pi: comPi }); ls.push({ t: `${M.escreverConta(bl.calculo)} ${mr.sinal} *${mr.texto}${un}*`, tam: 40, neg: true, x: 160, y: 716 }); }
           if (indiceCerto != null && bl.alternativas.length === 4) ls.push({ t: `Alternativa ${LETRAS[indiceCerto]} ✓`, tam: 40, neg: true, cor: "ok", x: 1080, y: 716 });
-          if (ls.length) { push(p2, { tipo: "linhas", id: id2, regiao: "D", linhas: ls }, { sequencial: true }); registrar(id2); }
+          if (ls.length) {
+            const acao = { tipo: "linhas", id: id2, regiao: "D", linhas: ls };
+            if (bl.calculo && indiceCerto != null) acao.conferencia = { calculo: bl.calculo, alternativa: bl.alternativas[indiceCerto] };
+            push(p2, acao, { sequencial: true }); registrar(id2);
+          }
           legendaEm(p2, bl.legenda2 || (indiceCerto != null ? `Resposta: alternativa *${LETRAS[indiceCerto]}* ✓` : "Vamos conferir a resposta."));
         }
         info.resumo = `${bl.enunciado.join(" ")}${valor ? " → " + M.formatar(valor) : ""}`;
-        if (valor) info.contas.push(`${bonita(bl.calculo)} = ${M.formatar(valor)}`);
+        if (valor) info.contas.push(`${M.escreverConta(bl.calculo)} ${comPi ? "≈ " + M.aproximar(valor, 2) : "= " + M.formatarComAprox(valor)}`);
       } else if (bl.tipo === "revelar") {
         if (!respostaAbertura) throw new Error("não há pergunta de abertura para revelar");
         if (jaRevelou) { aviso("a resposta da abertura já foi revelada antes; este bloco repetido foi ignorado."); info.resumo = "(repetido, ignorado)"; resumo.push(info); return; }

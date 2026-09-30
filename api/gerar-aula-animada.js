@@ -37,12 +37,17 @@ const REGRAS = `REGRAS OBRIGATORIAS:
 4. Nunca repita a mesma ideia em dois blocos. A aula deve ter de 8 a 16 blocos e caminhar de simples para dificil: abertura (pergunta de votacao) -> ver -> montar -> sua vez -> fecho.
 5. Linguagem simples, curta, para o aluno. Frases de ate 90 letras. Use o nivel indicado (Fundamental II ou Ensino Medio).
 6. Numeros no formato brasileiro: virgula nos decimais (3,5) e espaco nos milhares (1 000).
-7. Use apenas os tipos de bloco do catalogo. Se o assunto pedir algo que o catalogo nao tem (ex.: grafico de funcao, fracoes desenhadas), use "ideia" para explicar em texto e escreva em "duvidas" que essa parte ficou sem animacao.
+7. Use apenas os tipos de bloco do catalogo. Se o assunto pedir algo que o catalogo nao tem, use "ideia" para explicar em texto e escreva em "duvidas" que essa parte ficou sem animacao.
 8. Toda palavra listada em "termos" precisa ter um bloco "termo" que a apresente (antes de usa-la); nao liste palavras que nao serao apresentadas.
 9. Use o bloco "revelar" UMA unica vez, logo depois do bloco (figura, formula, conta, expressoes) que responde a pergunta de abertura.
 10. Todo bloco, exceto "fecho", deve trazer uma "legenda" curta que explique ao aluno o que esta acontecendo.
 11. Em "expressoes", o sistema mostra primeiro as contas com "= ?" e depois as respostas: nao escreva as respostas.
-12. A abertura e uma pergunta curta com 4 alternativas cuja resposta sera descoberta durante a aula. Informe "calculo" quando a resposta for numerica (o sistema decide a alternativa certa).`;
+12. A abertura e uma pergunta curta com 4 alternativas cuja resposta sera descoberta durante a aula. Informe "calculo" quando a resposta for numerica (o sistema decide a alternativa certa).
+13. RIGOR: o "calculo" e o "correta" precisam apontar para a MESMA alternativa; se discordarem, a aula e recusada. As 4 alternativas precisam ter valores diferentes (nunca "0,5" e "1/2" juntas). Distratores = erros tipicos de alunos.
+14. Com π o resultado e aproximado: escreva "≈" (nunca "=") e diga "usando π ≈ 3,14". Nunca escreva uma raiz nao exata com "=".
+15. Formulas escritas em textos precisam estar certas (ex.: triangulo A = b × h ÷ 2; circulo A = π × r², C = 2 × π × r; trapezio A = (B + b) × h ÷ 2). Formula errada recusa a aula.
+16. Em contas use × para multiplicar (nunca a letra x, que e a incognita) e virgula decimal. Porcentagem: "10% de 150" (nunca "150 + 10%").
+17. Conversao de unidades: o fator precisa ser o certo (m → cm: × 100; m² → cm²: × 10 000; m³ → cm³: × 1 000 000; km/h → m/s: ÷ 3,6). As medidas de uma "figura" sao de comprimento (cm, m), nunca cm².`;
 
 const FORMATO = `Responda SOMENTE com um JSON (sem texto antes ou depois) neste formato:
 {

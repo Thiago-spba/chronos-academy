@@ -31,6 +31,7 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
   const [nivel, setNivel] = useState(nivelPadrao);
   const [respostasNovas, setRespostasNovas] = useState({});
   const [statusPrevia, setStatusPrevia] = useState(null); // {erros, total} vindo da prévia; null = ainda carregando
+  const [conferiu, setConferiu] = useState(false); // o professor confirmou o que a máquina não consegue garantir
 
   const analise = useMemo(() => {
     if (!valor?.plano) return null;
@@ -83,9 +84,12 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
   const temaAtual = valor?.tema || temaInicial;
   // trocou a aula ou o tema: a prévia recarrega e avisa de novo
   useEffect(() => { setStatusPrevia(null); }, [valor?.aula, temaAtual]);
+  useEffect(() => { setConferiu(false); }, [valor?.aula]);
   const temErros = !!analise?.erros?.length;
   const errosPrevia = statusPrevia?.erros || [];
   const previaOk = !!statusPrevia && errosPrevia.length === 0;
+  // dúvidas e complementos (conteúdo fora do material) não têm conferência automática: o professor confirma
+  const precisaConferir = !!(analise?.duvidas?.length || analise?.relatorio?.blocos?.some((b) => b.complemento));
 
   return (
     <div className="rounded-2xl border border-fuchsia-200 dark:border-fuchsia-900/50 bg-fuchsia-50/60 dark:bg-fuchsia-950/10 p-4 space-y-4">
@@ -128,7 +132,7 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
 
           {analise.duvidas.length > 0 && (
             <div className="rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
-              <p className="text-xs font-black text-amber-800 dark:text-amber-300 flex items-center gap-2"><HelpCircle className="w-4 h-4" /> A IA ficou em dúvida e pergunta:</p>
+              <p className="text-xs font-black text-amber-800 dark:text-amber-300 flex items-center gap-2"><HelpCircle className="w-4 h-4" /> Confira antes de aprovar (o sistema não conseguiu garantir sozinho):</p>
               {analise.duvidas.map((p, i) => (
                 <div key={i} className="space-y-1">
                   <p className="text-xs text-stone-800 dark:text-slate-200 font-bold">{p}</p>
@@ -177,7 +181,15 @@ export default function GeradorAulaAnimada({ valor, onChange, coletarMaterial, g
                 <button type="button" onClick={() => onChange({ ...valor, aprovada: false })} className="px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-xs font-bold text-stone-700 dark:text-slate-300">Desfazer aprovação</button>
               </>
             ) : (
-              <button type="button" disabled={temErros || !previaOk || !!gerando} title={!previaOk && !errosPrevia.length ? "Aguarde a prévia carregar" : ""} onClick={() => onChange({ ...valor, aprovada: true })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-bold"><CheckCircle2 className="w-4 h-4" /> Aprovar para os alunos</button>
+              <>
+              {precisaConferir && !temErros && (
+                <label className="flex items-start gap-2 text-xs font-bold text-amber-800 dark:text-amber-300 max-w-md">
+                  <input type="checkbox" checked={conferiu} onChange={(e) => setConferiu(e.target.checked)} className="mt-0.5" />
+                  Conferi as dúvidas e os complementos acima (o sistema não consegue conferir sozinho).
+                </label>
+              )}
+              <button type="button" disabled={temErros || !previaOk || !!gerando || (precisaConferir && !conferiu)} title={!previaOk && !errosPrevia.length ? "Aguarde a prévia carregar" : ""} onClick={() => onChange({ ...valor, aprovada: true })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-bold"><CheckCircle2 className="w-4 h-4" /> Aprovar para os alunos</button>
+              </>
             )}
             <button type="button" disabled={!!gerando} onClick={() => gerar(valor.respostas || [])} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-300 dark:border-slate-700 text-xs font-bold text-stone-700 dark:text-slate-300 disabled:opacity-50"><RefreshCw className="w-3.5 h-3.5" /> Gerar de novo</button>
             <button type="button" disabled={!!gerando} onClick={() => onChange(null)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"><Trash2 className="w-3.5 h-3.5" /> Descartar</button>

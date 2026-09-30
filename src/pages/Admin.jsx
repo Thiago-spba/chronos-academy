@@ -1710,7 +1710,7 @@ export default function Admin() {
                 </div>
 
                 {ehDisciplinaDeExatas(bancoDados?.[form.turmaId]?.disciplina) && (
-                  <div className="space-y-3 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/5">
+                  <div className="md:col-span-2 space-y-3 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/5">
                     <h3 className="text-xs sm:text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase flex items-center gap-2"><Presentation className="w-4 h-4"/> Aula animada (quadro passo a passo)</h3>
                     <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">
                       O quadro que você usa na TV. Depois de salvar, o aluno também vê o botão "Aula animada" nesta aula, para rever quando quiser.

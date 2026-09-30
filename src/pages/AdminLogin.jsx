@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, GraduationCap, AlertCircle } from "lucide-react";
 import { auth, googleProvider } from "../firebase";
-import { signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
 
 const ADMIN_EMAIL = "thiago.rpba@gmail.com"; // único e-mail com acesso ao painel
 
@@ -13,11 +13,22 @@ export default function AdminLogin() {
   // Verificando o resultado do redirecionamento (usuario acabou de voltar do login do Google).
   const [verificandoRetorno, setVerificandoRetorno] = useState(true);
 
-  // signInWithPopup foi trocado por signInWithRedirect: no celular (Safari, webviews
-  // de apps como Instagram/WhatsApp, PWA instalado), o navegador costuma bloquear a
-  // janela pop-up do Google silenciosamente, o que gerava "Falha ao autenticar com o
-  // Google" sem motivo aparente. O redirect leva o usuario ate o Google e traz ele de
-  // volta para esta mesma pagina, sem depender de pop-up.
+  // Como o login funciona em cada aparelho:
+  // - Celular (Safari, apps como Instagram/WhatsApp, PWA): o navegador costuma bloquear
+  //   a janela pop-up do Google em silencio. Ali usamos signInWithRedirect, que leva o
+  //   usuario ate o Google e traz de volta para esta pagina.
+  // - Computador: o redirect pode falhar (o Chrome isola o armazenamento entre o dominio
+  //   do site e o do Firebase, e o login "some" na volta, voltando sempre para esta tela).
+  //   Ali usamos signInWithPopup, que sempre funcionou. Se o pop-up for bloqueado,
+  //   cai automaticamente no redirect.
+  const ehCelular = () => {
+    const ua = navigator.userAgent || "";
+    return (
+      /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+      (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) // iPad que se apresenta como Mac
+    );
+  };
+
   useEffect(() => {
     let cancelado = false;
     (async () => {
@@ -51,13 +62,43 @@ export default function AdminLogin() {
     setErro("");
     setCarregando(true);
     try {
-      // A pagina sai daqui e volta pronta (o resultado e tratado no useEffect acima).
-      await signInWithRedirect(auth, googleProvider);
+      if (ehCelular()) {
+        // A pagina sai daqui e volta pronta (o resultado e tratado no useEffect acima).
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user.email !== ADMIN_EMAIL) {
+        await auth.signOut();
+        setErro("Esta conta Google não tem acesso à área administrativa.");
+      } else {
+        navigate("/admin/painel");
+        return;
+      }
     } catch (error) {
-      console.error(error);
+      if (
+        error?.code === "auth/popup-blocked" ||
+        error?.code === "auth/operation-not-supported-in-this-environment"
+      ) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (e2) {
+          console.error(e2);
+        }
+      } else if (
+        error?.code === "auth/popup-closed-by-user" ||
+        error?.code === "auth/cancelled-popup-request"
+      ) {
+        // Usuario fechou a janela do Google: nao e erro, so volta ao botao.
+        setCarregando(false);
+        return;
+      } else {
+        console.error(error);
+      }
       setErro("Falha ao autenticar com o Google. Tente novamente.");
-      setCarregando(false);
     }
+    setCarregando(false);
   };
 
   return (

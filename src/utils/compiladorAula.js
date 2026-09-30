@@ -19,7 +19,13 @@ function limpa(v, max) {
   if (typeof v !== "string") return "";
   let s = v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   if ((s.match(/\*/g) || []).length % 2) s = s.replace(/\*/g, ""); // destaque precisa abrir e fechar
-  return s.slice(0, max);
+  if (s.length <= max) return s;
+  // corta na última palavra inteira (nunca no meio de uma palavra)
+  const corte = s.slice(0, max);
+  const esp = corte.lastIndexOf(" ");
+  let r = (esp >= max * 0.5 ? corte.slice(0, esp) : corte).replace(/[\s,;:(–-]+$/, "");
+  if ((r.match(/\*/g) || []).length % 2) r = r.replace(/\*/g, "");
+  return r;
 }
 const lista = (v, n, max) => (Array.isArray(v) ? v : []).map((x) => limpa(x, max)).filter(Boolean).slice(0, n);
 const slug = (t) => limpa(t, 40).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "termo";
@@ -86,7 +92,7 @@ export function normalizarPlano(bruto) {
     if (tipo === "ideia") blk = { ...base, titulo: limpa(x?.titulo, 60), linhas: lista(x?.linhas, 5, 120), destaque: limpa(x?.destaque, 80) };
     else if (tipo === "termo") blk = { ...base, chave: slug(x?.chave) };
     else if (tipo === "faixa") blk = { ...base, antes: limpa(x?.antes, 60), numero: limpa(x?.numero, 30), depois: limpa(x?.depois, 60) };
-    else if (tipo === "conta") blk = { ...base, numero: limpa(x?.numero, 20), op: x?.op === "div" ? "div" : "mul", fator: limpa(x?.fator, 12), unidadeDe: limpa(x?.unidadeDe, 14), unidadePara: limpa(x?.unidadePara, 14), nota: lista(x?.nota, 2, 22), legenda2: limpa(x?.legenda2, 90) };
+    else if (tipo === "conta") blk = { ...base, numero: limpa(x?.numero, 20), op: x?.op === "div" ? "div" : "mul", fator: limpa(x?.fator, 12), unidadeDe: limpa(x?.unidadeDe, 14), unidadePara: limpa(x?.unidadePara, 14), nota: lista(x?.nota, 4, 60).filter((n) => n.length <= 22).slice(0, 2), legenda2: limpa(x?.legenda2, 90) };
     else if (tipo === "coluna") blk = { ...base, op: /sub|menos|-/i.test(limpa(x?.op, 20)) ? "sub" : "add", a: limpa(x?.a, 20), b: limpa(x?.b, 20), titulo: limpa(x?.titulo, 40), unidade: limpa(x?.unidade, 24), notas: lista(x?.notas, 3, 60) };
     else if (tipo === "expressoes") {
       const itens = (Array.isArray(x?.itens) ? x.itens : []).slice(0, 6).map((it) => (typeof it === "string" ? { expr: limpa(it, 90) } : { rotulo: limpa(it?.rotulo, 12), expr: limpa(it?.expr, 90), unidade: limpa(it?.unidade, 24), nota: limpa(it?.nota, 70) })).filter((it) => it.expr);
@@ -245,6 +251,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
   const ab = plano.abertura;
   let respostaAbertura = null; // {letra, texto}
   let jaRevelou = false;
+  let momentoMax = 0;
   const inicio = { acoes: [], legenda: "Vote com a turma: *qual vocês acham?*" };
   if (!ab || !ab.antes || !ab.destaque || !ab.depois) erros.push("A abertura (pergunta com votação) está incompleta.");
   else if (ab.alternativas.length !== 4) erros.push("A abertura precisa de exatamente 4 alternativas.");
@@ -303,7 +310,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
       const partes = it.quebrar === false ? [it.t] : quebrar(it.t, maxChars || Math.floor(((1540 - x) * 0.92) / (tam * 0.56)));
       partes.forEach((pt, k) => {
         out.push({ ...it, t: pt, tam, x, y: Math.round(y) });
-        y += tam * 1.5;
+        y += it.avanco != null ? it.avanco : tam * 1.5;
       });
       y += it.depois || 0;
     });
@@ -312,6 +319,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
 
   plano.blocos.forEach((bl, idx) => {
     iBloco = idx + 1; blocoAtual = bl;
+    if (bl.momento < momentoMax) bl.momento = momentoMax; // o quadro de progresso só anda para a frente
+    momentoMax = bl.momento;
     const info = { n: iBloco, tipo: bl.tipo, momento: bl.momento, fonte: bl.fonte || "", complemento: bl.complemento, resumo: "", contas: [] };
     if (bl.complemento) avisos.push(`Bloco ${iBloco} (${bl.tipo}): conteúdo que NÃO está no material (a IA acrescentou). Confira antes de aprovar.`);
     try {
@@ -407,14 +416,15 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           if (bl.titulo && ini === 0) { const t = { t: bl.titulo, tam: 44, neg: true, cor: "yellow", depois: 12, quebrar: false }; itensR.push(t); itensQ.push(t); }
           fatia.forEach((l) => {
             const tam = l.texto.replace(/\*/g, "").length > 40 ? 44 : 52;
-            itensR.push({ t: l.texto, tam, neg: true, depois: 6, quebrar: false });
-            itensQ.push({ t: l.pergunta, tam, neg: true, depois: 6, quebrar: false });
-            if (l.item.nota) { const n = { t: l.item.nota, tam: 30, cor: "sky", depois: 10, quebrar: false }; itensR.push(n); itensQ.push(n); }
+            const av = l.item.nota ? 62 : undefined;
+            itensR.push({ t: l.texto, tam, neg: true, depois: 6, avanco: av, quebrar: false });
+            itensQ.push({ t: l.pergunta, tam, neg: true, depois: 6, avanco: av, quebrar: false });
+            if (l.item.nota) { const n = { t: l.item.nota, tam: 30, cor: "sky", depois: 8, avanco: 56, quebrar: false }; itensR.push(n); itensQ.push(n); }
           });
           const fl = linhasFlow(160, yCursor, itensR);
           const flQ = fl.map((f, i) => ({ ...f, t: itensQ[i].t }));
-          if (fl.length) { const u = fl[fl.length - 1]; yCursor = u.y + 84; }
-          if (yCursor > 700) aviso("muitas contas na mesma tela; algumas podem ficar fora do quadro.");
+          if (fl.length) { const u = fl[fl.length - 1]; yCursor = u.y + (u.avanco != null ? u.avanco : u.tam * 1.5) + (u.depois || 0); }
+          if (fl.length && fl[fl.length - 1].y > 700) aviso("muitas contas na mesma tela; algumas podem ficar fora do quadro.");
           const cortar = ({ t, tam, neg, cor, x, y }) => ({ t, tam, neg, cor, x, y });
           // 1) a turma vê as contas sem resposta ("= ?")
           const pQ = novoPasso(bl.momento, { limpar: ini === 0 });

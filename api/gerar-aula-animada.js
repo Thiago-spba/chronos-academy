@@ -13,11 +13,11 @@ const ASSINATURA_PADRAO = "Aula elaborada por Thiago Fernando, professor, gradua
 
 export const config = { api: { bodyParser: { sizeLimit: "15mb" } } };
 
-const CATALOGO = `BLOCOS QUE VOCE PODE USAR (campo "tipo"). Cada bloco tem "momento": "ver" (mostrar a ideia), "montar" (construir/explicar passo a passo), "suavez" (exercicios da turma), "fechamento". Todo bloco pode ter "legenda" (frase curta, ate 90 letras, dita ao aluno; *palavra* entre asteriscos = destaque), "fonte" (onde no material isto aparece, ex.: "pag. 3, exemplo 2") e "complemento": true se a informacao NAO esta no material.
+const CATALOGO = `BLOCOS QUE VOCE PODE USAR (campo "tipo"). Os blocos devem vir em ordem: ver, montar, suavez, fechamento (nunca volte a um momento anterior). Cada bloco tem "momento": "ver" (mostrar a ideia), "montar" (construir/explicar passo a passo), "suavez" (exercicios da turma), "fechamento". Todo bloco pode ter "legenda" (frase curta, ate 90 letras, dita ao aluno; *palavra* entre asteriscos = destaque), "fonte" (onde no material isto aparece, ex.: "pag. 3, exemplo 2") e "complemento": true se a informacao NAO esta no material.
 - "ideia": {titulo, linhas:[ate 5 linhas curtas], destaque} -> cartao de texto explicativo.
 - "termo": {chave} -> abre o cartao de um termo definido em "termos" (a chave precisa existir la).
 - "faixa": {antes, numero, depois} -> faixa do problema no alto (ex.: antes "Problema: piso de", numero "8 m × 5 m", depois "→ qual a área?").
-- "conta": {numero, op:"mul"|"div", fator:"10"|"100"|"1000"|..., unidadeDe, unidadePara, nota:[ate 2], legenda2} -> a virgula anda ao multiplicar/dividir por potencia de 10 (conversao de unidades, decimais). NAO informe o resultado.
+- "conta": {numero, op:"mul"|"div", fator:"10"|"100"|"1000"|..., unidadeDe, unidadePara, nota:[ate 2 frases de NO MAXIMO 22 letras cada, ex.: "cada zero = 1 casa"], legenda2} -> a virgula anda ao multiplicar/dividir por potencia de 10 (conversao de unidades, decimais). NAO informe o resultado.
 - "coluna": {op:"add"|"sub", a, b, titulo, unidade, notas:[ate 3]} -> conta armada (soma/subtracao com virgulas alinhadas). NAO informe o resultado.
 - "expressoes": {titulo, itens:[{rotulo:"a)", expr:"12 × 3,5", unidade, nota}], passoAPasso} -> exercicios; use apenas numeros, + − × ÷ e parenteses. O sistema calcula as respostas.
 - "formula": {nome, formula:"A = b × h", valores:{b:"7,5",h:"4"}, unidades:{A:"cm²",b:"cm",h:"cm"}, variaveis:{b:"base",h:"altura"}} -> mostra a formula, troca as letras pelos valores e calcula. NAO informe o resultado.

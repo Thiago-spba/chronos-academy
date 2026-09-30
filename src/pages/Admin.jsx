@@ -15,6 +15,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { lerModulo, chaveModulo, ordenarModulos, tituloModulo, idModulo, acharModulo, opcoesModulos, deveMarcarAndamento, moduloPadraoId } from "../utils/bimestres";
 import RevisaoMaterial from "../components/RevisaoMaterial";
 import { AULAS_ANIMADAS, acharAulaAnimada, ehDisciplinaDeExatas, linkAulaAnimada } from "../utils/aulasAnimadas";
+import GeradorAulaAnimada from "../components/GeradorAulaAnimada";
+import { docIdAnimada, empacotarAula, desempacotarAula, temaPelaOrdem, contarAulasAnimadas } from "../utils/aulaGerada";
 import { Toast, useConfirmacao } from "../components/Notificacao";
 import { pendenciasMaterial, escolherVisual, visuaisRecentes, visualDoMaterial } from "../utils/temasMaterial";
 import { semanaDeReferencia, proximoNumeroAula, exemplosDaTurma } from "../utils/preencherAula";
@@ -142,7 +144,8 @@ export default function Admin() {
   const [form, setForm] = useState({
     id: "", turmaId: "", moduloId: "", numeroAula: "", titulo: "", semana: "",
     introducao: "", utilidade: "", materialTexto: "", registroAula: "", aulaAnimada: "", roteiroLousa: "",
-    videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
+    videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null,
+    aulaGerada: null, aulaGeradaErro: false, aulaGeradaAntes: false
   });
 
   const inputBaseClass = "w-full p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 dark:focus:ring-amber-500/50 outline-none text-xs sm:text-sm transition-colors duration-300";
@@ -430,7 +433,8 @@ export default function Admin() {
 
     setForm({
       id: "", turmaId: primeiraTurmaId, moduloId: moduloPadraoId, numeroAula: "", titulo: "", semana: semanaDeReferencia(), introducao: "", utilidade: "", materialTexto: "", registroAula: "", aulaAnimada: "", roteiroLousa: "",
-      videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null
+      videos: [{ videoId: "", duracao: "" }], pdfs: [], materialEstudo: null, materialProntoPdf: null,
+      aulaGerada: null, aulaGeradaErro: false, aulaGeradaAntes: false
     });
     setArquivosPdf([]);
     setArquivoMaterialPronto(null);
@@ -452,7 +456,8 @@ export default function Admin() {
       pdfs: pdfsMigrados,
       materialEstudo: null,
       materialProntoPdf: aula.materialProntoPdf || null,
-      visualMaterial: aula.visualMaterial || null
+      visualMaterial: aula.visualMaterial || null,
+      aulaGerada: null, aulaGeradaErro: false, aulaGeradaAntes: !!aula.aulaGerada
     });
     setArquivosPdf([]);
     setArquivoMaterialPronto(null);
@@ -462,6 +467,49 @@ export default function Admin() {
     setStatusEnvio("");
     setFormAberto(true);
     if (aula.temMaterialEstudo) carregarMaterialEstudo(aula.id);
+    if (aula.aulaGerada) carregarAulaGerada(aula.id);
+  };
+
+  // Aula animada gerada pela IA que ja foi aprovada e publicada antes.
+  const carregarAulaGerada = async (aulaId) => {
+    try {
+      const snap = await getDoc(doc(db, "chronos", docIdAnimada(aulaId)));
+      const d = snap.exists() ? desempacotarAula(snap.data()) : null;
+      setForm(prev => (prev.id === aulaId ? (d ? { ...prev, aulaGerada: { ...d, aprovada: true } } : { ...prev, aulaGeradaErro: true }) : prev));
+    } catch (e) {
+      console.error(e);
+      // Se falhar, a aula continua marcada como "tem aula animada" e o que esta salvo nao e apagado.
+      setForm(prev => (prev.id === aulaId ? { ...prev, aulaGeradaErro: true } : prev));
+    }
+  };
+
+  // Material (PDFs marcados + texto colado) que o gerador de aula animada envia para a IA.
+  const coletarMaterialParaIA = async () => {
+    const { novos, salvos } = anexosDaIA();
+    const texto = textoColadoIA.trim();
+    if (novos.length + salvos.length === 0 && !texto) throw new Error("Anexe um PDF (ou cole o texto do material) na seção \"Material PDF\" abaixo antes de gerar.");
+    if (novos.length + salvos.length > 5) throw new Error("Marque no máximo 5 PDFs por vez.");
+    const saida = {};
+    if (texto) saida.textoColado = texto;
+    const pdfs = salvos.map(p => ({ url: p.url, nome: p.titulo }));
+    const LIMITE_BASE64 = (texto ? 2.5 : 3) * 1024 * 1024;
+    const somaNovos = novos.reduce((soma, f) => soma + f.size, 0);
+    if (somaNovos <= LIMITE_BASE64) {
+      for (const f of novos) pdfs.push({ base64: await arquivoParaBase64(f), nome: f.name });
+    } else {
+      const enviados = [];
+      for (const f of novos) {
+        const fileRef = ref(storage, `chronos_pdfs/${Date.now()}_${f.name}`);
+        await uploadBytes(fileRef, f);
+        const url = await getDownloadURL(fileRef);
+        enviados.push({ titulo: f.name, url, tamanho: (f.size / (1024 * 1024)).toFixed(2) + " MB" });
+      }
+      setForm(prev => ({ ...prev, pdfs: [...prev.pdfs, ...enviados] }));
+      setArquivosPdf(prev => prev.filter(f => !novos.includes(f)));
+      enviados.forEach(p => pdfs.push({ url: p.url, nome: p.titulo }));
+    }
+    if (pdfs.length) saida.pdfs = pdfs;
+    return saida;
   };
 
   const carregarMaterialEstudo = async (aulaId) => {
@@ -761,6 +809,7 @@ export default function Admin() {
     }
     const pendentesMaterial = pendenciasMaterial(form.materialEstudo);
     if (pendentesMaterial > 0 && !(await confirmar({ titulo: "Publicar mesmo assim?", mensagem: `O material de estudo ainda tem ${pendentesMaterial} trecho(s) em amarelo sem conferir.`, textoConfirmar: "Publicar mesmo assim" }))) return;
+    if (form.aulaGerada && !form.aulaGerada.aprovada && !(await confirmar({ titulo: "Aula animada sem aprovação", mensagem: "A aula animada gerada pela IA ainda não foi aprovada. Se você salvar agora, os alunos NÃO verão essa aula animada.", textoConfirmar: "Salvar sem a aula animada" }))) return;
     setSalvando(true);
     
     let pdfsFinais = [...form.pdfs];
@@ -836,6 +885,22 @@ export default function Admin() {
       setStatusEnvio("Gravando dados da aula...");
     }
 
+    const geradaAprovada = !!(form.aulaGerada && form.aulaGerada.aprovada);
+    if (geradaAprovada) {
+      try {
+        setStatusEnvio("Gravando aula animada...");
+        await setDoc(doc(db, "chronos", docIdAnimada(idAula)), empacotarAula({ aula: form.aulaGerada.aula, plano: form.aulaGerada.plano, tema: form.aulaGerada.tema, aulaId: idAula, titulo: form.titulo }));
+      } catch (error) {
+        console.error("Erro ao gravar aula animada", error);
+        setToast({ mensagem: "Erro ao gravar a aula animada. A aula nao foi salva; tente de novo.", erro: true });
+        setSalvando(false);
+        setStatusEnvio("");
+        return;
+      }
+      setStatusEnvio("Gravando dados da aula...");
+    }
+    const mantemGerada = geradaAprovada || (form.aulaGeradaErro && form.aulaGeradaAntes);
+
     const novaAula = {
       id: idAula, 
       numeroAula: form.numeroAula, 
@@ -848,6 +913,7 @@ export default function Admin() {
       materialTexto: form.materialTexto || null,
       registroAula: form.registroAula || "",
       ...(form.aulaAnimada ? { aulaAnimada: form.aulaAnimada } : {}),
+      ...(mantemGerada ? { aulaGerada: true } : {}),
       ...(String(form.roteiroLousa || "").trim() ? { roteiroLousa: form.roteiroLousa } : {}),
       materialProntoPdf: materialProntoPdfFinal,
       temMaterialEstudo: form.materialEstudoErro ? true : !!form.materialEstudo,
@@ -1752,6 +1818,21 @@ export default function Admin() {
                         <Eye className="w-3.5 h-3.5" /> Abrir o quadro (TV)
                       </a>
                     )}
+
+                    {!form.aulaAnimada && (
+                      <GeradorAulaAnimada
+                        valor={form.aulaGerada}
+                        onChange={v => setForm(prev => ({ ...prev, aulaGerada: v }))}
+                        coletarMaterial={coletarMaterialParaIA}
+                        getToken={() => auth.currentUser.getIdToken()}
+                        contexto={{ tituloAula: form.titulo, disciplina: bancoDados?.[form.turmaId]?.disciplina || "", prioridades: prioridadesIA.trim() }}
+                        temaInicial={temaPelaOrdem(form.turmaId, contarAulasAnimadas(bancoDados?.[form.turmaId], form.id))}
+                        nivelPadrao={/s[eé]rie|m[eé]dio/i.test(bancoDados?.[form.turmaId]?.nome || "") ? "Ensino Médio" : "Fundamental II"}
+                        desabilitado={salvando || gerandoMaterial}
+                        avisar={(mensagem, erro) => setToast({ mensagem, erro: !!erro })}
+                      />
+                    )}
+                    {form.aulaGeradaErro && <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold">Não consegui carregar a aula animada salva. Ela continua publicada e não será apagada ao salvar.</p>}
 
                     <h3 className="pt-3 text-xs sm:text-sm font-black text-stone-400 dark:text-slate-500 uppercase flex items-center gap-2"><ClipboardList className="w-4 h-4"/> Roteiro da lousa</h3>
                     <p className="text-[11px] text-stone-500 dark:text-slate-400 leading-relaxed">

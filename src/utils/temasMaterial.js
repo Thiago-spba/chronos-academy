@@ -66,7 +66,7 @@ export function opcoesIcones() {
 }
 
 // Numero fixo tirado de um texto (mesmo texto = mesmo numero).
-function hashTexto(t) {
+export function hashTexto(t) {
   let h = 0;
   for (const ch of String(t || "")) h = (h * 31 + ch.charCodeAt(0)) % 100003;
   return h;

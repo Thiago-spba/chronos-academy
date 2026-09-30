@@ -6,8 +6,6 @@ import * as M from "./matematicaExata.js";
 
 const mdc = (a, b) => (b === 0 ? a : mdc(b, a % b));
 const mmc = (a, b) => (a / mdc(a, b)) * b;
-const fmtNum = (n) => String(n).replace(".", ",");
-const bonita = (t) => String(t).replace(/\*/g, "×").replace(/\//g, "÷").replace(/(?<=\s)-(?=\s)/g, "−").replace(/\(-/g, "(−").replace(/\s+/g, " ").trim();
 
 // texto da coluna da direita (x = 900), com y calculado
 function lin(itens, y0 = 250) {

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap,
   AlertTriangle, Video, FileText, FileCheck2, AlignLeft, Target,
-  Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Filter, Layers,
+  Rocket, UploadCloud, Settings, Megaphone, Trophy, Search, Layers,
   ChevronLeft, ChevronRight, LayoutGrid, List, Users, Sparkles, Clock, Eye, Wrench, Loader2,
   ClipboardList, Copy, Presentation
 } from "lucide-react";

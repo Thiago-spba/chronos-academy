@@ -79,7 +79,6 @@ export function quebrar(texto, max) {
   if (atual) linhas.push(atual);
   return linhas;
 }
-const compr = (t) => String(t).replace(/\*/g, "").length;
 
 /* ------------------------------------------------------------------ */
 /* plano normalizado                                                   */

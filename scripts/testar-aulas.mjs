@@ -40,8 +40,6 @@ for (const f of exemplos) {
 /* 2 — contas erradas plantadas */
 secao("2) Contas erradas são pegas");
 {
-  const plano = JSON.parse(fs.readFileSync(path.join(dir, exemplos[0]), "utf8"));
-  const { aula } = compilarAula(plano, { assinatura: "t" });
   // acha textos que o verificador sabe conferir ("A op B = C") e troca o resultado por um errado
   const achar = (x, dono, chave, saida) => {
     if (typeof x === "string") { if (x.includes("=") && M.conferirTexto(x).conferidas > 0) saida.push([dono, chave, x]); }

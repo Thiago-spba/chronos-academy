@@ -641,9 +641,6 @@ export function acharAlternativa(alternativas, valor, { fino = null, porcento = 
 }
 
 /* ---------------- equação do 1º grau ---------------- */
-function bonitaConta(t) {
-  return String(t).replace(/\*/g, "×").replace(/(?<=\s)-(?=\s)/g, "−").replace(/\s+/g, " ").trim();
-}
 // Texto de "a·x": 3x, −x, 0,5x, x/4, −x/4, (2/3)x.  fr: preferir fração (a equação não tinha vírgula)
 function coefTxt(a, letra, fr = true) {
   if (igual(a, UM)) return letra;

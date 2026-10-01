@@ -194,21 +194,32 @@ function iniciar(AULA, temaIdx){
     });
 
     // ---------- cartões de definição ----------
+    // O cartão se ajusta ao texto: a altura é medida pelo conteúdo e, se o texto pedir mais
+    // espaço do que cabe acima da legenda (y = 740), a letra e os espaços diminuem juntos.
+    // Assim nada fica cortado, qualquer que seja o tamanho da definição.
     var cards = {};
+    var CARD_TOPO = 150, CARD_FUNDO_MAX = 740, CARD_LARG_TEXTO = 640;
     Object.keys(termos).forEach(function(k){
       var def = termos[k];
+      var pede = 72 + 22 + 34;
+      def.secoes.forEach(function(s){ pede += 48 + 46 * s.linhas.length + 8; });
+      var esc = Math.max(.5, Math.min(1, (CARD_FUNDO_MAX - CARD_TOPO) / pede));
       var g = el('g', {}, L.cards);
-      el('rect', {x:860, y:150, width:680, height:560, rx:26, 'class':'card-box'}, g);
-      var y = 222;
-      var tit = txt(def.titulo, {x:900, y:y, 'font-size':42, 'class':'c-yellow b'}, g);
+      var caixa = el('rect', {x:860, y:CARD_TOPO, width:680, height:560, rx:26, 'class':'card-box'}, g);
+      var y = CARD_TOPO + 72 * esc;
+      var tit = txt(def.titulo, {x:900, y:y, 'font-size':Math.round(42 * esc), 'class':'c-yellow b'}, g);
       var tw0 = tit.getBBox().width;
-      if (tw0 > 600) tit.setAttribute('font-size', Math.floor(42 * 600 / tw0));
-      y += 22;
+      if (tw0 > 600) tit.setAttribute('font-size', Math.floor(Math.round(42 * esc) * 600 / tw0));
+      y += 22 * esc;
+      var ajusta = function(t, tam){ var w = t.getBBox().width; if (w > CARD_LARG_TEXTO) t.setAttribute('font-size', Math.floor(tam * CARD_LARG_TEXTO / w)); };
       def.secoes.forEach(function(s){
-        y += 48; txt(s.rotulo, {x:900, y:y, 'font-size':23, 'class':'c-sky b ls'}, g);
-        s.linhas.forEach(function(l){ y += 46; txt(l, {x:900, y:y, 'font-size':35, 'class':'c-chalk'}, g); });
-        y += 8;
+        y += 48 * esc; ajusta(txt(s.rotulo, {x:900, y:y, 'font-size':Math.round(23 * esc), 'class':'c-sky b ls'}, g), Math.round(23 * esc));
+        s.linhas.forEach(function(l){ y += 46 * esc; ajusta(txt(l, {x:900, y:y, 'font-size':Math.round(35 * esc), 'class':'c-chalk'}, g), Math.round(35 * esc)); });
+        y += 8 * esc;
       });
+      var altura = Math.max(Math.round(y + 34 * esc - CARD_TOPO), 420);
+      caixa.setAttribute('height', altura);
+      if (CARD_TOPO + altura > CARD_FUNDO_MAX + 2) falha('O cartão "' + def.titulo + '" não cabe na tela, mesmo com a letra menor. Encurte a definição.');
       cards[k] = oculto(g);
     });
     function cartaoEntra(k, pos){
@@ -228,7 +239,8 @@ function iniciar(AULA, temaIdx){
       el('rect', {x:0, y:0, width:1600, height:900, style:'fill:var(--g2)', opacity:.92}, L.popup);
       var clone = cards[k].cloneNode(true);
       clone.removeAttribute('style');
-      clone.setAttribute('transform', 'translate(-400,20)');
+      var cr = clone.querySelector('rect'), alto = cr ? Number(cr.getAttribute('height')) : 0;
+      clone.setAttribute('transform', 'translate(-400,' + (alto > 560 ? 0 : 20) + ')'); // cartão alto sobe um pouco para não encostar no aviso de baixo
       L.popup.appendChild(clone);
       txt('Toque em qualquer lugar para fechar', {x:800, y:800, 'text-anchor':'middle', 'font-size':28, 'class':'c-dim'}, L.popup);
       gsap.fromTo(L.popup, {opacity:0}, {opacity:1, duration:.25});
@@ -774,7 +786,7 @@ function iniciar(AULA, temaIdx){
           if (ta < db){ ta += 10; emp = 1; } else emp = 0;
           r = ta - db;
           if (entrada || emp){ // mostra o que mudou no de cima
-            var t = txt(String(ta), {x:pos[col] + 6, y:y1 - 58, 'text-anchor':'middle', 'font-size':30, 'class':'c-sky b'}, g);
+            var t = txt(String(ta), {x:pos[col] + 6, y:y1 - 72, 'text-anchor':'middle', 'font-size':30, 'class':'c-sky b'}, g);
             oculto(t);
             var risco = oculto(el('line', {x1:pos[col] - 20, y1:y1 - 24, x2:pos[col] + 20, y2:y1 - 46, 'class':'traco-y'}, g));
             marcas.push({col:col, els:[t, risco]});
@@ -782,7 +794,7 @@ function iniciar(AULA, temaIdx){
         } else {
           var s = da + db + emp; r = s % 10; emp = s >= 10 ? 1 : 0;
           if (emp && col - 1 >= mostra){
-            var tc = oculto(txt('1', {x:pos[col - 1], y:y1 - 58, 'text-anchor':'middle', 'font-size':30, 'class':'c-sky b'}, g));
+            var tc = oculto(txt('1', {x:pos[col - 1], y:y1 - 72, 'text-anchor':'middle', 'font-size':30, 'class':'c-sky b'}, g));
             marcas.push({col:col, els:[tc]});
           }
         }
@@ -922,6 +934,48 @@ function iniciar(AULA, temaIdx){
       else if (['ArrowLeft','PageUp'].indexOf(e.key) !== -1){ e.preventDefault(); voltar(); }
       else if (e.key === 'Escape') fecharPopup();
     });
+    /* Conferência final (só na prévia do professor): percorre todos os passos e confere se algum texto
+       ficou fora do quadro ou em cima da legenda. Se achar, a aula não pode ser aprovada. */
+    function conferirQuadro(){
+      var gs = [], i;
+      for (i = 0; i < svg.children.length; i++) if (svg.children[i].tagName === 'g') gs.push(svg.children[i]);
+      var conteudo = gs.slice(0, 6), achados = 0, jaDito = {};
+      function visivel(n){
+        for (var e = n; e && e !== svg; e = e.parentNode){
+          var cs = getComputedStyle(e);
+          if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return false;
+          var cp = e.getAttribute && e.getAttribute('clip-path'), m = cp && /url\(#([^)]+)\)/.exec(cp);
+          var cr = m && document.getElementById(m[1]), rr = cr && cr.querySelector('rect');
+          if (rr && parseFloat(rr.getAttribute('width')) < 2) return false; // ainda "não escrito"
+        }
+        return true;
+      }
+      var base = svg.getCTM();
+      if (!base) return;
+      var inv = base.inverse();
+      for (var k = 0; k <= N && achados < 3; k++){
+        tl.seek('b' + k);
+        conteudo.forEach(function(g){
+          var ts = g.querySelectorAll('text');
+          for (var j = 0; j < ts.length && achados < 3; j++){
+            var t = ts[j];
+            if (!(t.textContent || '').trim() || !visivel(t)) continue;
+            var b = t.getBBox(), ctm = t.getCTM();
+            if (!ctm) continue;
+            var m2 = inv.multiply(ctm);
+            var p1 = new DOMPoint(b.x, b.y).matrixTransform(m2), p2 = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m2);
+            if (p1.y > 860) continue; // assinatura da aula, no rodapé
+            var fora = p1.x < -6 || p2.x > 1606 || p1.y < -6 || p2.y > 756;
+            var chave = (t.textContent || '').slice(0, 30);
+            if (fora && !jaDito[chave]){
+              jaDito[chave] = 1; achados++;
+              falha('No passo ' + k + ' o texto "' + chave + '" não cabe na tela (passa do quadro ou invade a legenda). Encurte o bloco ou divida em dois.');
+            }
+          }
+        });
+      }
+    }
+    if (window.parent !== window && window.__conferirQuadro){ try { conferirQuadro(); } catch (e){ /* a conferência nunca derruba a aula */ } }
     window.__aula = {irPara:irPara, total:N, erros:ERROS};
     tl.seek('b0');
     sync();

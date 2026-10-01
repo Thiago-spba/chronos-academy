@@ -1,0 +1,237 @@
+{
+ "titulo": "Áreas: teste de textos no limite",
+ "termos": [
+  {
+   "chave": "area",
+   "chip": "Área",
+   "titulo": "ÁREA",
+   "oQueE": [
+    "É a medida do espaço que",
+    "uma figura plana ocupa."
+   ],
+   "explicando": [
+    "Contamos quantos quadrados",
+    "de 1 unidade cabem nela."
+   ],
+   "exemplo": [
+    "Um piso de 3 m por 4 m",
+    "tem área de 12 m²."
+   ]
+  },
+  {
+   "chave": "altura",
+   "chip": "altura",
+   "titulo": "ALTURA",
+   "oQueE": [
+    "A distância entre a base",
+    "e o lado oposto, em linha reta."
+   ],
+   "explicando": [
+    "Ela forma um ângulo reto",
+    "(90°) com a base."
+   ],
+   "exemplo": [
+    "No paralelogramo, a altura",
+    "NÃO é o lado inclinado."
+   ]
+  }
+ ],
+ "abertura": {
+  "antes": "Uma sala de 5 m por 4 m será forrada com peças",
+  "destaque": "20 m² ÷ 0,25 m²",
+  "depois": "Quantas peças cabem no piso inteiro?",
+  "alternativas": [
+   "40 peças de piso",
+   "60 peças de piso",
+   "80 peças de piso",
+   "100 peças de piso"
+  ],
+  "correta": 2,
+  "calculo": "20 ÷ 0,25",
+  "porque": [
+   "A sala tem 20 m² de área e cada peça cobre 0,25 m².",
+   "Quantas vezes 0,25 m² cabe em 20 m²? Dividimos."
+  ]
+ },
+ "blocos": [
+  {
+   "tipo": "faixa",
+   "momento": "ver",
+   "antes": "Problema do dia: um piso retangular de",
+   "numero": "8 m × 5 m (quarto)",
+   "depois": "→ qual é a área do piso inteiro?",
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "ideia",
+   "momento": "ver",
+   "titulo": "Por que medir a área do piso?",
+   "linhas": [
+    "Quem coloca piso precisa saber quantas peças comprar para a sala.",
+    "Se faltar peça, a obra para; se sobrar muita, o dinheiro é desperdiçado.",
+    "A área diz quanto espaço a figura ocupa na superfície plana.",
+    "Medimos a área em unidades quadradas, como o metro quadrado (m²).",
+    "Vamos aprender a calcular essa medida passo a passo, sem pressa."
+   ],
+   "destaque": "Área = espaço que a figura ocupa na superfície",
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "termo",
+   "chave": "area",
+   "momento": "ver",
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "figura",
+   "momento": "ver",
+   "forma": "retangulo",
+   "medidas": {
+    "base": "8",
+    "altura": "5"
+   },
+   "unidade": "m",
+   "fonte": "pág. 2, retângulo 8 por 5"
+  },
+  {
+   "tipo": "revelar",
+   "momento": "ver",
+   "legenda": "Confere com o que a turma achou? ✓"
+  },
+  {
+   "tipo": "termo",
+   "chave": "altura",
+   "momento": "montar",
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "figura",
+   "momento": "montar",
+   "forma": "paralelogramo",
+   "medidas": {
+    "base": "6",
+    "altura": "4"
+   },
+   "unidade": "cm"
+  },
+  {
+   "tipo": "formula",
+   "momento": "montar",
+   "nome": "Área do paralelogramo",
+   "formula": "A = b × h",
+   "valores": {
+    "b": "7,5",
+    "h": "4"
+   },
+   "unidades": {
+    "A": "cm²",
+    "b": "cm",
+    "h": "cm"
+   },
+   "variaveis": {
+    "b": "base",
+    "h": "altura"
+   },
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "figura",
+   "momento": "montar",
+   "forma": "triangulo",
+   "medidas": {
+    "base": "10",
+    "altura": "6"
+   },
+   "unidade": "cm"
+  },
+  {
+   "tipo": "expressoes",
+   "momento": "suavez",
+   "titulo": "Sua vez: áreas em cm² (use caderno)",
+   "itens": [
+    {
+     "rotulo": "a)",
+     "expr": "12 × 3,5",
+     "unidade": "cm²",
+     "nota": "Retângulo de base 12 cm e altura 3,5 cm"
+    },
+    {
+     "rotulo": "b)",
+     "expr": "9 × 9",
+     "unidade": "cm²",
+     "nota": "Quadrado de lado 9 cm"
+    },
+    {
+     "rotulo": "c)",
+     "expr": "(8 × 5) ÷ 2",
+     "unidade": "cm²",
+     "nota": "Triângulo de base 8 cm e altura 5 cm"
+    },
+    {
+     "rotulo": "d)",
+     "expr": "7 × 6",
+     "unidade": "cm²",
+     "nota": "Retângulo de 7 cm por 6 cm"
+    },
+    {
+     "rotulo": "e)",
+     "expr": "15 × 4",
+     "unidade": "cm²",
+     "nota": "Paralelogramo de base 15 cm"
+    },
+    {
+     "rotulo": "f)",
+     "expr": "(10 × 6) ÷ 2",
+     "unidade": "cm²",
+     "nota": "Triângulo de base 10 cm"
+    }
+   ],
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "desafio",
+   "momento": "suavez",
+   "enunciado": [
+    "Um terreno retangular tem 25 m de frente",
+    "por 12 m de fundo. O dono quer cobrir",
+    "todo o terreno com grama. Qual é a",
+    "área que será coberta, em m²?"
+   ],
+   "alternativas": [
+    "37 m² de grama no total",
+    "300 m² de grama no total",
+    "150 m² de grama no total",
+    "600 m² de grama no total"
+   ],
+   "calculo": "25 × 12",
+   "unidade": "m²"
+  },
+  {
+   "tipo": "equacao",
+   "momento": "suavez",
+   "titulo": "E se a área é conhecida?",
+   "equacao": "5x = 40",
+   "legenda": "Esta legenda foi escrita com o tamanho máximo permitido para o quadro da aula aqui."
+  },
+  {
+   "tipo": "fecho",
+   "momento": "fechamento",
+   "titulo": "REGRA DE HOJE (guarde!)",
+   "regra": [
+    "Retângulo e paralelogramo: área = base × altura",
+    "Quadrado: área = lado × lado",
+    "Triângulo: é a metade de base × altura",
+    "Sempre escreva a unidade ao quadrado (m², cm²)",
+    "Confira se as medidas estão na mesma unidade"
+   ],
+   "pegaTitulo": "CUIDADO: PEGADINHA",
+   "pega": [
+    "A altura é a linha reta que forma 90° com a",
+    "base, e não o lado inclinado da figura!",
+    "Não misture metros com centímetros na conta.",
+    "Lembre-se: área é sempre em unidades quadradas."
+   ]
+  }
+ ],
+ "duvidas": []
+}

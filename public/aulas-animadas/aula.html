@@ -99,6 +99,7 @@
       var d = ev.data;
       if (!d || d.tipo !== 'chronos-aula' || !d.aula) return;
       iniciada = true;
+      window.__conferirQuadro = d.conferir === true;
       window.ChronosMotor.iniciar(d.aula, (parseInt(d.tema, 10) || tema) - 1);
     });
     if (window.parent !== window) window.parent.postMessage({tipo:'chronos-pronto'}, location.origin);

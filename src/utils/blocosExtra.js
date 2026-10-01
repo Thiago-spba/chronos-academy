@@ -238,7 +238,7 @@ export function graficoCena(bl, id) {
   const passos = [];
   passos.push({
     figura: { id, origem: [Math.round(ox), Math.round(oy)], escala: 1, formas },
-    linhas: lin([{ t: "Função", tam: 32, cor: "dim" }, { t: `y = ${fTxt}`, tam: 60, cor: "yellow", depois: 10 }, { t: "Para cada x, achamos um y.", tam: 32, neg: false, cor: "dim" }]),
+    linhas: lin([{ t: "Função", tam: 32, cor: "dim", depois: 14 }, { t: `y = ${fTxt}`, tam: 60, cor: "yellow", depois: 10 }, { t: "Para cada x, achamos um y.", tam: 32, neg: false, cor: "dim" }]),
     legenda: bl.legenda || `A função *y = ${fTxt}* liga cada valor de x a um valor de y.`,
   });
   passos.push({

@@ -1,0 +1,192 @@
+{
+ "titulo": "Cartões longos (teste de tela)",
+ "termos": [
+  {
+   "chave": "area",
+   "chip": "Área",
+   "titulo": "ÁREA DE UMA FIGURA PLANA",
+   "oQueE": [
+    "É a medida do espaço que uma figura plana ocupa na superfície.",
+    "Contamos quantas unidades quadradas cabem dentro dela."
+   ],
+   "explicando": [
+    "Para um retângulo, multiplicamos a base pela altura (b × h).",
+    "Cada quadradinho de 1 m de lado vale 1 m²."
+   ],
+   "exemplo": [
+    "Um piso de 5 m por 4 m tem área de 20 m².",
+    "São 20 quadrados de 1 m² cada um, sem sobrar espaço."
+   ]
+  },
+  {
+   "chave": "altura",
+   "chip": "altura",
+   "titulo": "ALTURA",
+   "oQueE": [
+    "A distância entre a base",
+    "e o lado oposto, em linha reta."
+   ],
+   "explicando": [
+    "Ela forma um ângulo reto",
+    "(90°) com a base."
+   ],
+   "exemplo": [
+    "No paralelogramo, a altura",
+    "NÃO é o lado inclinado."
+   ]
+  }
+ ],
+ "abertura": {
+  "antes": "Uma sala tem 8 m de largura",
+  "destaque": "8 m × 5 m",
+  "depois": "Qual é a área do piso?",
+  "alternativas": [
+   "13 m²",
+   "26 m²",
+   "40 m²",
+   "85 m²"
+  ],
+  "correta": 2,
+  "calculo": "8 × 5"
+ },
+ "blocos": [
+  {
+   "tipo": "faixa",
+   "momento": "ver",
+   "antes": "Problema: piso de",
+   "numero": "8 m × 5 m",
+   "depois": "→ qual a área?",
+   "legenda": "Vamos descobrir como se calcula a *área*."
+  },
+  {
+   "tipo": "termo",
+   "chave": "area",
+   "momento": "ver",
+   "legenda": "Área = quantos quadradinhos *cabem* na figura."
+  },
+  {
+   "tipo": "figura",
+   "momento": "ver",
+   "forma": "retangulo",
+   "medidas": {
+    "base": "8",
+    "altura": "5"
+   },
+   "unidade": "m",
+   "fonte": "pág. 2, retângulo 8 por 5"
+  },
+  {
+   "tipo": "revelar",
+   "momento": "ver",
+   "legenda": "Confere com o que a turma achou? ✓"
+  },
+  {
+   "tipo": "termo",
+   "chave": "altura",
+   "momento": "montar",
+   "legenda": "Agora uma figura inclinada: o *paralelogramo*."
+  },
+  {
+   "tipo": "figura",
+   "momento": "montar",
+   "forma": "paralelogramo",
+   "medidas": {
+    "base": "6",
+    "altura": "4"
+   },
+   "unidade": "cm"
+  },
+  {
+   "tipo": "formula",
+   "momento": "montar",
+   "nome": "Área do paralelogramo",
+   "formula": "A = b × h",
+   "valores": {
+    "b": "7,5",
+    "h": "4"
+   },
+   "unidades": {
+    "A": "cm²",
+    "b": "cm",
+    "h": "cm"
+   },
+   "variaveis": {
+    "b": "base",
+    "h": "altura"
+   },
+   "legenda": "Base vezes *altura*, igual ao retângulo."
+  },
+  {
+   "tipo": "figura",
+   "momento": "montar",
+   "forma": "triangulo",
+   "medidas": {
+    "base": "10",
+    "altura": "6"
+   },
+   "unidade": "cm"
+  },
+  {
+   "tipo": "expressoes",
+   "momento": "suavez",
+   "titulo": "Sua vez: áreas em cm²",
+   "itens": [
+    {
+     "rotulo": "a)",
+     "expr": "12 × 3,5",
+     "unidade": "cm²"
+    },
+    {
+     "rotulo": "b)",
+     "expr": "9 × 9",
+     "unidade": "cm²"
+    },
+    {
+     "rotulo": "c)",
+     "expr": "(8 × 5) ÷ 2",
+     "unidade": "cm²"
+    }
+   ],
+   "legenda": "Resolvam no caderno e depois *conferimos*."
+  },
+  {
+   "tipo": "desafio",
+   "momento": "suavez",
+   "enunciado": [
+    "Um terreno retangular tem 25 m",
+    "por 12 m. Sua área é:"
+   ],
+   "alternativas": [
+    "37 m²",
+    "300 m²",
+    "150 m²",
+    "600 m²"
+   ],
+   "calculo": "25 × 12",
+   "unidade": "m²"
+  },
+  {
+   "tipo": "equacao",
+   "momento": "suavez",
+   "titulo": "E se a área é conhecida?",
+   "equacao": "5x = 40",
+   "legenda": "Área 40 m², altura 5 m: quanto mede a base?"
+  },
+  {
+   "tipo": "fecho",
+   "momento": "fechamento",
+   "titulo": "REGRA DE HOJE",
+   "regra": [
+    "Retângulo e paralelogramo",
+    "área = base × altura",
+    "Triângulo: metade disso"
+   ],
+   "pegaTitulo": "CUIDADO: PEGADINHA",
+   "pega": [
+    "A altura é a linha reta,",
+    "não o lado inclinado!"
+   ]
+  }
+ ],
+ "duvidas": []
+}

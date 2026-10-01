@@ -106,6 +106,7 @@ export function normalizarPlano(bruto) {
     plano.abertura = {
       antes: limpa(a.antes, 60), destaque: limpa(a.destaque, 24), depois: limpa(a.depois, 60),
       alternativas, correta: inteiro(a.correta, 0, 3), calculo: limpaConta(a.calculo, 160), legenda: limpa(a.legenda, 80),
+      porque: lista(a.porque, 2, 70),
     };
   }
 
@@ -183,6 +184,28 @@ function decidirCorreta(alternativas, calculo, corretaIA, onde) {
 /* geometria (figuras em unidades da própria figura)                   */
 /* ------------------------------------------------------------------ */
 function num(m, k) { const v = m[k]; if (v == null) throw new Error(`Faltou a medida "${k}".`); const f = M.lerNumero(v); if (f.n <= 0n) throw new Error(`A medida "${k}" precisa ser maior que zero.`); return f; }
+
+/* "Como chegamos lá" da pergunta de abertura: a conta vem do cálculo recalculado pelo sistema;
+   as frases de motivo (da IA) só valem se usarem números que já existem na pergunta, no cálculo ou no resultado. */
+function numerosDe(t) { return new Set((String(t).replace(/(\d)\.(\d)/g, "$1,$2").match(/\d+(?:,\d+)?/g) || []).map((n) => n.replace(/(,\d*?)0+$/, "$1").replace(/,$/, ""))); }
+function explicarAbertura(ab, correta, dc) {
+  let conta = null;
+  if (ab.calculo && dc && dc.valor) {
+    const mr = M.mostrarResultado(dc.valor, { pi: dc.pi });
+    const m = /^\s*[\d.,]+\s*(.*)$/.exec(ab.alternativas[correta] || "");
+    const un = m && m[1] && !/[=\d]/.test(m[1]) ? " " + m[1].trim() : "";
+    conta = `${M.escreverConta(ab.calculo)} ${mr.sinal} ${mr.texto}${un}`;
+  }
+  const permitidos = new Set(["1"]); // "1 m²", "1 unidade": a unidade de medida pode ser citada
+  [ab.antes, ab.destaque, ab.depois, ab.calculo, conta, ab.alternativas[correta]].forEach((t) => numerosDe(t || "").forEach((n) => permitidos.add(n)));
+  const porque = [];
+  (ab.porque || []).forEach((t) => {
+    const novos = [...numerosDe(t)].filter((n) => !permitidos.has(n));
+    if (novos.length) return; // frase com número que não está na pergunta nem na conta: não ensinamos
+    porque.push(t);
+  });
+  return { conta, porque, porqueCortados: (ab.porque || []).length - porque.length };
+}
 
 function montarFigura(bl, id) {
   const forma = bl.forma, m = bl.medidas, un = bl.unidade || "";
@@ -302,17 +325,18 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
     const pedaco = (rotulo, linhas) => {
       if (!linhas.length) return;
       const ls = linhas.flatMap((l) => quebrar(l, 33));
+      // o cartão se ajusta ao texto (o motor diminui a letra se precisar), mas 3 linhas por parte é o limite;
+      // se passar disso o final seria cortado: avisamos o professor em vez de ensinar uma frase pela metade.
+      if (ls.length > 3) duvidas.push(`O cartão da palavra "${t.chip}": o texto de "${rotulo}" era longo demais e o final foi cortado ("${ls.slice(3).join(" ")}"). Encurte a definição ou gere de novo.`);
       secoes.push({ rotulo, linhas: ls.slice(0, 3) });
     };
     pedaco("O QUE É", t.oQueE); pedaco("EXPLICANDO", t.explicando); pedaco("EXEMPLO", t.exemplo);
-    const totalLinhas = secoes.reduce((s, x) => s + x.linhas.length, 0);
-    if (totalLinhas > 7) aviso(`o cartão da palavra "${t.chip}" ficou grande; confira se cabe.`);
     termos[t.chave] = { chip: t.chip, titulo: t.titulo, secoes };
   });
 
   // ---------- abertura ----------
   const ab = plano.abertura;
-  let respostaAbertura = null; // {letra, texto}
+  let respostaAbertura = null; // {letra, texto, conta, porque}
   let jaRevelou = false;
   let momentoMax = 0;
   const inicio = { acoes: [], legenda: "Vote com a turma: *qual vocês acham?*" };
@@ -327,7 +351,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
       const perg = { tipo: "pergunta", antes: ab.antes, destaque: ab.destaque, depois: ab.depois, alternativas: ab.alternativas, correta };
       if (ab.calculo) perg.conferencia = { calculo: ab.calculo };
       inicio.acoes.push(perg);
-      respostaAbertura = { letra: LETRAS[correta], texto: ab.alternativas[correta] };
+      respostaAbertura = { letra: LETRAS[correta], texto: ab.alternativas[correta], ...explicarAbertura(ab, correta, dc) };
+      if (respostaAbertura.porqueCortados) avisos.push(`Abertura: ${respostaAbertura.porqueCortados} frase(s) de explicação foram descartadas porque citam um número que não está na pergunta nem na conta.`);
     }
     if (ab.legenda) inicio.legenda = ab.legenda;
   }
@@ -359,19 +384,32 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
     return acao;
   }
   const legendaEm = (p, t) => { if (t) push(p, { tipo: "legenda", t, junto: true, atraso: 0.3 }, { sequencial: true }); };
-  function linhasFlow(x, y0, itens, { maxChars } = {}) {
+  function linhasFlow(x, y0, itens, { maxChars, escala = 1 } = {}) {
     let y = y0;
     const out = [];
     itens.forEach((it) => {
-      const tam = it.tam || 42;
+      const tam = Math.round((it.tam || 42) * escala);
       const partes = it.quebrar === false ? [it.t] : quebrar(it.t, maxChars || Math.floor(((1540 - x) * 0.92) / (tam * 0.56)));
-      partes.forEach((pt, k) => {
+      partes.forEach((pt) => {
         out.push({ ...it, t: pt, tam, x, y: Math.round(y) });
-        y += it.avanco != null ? it.avanco : tam * 1.5;
+        y += it.avanco != null ? it.avanco * escala : tam * 1.5;
       });
-      y += it.depois || 0;
+      y += (it.depois || 0) * escala;
     });
     return out;
+  }
+  // Nada pode ficar fora do quadro: se o texto pedir mais espaço do que existe acima da legenda (y ~ 740),
+  // a letra e os espaços diminuem juntos. "extra" = quanto o bloco ainda desenha abaixo da última linha.
+  function fluxoQueCabe(x, y0, itens, opts, { yMax = 715, extra = 0 } = {}) {
+    let esc = 1, fl = linhasFlow(x, y0, itens, opts);
+    const fim = (f, e) => (f.length ? f[f.length - 1].y : y0) + extra * e;
+    for (let k = 0; k < 8 && fim(fl, esc) > yMax && esc > 0.56; k++) {
+      esc = Math.max(0.55, (esc * (yMax - y0)) / (fim(fl, esc) - y0) * 0.98);
+      fl = linhasFlow(x, y0, itens, { ...opts, escala: esc });
+    }
+    if (fim(fl, esc) > yMax + 1) aviso("tem texto demais para caber na tela, mesmo com a letra menor. Divida em dois blocos ou encurte.");
+    else if (esc < 0.8) aviso(`tem bastante texto; a letra foi reduzida (${Math.round(esc * 100)}%) para caber. Se ficar pequena, divida em dois blocos.`);
+    return { fl, esc };
   }
 
   plano.blocos.forEach((bl, idx) => {
@@ -398,8 +436,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         const itens = [];
         if (bl.titulo) itens.push({ t: bl.titulo, tam: 50, neg: true, cor: "yellow", depois: 14 });
         bl.linhas.forEach((l) => itens.push({ t: l, tam: 42 }));
-        const flow = linhasFlow(160, 215, itens, { maxChars: 40 });
-        if (bl.destaque) flow.push({ t: bl.destaque, tam: 48, neg: true, x: 160, y: (flow.length ? flow[flow.length - 1].y : 200) + 90, caixa: true, quebrar: false });
+        const { fl: flow, esc: escI } = fluxoQueCabe(160, 215, itens, { maxChars: 40 }, { yMax: bl.destaque ? 690 : 715, extra: bl.destaque ? 90 : 0 });
+        if (bl.destaque) flow.push({ t: bl.destaque, tam: Math.round(48 * escI), neg: true, x: 160, y: Math.round((flow.length ? flow[flow.length - 1].y : 200) + 90 * escI), caixa: true, quebrar: false });
         push(p, { tipo: "linhas", id, regiao: "T", linhas: flow.map(({ t, tam, neg, cor, x, y, caixa }) => ({ t, tam, neg, cor, x, y, caixa })) });
         registrar(id);
         legendaEm(p, bl.legenda || (bl.destaque ? `Guardem esta ideia: *${bl.destaque}*.` : bl.titulo));
@@ -492,6 +530,15 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         info.resumo = info.contas.join(" · ");
         const porPasso = bl.passoAPasso ? 1 : linhas.length;
         let yCursor = 230;
+        // quanto o bloco inteiro pede (título + todas as contas + notas) para saber se cabe na tela
+        const todosItens = [];
+        if (bl.titulo) todosItens.push({ t: bl.titulo, tam: 44, depois: 12, quebrar: false });
+        linhas.forEach((l) => {
+          const tam = l.texto.replace(/\*/g, "").length > 40 ? 44 : 52;
+          todosItens.push({ t: l.texto, tam, depois: 6, avanco: l.item.nota ? 62 : undefined, quebrar: false });
+          if (l.item.nota) todosItens.push({ t: l.item.nota, tam: 30, depois: 8, avanco: 56, quebrar: false });
+        });
+        const { esc: escE } = fluxoQueCabe(160, 230, todosItens, {}, { yMax: 715 });
         for (let ini = 0; ini < linhas.length; ini += porPasso) {
           const fatia = linhas.slice(ini, ini + porPasso);
           const itensR = [], itensQ = [];
@@ -503,10 +550,9 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
             itensQ.push({ t: l.pergunta, tam, neg: true, depois: 6, avanco: av, quebrar: false });
             if (l.item.nota) { const n = { t: l.item.nota, tam: 30, cor: "sky", depois: 8, avanco: 56, quebrar: false }; itensR.push(n); itensQ.push(n); }
           });
-          const fl = linhasFlow(160, yCursor, itensR);
+          const fl = linhasFlow(160, yCursor, itensR, { escala: escE });
           const flQ = fl.map((f, i) => ({ ...f, t: itensQ[i].t }));
-          if (fl.length) { const u = fl[fl.length - 1]; yCursor = u.y + (u.avanco != null ? u.avanco : u.tam * 1.5) + (u.depois || 0); }
-          if (fl.length && fl[fl.length - 1].y > 700) aviso("muitas contas na mesma tela; algumas podem ficar fora do quadro.");
+          if (fl.length) { const u = fl[fl.length - 1]; yCursor = u.y + (u.avanco != null ? u.avanco * escE : u.tam * 1.5) + (u.depois || 0) * escE; }
           const cortar = ({ t, tam, neg, cor, x, y }) => ({ t, tam, neg, cor, x, y });
           // 1) a turma vê as contas sem resposta ("= ?")
           const pQ = novoPasso(bl.momento, { limpar: ini === 0 });
@@ -532,7 +578,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         if (bl.nome) itens.push({ t: bl.nome, tam: 44, neg: true, cor: "yellow", depois: 16 });
         itens.push({ t: r.formula, tam: 64, neg: true, quebrar: false, caixa: true, depois: 30 });
         Object.keys(bl.variaveis).forEach((v) => itens.push({ t: `${v} = ${bl.variaveis[v]}`, tam: 34, cor: "sky" }));
-        const fl = linhasFlow(160, 230, itens, { maxChars: 40 });
+        const { fl } = fluxoQueCabe(160, 230, itens, { maxChars: 40 }, { yMax: 735, extra: 90 + (r.usaPi ? 140 : 84) });
         push(p, { tipo: "linhas", id, regiao: "T", linhas: fl.map(({ t, tam, neg, cor, x, y, caixa }) => ({ t, tam, neg, cor, x, y, caixa })) });
         registrar(id);
         legendaEm(p, bl.legenda || `A fórmula: *${r.formula.replace(/\//g, "÷")}*.`);
@@ -707,9 +753,22 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         jaRevelou = true;
         const p = novoPasso(bl.momento);
         const id = nid("r");
-        push(p, { tipo: "cartao", id, estilo: "ok", x: 400, y: 230, w: 800, rx: 24, entrada: "sobe", comVoto: true, linhas: [{ t: "RESPOSTA", tam: 30, cor: "dim", neg: true, ls: true, dy: 56 }, { t: `${respostaAbertura.letra}  ·  ${respostaAbertura.texto}`, tam: 60, cor: "ok", neg: true, dy: 140 }] });
+        // "Como chegamos lá": a conta (recalculada pelo sistema) e, se houver, 1-2 frases simples sobre o motivo.
+        const ra = respostaAbertura;
+        const explicacao = [];
+        ra.porque.forEach((t) => explicacao.push({ t, tam: 32 })); // primeiro o motivo...
+        if (ra.conta) explicacao.push({ t: ra.conta, tam: 44, neg: true, grande: true }); // ...e por último a conta que fecha
+        if (!explicacao.length) duvidas.push("A resposta da abertura aparece sem explicação (a IA não mandou o cálculo nem o motivo). Confira se a resposta está certa e, se quiser, explique com palavras na aula.");
+        const linhasCartao = [{ t: "RESPOSTA", tam: 30, cor: "dim", neg: true, ls: true, dy: 56 }, { t: `${ra.letra}  ·  ${ra.texto}`, tam: 60, cor: "ok", neg: true, dy: 140 }];
+        if (explicacao.length) {
+          linhasCartao.push({ t: "COMO CHEGAMOS LÁ", tam: 24, cor: "dim", neg: true, ls: true, dy: 204 });
+          let dy = 204;
+          explicacao.forEach((l, i) => { dy += l.grande ? 62 : (i === 0 ? 50 : 46); const { grande, ...linha } = l; linhasCartao.push({ ...linha, dy }); });
+        }
+        push(p, { tipo: "cartao", id, estilo: "ok", x: 400, y: explicacao.length ? 190 : 230, w: 800, rx: 24, entrada: "sobe", comVoto: true, linhas: linhasCartao });
         registrar(id);
         legendaEm(p, bl.legenda || "Confere com o que a turma achou? ✓");
+        if (ra.conta) info.contas.push(ra.conta);
         info.resumo = `Resposta da abertura: ${respostaAbertura.letra} · ${respostaAbertura.texto}`;
       } else if (bl.tipo === "fecho") {
         if (!bl.regra.length) throw new Error("faltou a regra do dia");

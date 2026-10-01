@@ -3,7 +3,7 @@
   "termos": [
     {"chave": "raio", "chip": "Raio", "titulo": "Raio", "oQueE": ["É a distância do centro até a borda."], "explicando": ["Todo raio do mesmo círculo tem o mesmo tamanho."], "exemplo": ["Numa pizza, do meio até a casca."]}
   ],
-  "abertura": {"antes": "Uma pizza tem raio de", "destaque": "20 cm", "depois": "Qual o diâmetro dela?", "alternativas": ["10 cm", "20 cm", "40 cm", "60 cm"], "correta": 2, "legenda": "Vote com a turma: *qual vocês acham?*"},
+  "abertura": {"antes": "Uma pizza tem raio de", "destaque": "20 cm", "depois": "Qual o diâmetro dela?", "alternativas": ["10 cm", "20 cm", "40 cm", "60 cm"], "correta": 2, "calculo": "2 × 20", "porque": ["O diâmetro é o dobro do raio."], "legenda": "Vote com a turma: *qual vocês acham?*"},
   "blocos": [
     {"tipo": "ideia", "momento": 1, "titulo": "O círculo", "linhas": ["O círculo é redondo e tem um centro.", "O raio vai do centro até a borda."], "destaque": "diâmetro = 2 × raio"},
     {"tipo": "termo", "momento": 1, "chave": "raio"},

@@ -18,7 +18,8 @@ export default function AulaAnimadaJanela({ aula, tema = 1, onFechar, onStatus, 
       const d = ev.data;
       if (!d) return;
       if (d.tipo === 'chronos-pronto') {
-        ref.current.contentWindow.postMessage({ tipo: 'chronos-aula', aula: dados.current.aula, tema: dados.current.tema }, window.location.origin);
+        // conferir: só a prévia do professor (que escuta o status) pede a conferência extra de "cabe na tela"
+        ref.current.contentWindow.postMessage({ tipo: 'chronos-aula', aula: dados.current.aula, tema: dados.current.tema, conferir: !!statusRef.current }, window.location.origin);
       } else if (d.tipo === 'chronos-fechar' && fecharRef.current) {
         fecharRef.current();
       } else if (d.tipo === 'chronos-status' && statusRef.current) {

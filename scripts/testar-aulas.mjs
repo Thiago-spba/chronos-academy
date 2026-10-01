@@ -303,5 +303,72 @@ secao("7) Aritmética exata confere com ponto flutuante");
   ok(erros === 0, `${erros} contas exatas diferentes do ponto flutuante`);
 }
 
+/* 8 — toda resposta revelada vem EXPLICADA ("Como chegamos lá") e o cartão nunca perde texto em silêncio */
+secao("8) Respostas explicadas e cartões completos");
+{
+  const base = JSON.parse(fs.readFileSync(path.join(dir, "areas.json"), "utf8"));
+  const cartoesOk = (aula) => [aula.inicio, ...aula.passos].flatMap((p) => (p && p.acoes) || []).filter((a) => a.tipo === "cartao" && a.estilo === "ok" && (a.linhas || []).some((l) => l.t === "RESPOSTA"));
+  // (a) todos os exemplos que revelam a resposta trazem a explicação, e a conta mostrada confere
+  for (const f of exemplos) {
+    const plano = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
+    if (!(plano.blocos || []).some((b) => b.tipo === "revelar")) continue;
+    const { aula } = compilarAula(plano, { assinatura: "t" });
+    const cs = cartoesOk(aula);
+    ok(cs.length === 1, `${f}: o cartão RESPOSTA deveria aparecer uma vez`);
+    cs.forEach((c) => {
+      const textos = c.linhas.map((l) => l.t);
+      ok(textos.includes("COMO CHEGAMOS LÁ"), `${f}: a resposta apareceu sem "Como chegamos lá"`);
+      const conta = textos.find((t) => /=/.test(t) && M.conferirTexto(t).conferidas > 0);
+      ok(!!conta, `${f}: a explicação não tem uma conta conferível`);
+    });
+  }
+  // (b) frase de motivo com número inventado é descartada e o professor é avisado
+  {
+    const pl = JSON.parse(JSON.stringify(base));
+    pl.abertura.porque = ["O piso tem 8 fileiras de 5 quadrados.", "Sobram 999 quadrados."];
+    const r = compilarAula(pl, { assinatura: "t" });
+    const textos = cartoesOk(r.aula).flatMap((c) => c.linhas.map((l) => l.t));
+    ok(textos.some((t) => /8 fileiras/.test(t)), "frase boa do motivo sumiu");
+    ok(!textos.some((t) => /999/.test(t)), "frase com número inventado entrou na aula");
+    ok(r.relatorio.avisos.some((a) => /descartadas/.test(a)), "professor não foi avisado da frase descartada");
+  }
+  // (c) resposta sem cálculo e sem motivo: o professor precisa conferir (dúvida)
+  {
+    const pl = JSON.parse(JSON.stringify(base));
+    delete pl.abertura.calculo; delete pl.abertura.porque;
+    const r = compilarAula(pl, { assinatura: "t" });
+    ok(r.relatorio.duvidas.some((d) => /sem explicação/.test(d)), "resposta sem explicação não gerou dúvida para o professor");
+  }
+  // (d) texto de cartão grande demais: avisa em vez de cortar em silêncio
+  {
+    const pl = JSON.parse(JSON.stringify(base));
+    pl.termos[0].oQueE = ["Primeira frase bem comprida do cartão aqui.", "Segunda frase bem comprida do cartão aqui.", "Terceira frase bem comprida do cartão aqui."];
+    const r = compilarAula(pl, { assinatura: "t" });
+    ok(r.relatorio.duvidas.some((d) => /cortado/.test(d)), "texto cortado do cartão não gerou dúvida");
+  }
+  // (e) aleatório: a conta do cartão sempre bate com o cálculo (multiplicação e divisão, com decimais)
+  {
+    let n = 0;
+    for (let i = 0; i < 300; i++) {
+      const a = Math.floor(rnd() * 90 + 2), b = pick([2, 4, 5, 0.25, 0.5, 1.5, 2.5, 10]);
+      const mult = rnd() < 0.5;
+      const bs = String(b).replace(".", ",");
+      const calculo = mult ? `${a} × ${bs}` : `${a} ÷ ${bs}`;
+      const v = M.paraNumero(M.avaliar(calculo));
+      const alts = [v, v + 1, v + 2, v + 3].map((x) => `${String(Math.round(x * 1000) / 1000).replace(".", ",")} un`);
+      const pl = JSON.parse(JSON.stringify(base));
+      pl.abertura = { antes: "Conta do dia", destaque: calculo, depois: "quanto dá?", alternativas: alts, correta: 0, calculo, porque: [`Usamos ${a} e ${bs}.`] };
+      const r = compilarAula(pl, { assinatura: "t" });
+      if (r.relatorio.erros.length) { ok(false, `abertura "${calculo}" deu erro: ${r.relatorio.erros.join(" | ")}`); continue; }
+      const vv = verificarAula(r.aula);
+      ok(vv.ok, `abertura "${calculo}" reprovada pelo verificador: ${vv.erros.join(" | ")}`);
+      const linhas = cartoesOk(r.aula).flatMap((c) => c.linhas.map((l) => l.t));
+      ok(linhas.some((t) => t.startsWith(M.escreverConta(calculo) + " =") || t.startsWith(M.escreverConta(calculo) + " ≈")), `abertura "${calculo}": a conta não apareceu no cartão`);
+      n++;
+    }
+    console.log(`  ${n} aberturas aleatórias com a conta explicada e conferida`);
+  }
+}
+
 console.log(`\n${total - falhas}/${total} verificações passaram${falhas ? " — " + falhas + " FALHARAM" : ""}`);
 process.exit(falhas ? 1 : 0);

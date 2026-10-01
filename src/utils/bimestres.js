@@ -148,3 +148,15 @@ export function buscarAulas(modulos, termo) {
   saida.sort((a, b) => b.pontos - a.pontos || b.chave - a.chave || a.indice - b.indice);
   return saida;
 }
+
+// Quantas aulas ha em cada semestre de um ano (1o sem = bimestres 1 e 2; 2o sem = 3 e 4).
+// So le os modulos; nada e gravado. Modulos repetidos (mesmo ano/bimestre) contam uma vez.
+export function contarPorSemestre(modulos, ano) {
+  const r = { 1: 0, 2: 0 };
+  for (const m of unirDuplicados(modulos)) {
+    const l = lerModulo(m);
+    if (l.ano !== ano || l.bim < 1 || l.bim > 4) continue;
+    r[l.bim <= 2 ? 1 : 2] += (m.aulas || []).length;
+  }
+  return r;
+}

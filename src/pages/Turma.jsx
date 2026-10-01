@@ -5,7 +5,7 @@ import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { lerModulo, ordenarModulos, unirDuplicados, anoAtualDaTurma, buscarAulas } from '../utils/bimestres';
+import { lerModulo, ordenarModulos, unirDuplicados, anoAtualDaTurma, buscarAulas, contarPorSemestre } from '../utils/bimestres';
 import MaterialEstudo from '../components/MaterialEstudo';
 import { acharAulaAnimada, linkAulaAnimada } from '../utils/aulasAnimadas';
 
@@ -212,6 +212,7 @@ export default function Turma() {
   });
   const modulosHistorico = modulosOrd.filter((m) => lerModulo(m).ano < anoAtual && temAulas(m));
   const anosHistorico = [...new Set(modulosHistorico.map((m) => lerModulo(m).ano))].sort((a, b) => b - a);
+  const porSemestre = contarPorSemestre(turma.modulos, anoAtual);
   const termoBusca = busca.trim();
   const buscando = termoBusca.length >= 2;
   const resultados = buscando ? buscarAulas(turma.modulos, termoBusca) : [];
@@ -292,6 +293,20 @@ export default function Turma() {
       <div className="mb-10 text-center sm:text-left">
         <h2 className="text-3xl font-black text-stone-800 dark:text-slate-100">{turma.nome}</h2>
         <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">{turma.disciplina}</p>
+        {(porSemestre[1] + porSemestre[2]) > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2" aria-label={`Aulas dadas em ${anoAtual}`}>
+            {[1, 2].map((sem) => (
+              <span
+                key={sem}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-stone-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(0,0,0,0.4)]"
+              >
+                {sem}º semestre
+                <span className="text-amber-600 dark:text-amber-500 font-black">{porSemestre[sem]} {porSemestre[sem] === 1 ? 'aula' : 'aulas'}</span>
+              </span>
+            ))}
+            <span className="text-[11px] font-semibold text-stone-400 dark:text-slate-600">{anoAtual}</span>
+          </div>
+        )}
       </div>
 
       <div className="mb-8 relative">

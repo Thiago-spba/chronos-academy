@@ -97,7 +97,7 @@ export function normalizarPlano(bruto) {
     const oQueE = lista(t?.oQueE, 3, 60), explicando = lista(t?.explicando, 3, 60), exemplo = lista(t?.exemplo, 3, 60);
     if (!chip || !titulo || oQueE.length === 0) return;
     vistos.add(chave);
-    plano.termos.push({ chave, chip, titulo, oQueE, explicando, exemplo });
+    plano.termos.push({ chave, chip, titulo, oQueE, explicando, exemplo, complemento: t?.complemento === true });
   });
 
   const a = b.abertura;
@@ -331,6 +331,8 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
       secoes.push({ rotulo, linhas: ls.slice(0, 3) });
     };
     pedaco("O QUE É", t.oQueE); pedaco("EXPLICANDO", t.explicando); pedaco("EXEMPLO", t.exemplo);
+    // definição/exemplo inventado pela IA (não está no material): o professor precisa conferir antes de aprovar
+    if (t.complemento) duvidas.push(`O cartão da palavra "${t.chip}" tem texto criado pela IA (não está no material). Leia o cartão e confira antes de aprovar.`);
     termos[t.chave] = { chip: t.chip, titulo: t.titulo, secoes };
   });
 
@@ -412,6 +414,9 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
     return { fl, esc };
   }
 
+  const LEG_RODADA_Q = ["Resolvam no caderno e depois *conferimos*.", "Outra rodada: *resolvam* no caderno.", "Última rodada: resolvam e depois *conferimos*."];
+  const LEG_RODADA_R = ["Conferindo as *respostas*.", "Vamos *conferir* esta rodada.", "Conferindo as últimas *respostas*."];
+  let rodadasExpr = 0;
   plano.blocos.forEach((bl, idx) => {
     iBloco = idx + 1; blocoAtual = bl;
     if (bl.momento < momentoMax) bl.momento = momentoMax; // o quadro de progresso só anda para a frente
@@ -514,6 +519,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         info.contas.push(info.resumo);
       } else if (bl.tipo === "expressoes") {
         if (!bl.itens.length) throw new Error("sem contas");
+        const rodada = Math.min(rodadasExpr++, LEG_RODADA_Q.length - 1); // várias rodadas na mesma aula não repetem a mesma frase
         const linhas = [];
         bl.itens.forEach((it) => {
           let r;
@@ -559,7 +565,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           const idQ = nid("e");
           push(pQ, { tipo: "linhas", id: idQ, regiao: "T", linhas: flQ.map(cortar) });
           registrar(idQ);
-          legendaEm(pQ, bl.legenda || "Resolvam no caderno e depois *conferimos*.");
+          legendaEm(pQ, bl.legenda || LEG_RODADA_Q[rodada]);
           // 2) as mesmas contas, agora com as respostas (calculadas pelo sistema)
           const pR = novoPasso(bl.momento, { limpar: false });
           const idR = nid("e");
@@ -567,7 +573,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
           cena = cena.filter((c) => c !== idQ);
           push(pR, { tipo: "linhas", id: idR, regiao: "T", linhas: fl.map(cortar) });
           registrar(idR);
-          legendaEm(pR, bl.legenda2 || "Conferindo as *respostas*.");
+          legendaEm(pR, bl.legenda2 || LEG_RODADA_R[rodada]);
         }
       } else if (bl.tipo === "formula") {
         if (!bl.formula) throw new Error("faltou a fórmula");
@@ -763,7 +769,7 @@ export function compilarAula(planoBruto, { assinatura = "" } = {}) {
         if (explicacao.length) {
           linhasCartao.push({ t: "COMO CHEGAMOS LÁ", tam: 24, cor: "dim", neg: true, ls: true, dy: 204 });
           let dy = 204;
-          explicacao.forEach((l, i) => { dy += l.grande ? 62 : (i === 0 ? 50 : 46); const { grande, ...linha } = l; linhasCartao.push({ ...linha, dy }); });
+          explicacao.forEach((l, i) => { dy += l.grande ? 62 : (i === 0 ? 50 : 46); const linha = { ...l, dy }; delete linha.grande; linhasCartao.push(linha); });
         }
         push(p, { tipo: "cartao", id, estilo: "ok", x: 400, y: explicacao.length ? 190 : 230, w: 800, rx: 24, entrada: "sobe", comVoto: true, linhas: linhasCartao });
         registrar(id);

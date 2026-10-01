@@ -50,12 +50,15 @@ const REGRAS = `REGRAS OBRIGATORIAS:
 17. Conversao de unidades: o fator precisa ser o certo (m → cm: × 100; m² → cm²: × 10 000; m³ → cm³: × 1 000 000; km/h → m/s: ÷ 3,6). As medidas de uma "figura" sao de comprimento (cm, m), nunca cm².
 18. TODA RESPOSTA PRECISA SER EXPLICADA. Na "abertura", alem do "calculo" (o sistema mostra "Como chegamos la: 20 ÷ 0,25 = 80 pecas"), escreva "porque": ate 2 frases curtas e simples (ate 70 letras) dizendo o MOTIVO da resposta, usando so numeros que ja estao na pergunta ou na conta (ex.: ["A sala tem 20 m² de area.","Cada peca cobre 0,25 m²."]). Frase com numero novo e descartada.
 19. Linguagem para quem esta aprendendo agora: frases curtas, uma ideia por frase, palavra tecnica sempre com um exemplo do dia a dia (piso, pizza, carro). A "legenda" do bloco "revelar" nao pode trazer numero novo nem resultado: use algo como "Confere com o que a turma achou? ✓".
-20. Cada "termo" tem no maximo 3 linhas por parte (oQueE, explicando, exemplo), de ate 33 letras cada. Texto maior que isso e cortado.`;
+20. Cada "termo" tem no maximo 3 linhas por parte (oQueE, explicando, exemplo), de ate 33 letras cada. Texto maior que isso e cortado.
+21. O EXEMPLO de plano abaixo e so de FORMATO. Nunca copie numeros, frases, exemplos nem palavras dele: tudo da aula vem do MATERIAL do professor.
+22. A abertura NAO pode ser a mesma situacao ou conta do bloco "desafio" nem de uma atividade do material que sera resolvida depois (entregaria a resposta). Crie uma situacao parecida, com outros numeros.
+23. O "exemplo" de cada termo deve vir do material. Se voce criou o exemplo ou a definicao, marque "complemento": true naquele termo.`;
 
 const FORMATO = `Responda SOMENTE com um JSON (sem texto antes ou depois) neste formato:
 {
   "titulo": "titulo da aula (ate 44 letras)",
-  "termos": [ {"chave":"area","chip":"Área","titulo":"ÁREA","oQueE":["ate 3 linhas","de ate 33 letras"],"explicando":["..."],"exemplo":["..."]} ],   // de 1 a 4 palavras-chave da aula; "chip" = nome curto (1 ou 2 palavras, ate 18 letras)
+  "termos": [ {"chave":"area","chip":"Área","titulo":"ÁREA","oQueE":["ate 3 linhas","de ate 33 letras"],"explicando":["..."],"exemplo":["..."],"complemento":false} ],   // de 1 a 4 palavras-chave da aula; "chip" = nome curto (1 ou 2 palavras, ate 18 letras)
   "abertura": {"antes":"frase de contexto","destaque":"o numero/expressao em foco (ate 24 letras)","depois":"a pergunta","alternativas":["A","B","C","D"],"correta":2,"calculo":"8 × 5","porque":["motivo da resposta em frase curta","outro motivo (opcional)"]},
   "blocos": [ ... ],
   "duvidas": [ ... ],

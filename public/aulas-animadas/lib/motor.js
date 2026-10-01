@@ -964,7 +964,7 @@ function iniciar(AULA, temaIdx){
             if (!ctm) continue;
             var m2 = inv.multiply(ctm);
             var p1 = new DOMPoint(b.x, b.y).matrixTransform(m2), p2 = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m2);
-            if (p1.y > 860) continue; // assinatura da aula, no rodapé
+            if (t.getAttribute('y') === '890' && t.getAttribute('font-size') === '19') continue; // assinatura da aula, no rodapé
             var fora = p1.x < -6 || p2.x > 1606 || p1.y < -6 || p2.y > 756;
             var chave = (t.textContent || '').slice(0, 30);
             if (fora && !jaDito[chave]){

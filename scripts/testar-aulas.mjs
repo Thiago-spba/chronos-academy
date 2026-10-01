@@ -346,6 +346,28 @@ secao("8) Respostas explicadas e cartões completos");
     const r = compilarAula(pl, { assinatura: "t" });
     ok(r.relatorio.duvidas.some((d) => /cortado/.test(d)), "texto cortado do cartão não gerou dúvida");
   }
+  // (f) cartão de palavra criado pela IA (complemento) vira dúvida para o professor
+  {
+    const pl = JSON.parse(JSON.stringify(base));
+    pl.termos[0].complemento = true;
+    const r = compilarAula(pl, { assinatura: "t" });
+    ok(r.relatorio.duvidas.some((d) => /texto criado pela IA/.test(d)), "termo complemento não gerou dúvida");
+    const r2 = compilarAula(base, { assinatura: "t" });
+    ok(!r2.relatorio.duvidas.some((d) => /texto criado pela IA/.test(d)), "termo do material gerou dúvida à toa");
+  }
+  // (g) várias rodadas de exercícios não repetem a mesma legenda
+  {
+    const pl = JSON.parse(JSON.stringify(base));
+    const ex = pl.blocos.find((b) => b.tipo === "expressoes");
+    const sem = (b) => { const c = JSON.parse(JSON.stringify(b)); delete c.legenda; delete c.legenda2; return c; };
+    pl.blocos = pl.blocos.filter((b) => b.tipo !== "expressoes");
+    const pos = pl.blocos.findIndex((b) => b.tipo === "desafio");
+    pl.blocos.splice(pos, 0, sem(ex), sem(ex), sem(ex));
+    const r = compilarAula(pl, { assinatura: "t" });
+    const legs = r.aula.passos.flatMap((p) => p.acoes).filter((a) => a.tipo === "legenda").map((a) => a.t);
+    const rodadas = legs.filter((t) => /caderno|conferir|conferimos|respostas/i.test(t));
+    ok(new Set(rodadas).size === rodadas.length, `legendas repetidas nas rodadas: ${rodadas.join(" | ")}`);
+  }
   // (e) aleatório: a conta do cartão sempre bate com o cálculo (multiplicação e divisão, com decimais)
   {
     let n = 0;

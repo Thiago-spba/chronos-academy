@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from "react";
+import BotaoTema from '../components/BotaoTema';
 import { useNavigate } from "react-router-dom";
 import { 
   BookOpen, Plus, Edit3, Trash2, X, Save, LogOut, GraduationCap,
@@ -1299,6 +1300,7 @@ export default function Admin() {
             <a href="/admin/nomes" title="Nomes na p&aacute;gina inicial" aria-label="Nomes na p&aacute;gina inicial" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
               <Users className="w-4 h-4"/> <span className="hidden sm:inline">Nomes</span>
             </a>
+            <BotaoTema />
             <button onClick={handleLogout} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-stone-100 dark:bg-slate-800 rounded-lg text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors">
               <LogOut className="w-4 h-4"/> <span>Sair</span>
             </button>

@@ -10,6 +10,7 @@ import AdminFerramentas from './pages/AdminFerramentas';
 import AdminNomes from './pages/AdminNomes';
 import AvisoConexao from './components/AvisoConexao';
 import AulaAnimada from './pages/AulaAnimada';
+import { TemaContext } from './components/BotaoTema';
 
 /* =========================================================================
    COMPONENTE: Rodapé Global Interativo (Currículo do Professor)
@@ -80,6 +81,8 @@ export default function App() {
   const location = useLocation();
   const isHome = location.pathname === '/';
   const isAdminRoute = location.pathname.startsWith('/admin');
+  // Painel e Ferramentas ja trazem o botao de tema no proprio cabecalho (nao flutua por cima).
+  const temaNoCabecalho = location.pathname === '/admin/painel' || location.pathname === '/admin/ferramentas';
 
   // Efeito que aplica as cores e SALVA a escolha no localStorage
   useEffect(() => {
@@ -93,8 +96,9 @@ export default function App() {
   }, [darkMode]);
 
   return (
+    <TemaContext.Provider value={{ darkMode, alternar: () => setDarkMode((d) => !d) }}>
     <div className="min-h-screen bg-stone-50 dark:bg-slate-950 transition-colors duration-500 flex flex-col relative">
-      {isAdminRoute && (
+      {isAdminRoute && !temaNoCabecalho && (
         <div className="absolute top-6 right-6 z-50">
           <button onClick={() => setDarkMode(!darkMode)} className="flex items-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-800 text-stone-600 dark:text-slate-300 shadow-lg border border-stone-200 dark:border-slate-700">
             {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-600" />}
@@ -141,5 +145,6 @@ export default function App() {
 
       <AvisoConexao admin={isAdminRoute} />
     </div>
+    </TemaContext.Provider>
   );
 }

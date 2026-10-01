@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BotaoTema from '../components/BotaoTema';
 import { useNavigate } from 'react-router-dom';
 import {
   Wrench, Plus, Edit3, Trash2, X, Save, ArrowLeft,
@@ -223,6 +224,7 @@ export default function AdminFerramentas() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <BotaoTema />
             <button onClick={() => setAvancando(true)} title="Avançar bimestre" className="bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-300 px-3 sm:px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 hover:border-amber-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors text-xs sm:text-sm">
               <FastForward className="w-4 h-4 shrink-0" /> Avançar bimestre
             </button>

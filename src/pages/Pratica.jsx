@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Wrench, Sparkles, ExternalLink, History, ChevronDown } from 'lucide-react';
+import { Wrench, Sparkles, ExternalLink } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import SeletorBimestre from '../components/SeletorBimestre';
 import { ANO_LEGADO, idModulo, tituloModulo, ordenarModulos, moduloEmAndamento } from '../utils/bimestres';
 
 const CORES = [
@@ -54,6 +55,7 @@ function GradeFerramentas({ itens }) {
 
 export default function Pratica() {
   const [modulos, setModulos] = useState(null);
+  const [escolhidoId, setEscolhidoId] = useState(null);
 
   useEffect(() => {
     async function carregar() {
@@ -71,14 +73,14 @@ export default function Pratica() {
   const carregando = modulos === null;
   const ordenados = ordenarModulos(modulos || []);
   const moduloAtual = moduloEmAndamento(ordenados) || ordenados[ordenados.length - 1] || null;
-  const ativas = ((moduloAtual?.itens) || [])
+  const doBimestre = (m) => ((m && m.itens) || [])
     .filter((f) => f.ativo !== false)
     .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-
-  const modulosAnteriores = ordenados
-    .filter((m) => m.id !== moduloAtual?.id)
-    .filter((m) => (m.itens || []).some((f) => f.ativo !== false))
-    .reverse();
+  // So aparecem os bimestres que tem alguma ferramenta visivel.
+  const comFerramentas = ordenados.filter((m) => doBimestre(m).length > 0);
+  const padrao = comFerramentas.find((m) => m.id === moduloAtual?.id) || comFerramentas[comFerramentas.length - 1] || null;
+  const visto = comFerramentas.find((m) => m.id === escolhidoId) || padrao;
+  const ativas = doBimestre(visto);
 
   return (
     <div className="animate-fade-in pb-12">
@@ -103,30 +105,13 @@ export default function Pratica() {
         </p>
       )}
 
-      {!carregando && ativas.length > 0 && <GradeFerramentas itens={ativas} />}
-
-      {modulosAnteriores.length > 0 && (
-        <details className="group mt-10 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
-          <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 hover:bg-stone-50 dark:hover:bg-slate-800/80 transition-colors list-none">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400"><History className="w-5 h-5" /></div>
-              <div>
-                <h3 className="text-lg font-bold text-stone-800 dark:text-slate-100">Bimestres anteriores</h3>
-                <p className="text-xs font-semibold text-stone-400 dark:text-slate-500 mt-0.5">Ferramentas de bimestres passados, se quiser dar uma olhada.</p>
-              </div>
-            </div>
-            <ChevronDown className="w-5 h-5 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="p-4 sm:p-6 border-t border-stone-100 dark:border-slate-800 space-y-8">
-            {modulosAnteriores.map((m) => (
-              <div key={m.id}>
-                <h4 className="mb-4 text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-500">{m.titulo}</h4>
-                <GradeFerramentas itens={(m.itens || []).filter((f) => f.ativo !== false).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))} />
-              </div>
-            ))}
-          </div>
-        </details>
+      {!carregando && comFerramentas.length > 1 && (
+        <div className="mb-6 px-1">
+          <SeletorBimestre modulos={comFerramentas} escolhidoId={visto?.id} onEscolher={setEscolhidoId} contar={(m) => doBimestre(m).length} />
+        </div>
       )}
+
+      {!carregando && ativas.length > 0 && <GradeFerramentas itens={ativas} />}
     </div>
   );
 }

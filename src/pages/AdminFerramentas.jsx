@@ -4,13 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wrench, Plus, Edit3, Trash2, X, Save, ArrowLeft,
   AlertTriangle, ArrowUp, ArrowDown, Eye, EyeOff, ExternalLink,
-  FastForward, History, ChevronDown
+  FastForward
 } from 'lucide-react';
 import { db } from '../firebase';
 import { auth } from '../firebaseProfessor';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { ANO_LEGADO, idModulo, tituloModulo, ordenarModulos, moduloEmAndamento, lerModulo } from '../utils/bimestres';
+import { ANO_LEGADO, idModulo, tituloModulo, ordenarModulos, moduloEmAndamento, lerModulo, opcoesModulos } from '../utils/bimestres';
+import SeletorBimestre from '../components/SeletorBimestre';
+import { aplicarFerramenta } from '../utils/ferramentas';
 import { Toast } from '../components/Notificacao';
 
 function gerarId() { return 'ferr_' + Date.now().toString(36); }
@@ -62,8 +64,8 @@ export default function AdminFerramentas() {
   const [avancando, setAvancando] = useState(false);
   const [formAberto, setFormAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [historicoAberto, setHistoricoAberto] = useState(false);
-  const [form, setForm] = useState({ id: '', titulo: '', descricao: '', url: '', ativo: true });
+  const [vistoId, setVistoId] = useState(null);
+  const [form, setForm] = useState({ id: '', titulo: '', descricao: '', url: '', ativo: true, destino: '' });
 
   const inputBaseClass = "w-full p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-stone-800 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500/50 outline-none text-xs sm:text-sm transition-colors duration-300";
 
@@ -102,16 +104,20 @@ export default function AdminFerramentas() {
 
   const ordenados = ordenarModulos(modulos || []);
   const moduloAtivo = moduloEmAndamento(ordenados) || ordenados[ordenados.length - 1] || null;
-  const itens = moduloAtivo?.itens || [];
-  const modulosAnteriores = ordenados.filter((m) => m.id !== moduloAtivo?.id).reverse();
+  // Bimestre que esta aberto na tela para ver/editar (qualquer um; comeca pelo em andamento).
+  const moduloVisto = ordenados.find((m) => m.id === vistoId) || moduloAtivo;
+  const itens = moduloVisto?.itens || [];
+  const anoCalendario = new Date().getFullYear();
+  const opcoesBim = opcoesModulos(ordenados, anoCalendario);
+  const destinoPadrao = moduloVisto ? moduloVisto.id : 'novo:' + anoCalendario + ':1';
 
   const abrirNovoForm = () => {
-    setForm({ id: '', titulo: '', descricao: '', url: '', ativo: true });
+    setForm({ id: '', titulo: '', descricao: '', url: '', ativo: true, destino: destinoPadrao });
     setFormAberto(true);
   };
 
   const editarItem = (item) => {
-    setForm({ ...item });
+    setForm({ ...item, destino: destinoPadrao });
     setFormAberto(true);
   };
 
@@ -123,21 +129,8 @@ export default function AdminFerramentas() {
     }
     setSalvando(true);
     try {
-      let listaAtual = ordenados;
-      let alvo = moduloAtivo;
-      if (!alvo) {
-        // Nao existe nenhum bimestre ainda: cria o do ano atual como ponto de partida.
-        alvo = { id: idModulo(new Date().getFullYear(), 1), titulo: tituloModulo(new Date().getFullYear(), 1), abertoPadrao: true, itens: [] };
-        listaAtual = [...listaAtual, alvo];
-      }
-      const novaListaItens = [...(alvo.itens || [])];
-      if (form.id) {
-        const idx = novaListaItens.findIndex((i) => i.id === form.id);
-        if (idx >= 0) novaListaItens[idx] = { ...form };
-      } else {
-        novaListaItens.push({ ...form, id: gerarId(), ordem: novaListaItens.length });
-      }
-      const novosModulos = listaAtual.map((m) => (m.id === alvo.id ? { ...m, itens: novaListaItens } : m));
+      const { lista: novosModulos, alvoId } = aplicarFerramenta(ordenados, form, destinoPadrao, anoCalendario, gerarId());
+      setVistoId(alvoId);
       await salvarModulos(novosModulos);
       setFormAberto(false);
       setToast({ mensagem: 'Ferramenta salva com sucesso!' });
@@ -151,7 +144,7 @@ export default function AdminFerramentas() {
 
   const excluirItem = async () => {
     const novaListaItens = itens.filter((i) => i.id !== excluindo.id);
-    const novosModulos = ordenados.map((m) => (m.id === moduloAtivo.id ? { ...m, itens: novaListaItens } : m));
+    const novosModulos = ordenados.map((m) => (m.id === moduloVisto.id ? { ...m, itens: novaListaItens } : m));
     await salvarModulos(novosModulos);
     setExcluindo(null);
     setToast({ mensagem: 'Ferramenta removida.' });
@@ -159,7 +152,7 @@ export default function AdminFerramentas() {
 
   const alternarAtivo = async (item) => {
     const novaListaItens = itens.map((i) => (i.id === item.id ? { ...i, ativo: !i.ativo } : i));
-    const novosModulos = ordenados.map((m) => (m.id === moduloAtivo.id ? { ...m, itens: novaListaItens } : m));
+    const novosModulos = ordenados.map((m) => (m.id === moduloVisto.id ? { ...m, itens: novaListaItens } : m));
     await salvarModulos(novosModulos);
   };
 
@@ -169,7 +162,7 @@ export default function AdminFerramentas() {
     if (alvo < 0 || alvo >= novaListaItens.length) return;
     [novaListaItens[index], novaListaItens[alvo]] = [novaListaItens[alvo], novaListaItens[index]];
     const comOrdem = novaListaItens.map((item, i) => ({ ...item, ordem: i }));
-    const novosModulos = ordenados.map((m) => (m.id === moduloAtivo.id ? { ...m, itens: comOrdem } : m));
+    const novosModulos = ordenados.map((m) => (m.id === moduloVisto.id ? { ...m, itens: comOrdem } : m));
     await salvarModulos(novosModulos);
   };
 
@@ -237,6 +230,12 @@ export default function AdminFerramentas() {
       </div>
 
       <div className="max-w-4xl mx-auto px-3 sm:px-4">
+        {ordenados.length > 1 && !formAberto && (
+          <div className="mb-5">
+            <SeletorBimestre modulos={ordenados} escolhidoId={moduloVisto?.id} onEscolher={setVistoId} contar={(m) => (m.itens || []).length} />
+          </div>
+        )}
+
         {formAberto && (
           <form onSubmit={salvarForm} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 mb-6 space-y-4 shadow-lg">
             <div className="flex justify-between items-center">
@@ -254,6 +253,14 @@ export default function AdminFerramentas() {
             <div>
               <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Link (URL completo)</label>
               <input required type="url" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://..." className={inputBaseClass} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-500 dark:text-slate-400 mb-1 uppercase">Bimestre</label>
+              <select value={form.destino || destinoPadrao} onChange={(e) => setForm({ ...form, destino: e.target.value })} className={inputBaseClass}>
+                {opcoesBim.map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}{o.andamento ? ' (em andamento)' : ''}{o.novo ? ' (novo)' : ''}</option>
+                ))}
+              </select>
             </div>
             <button type="submit" disabled={salvando} className="w-full bg-amber-600 text-white py-3 rounded-xl font-bold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm shadow-md shadow-amber-600/20 disabled:opacity-60">
               <Save className="w-4 h-4" /> {salvando ? 'Salvando...' : 'Salvar'}
@@ -294,25 +301,6 @@ export default function AdminFerramentas() {
             </div>
           ))}
         </div>
-
-        {modulosAnteriores.length > 0 && (
-          <details open={historicoAberto} onToggle={(e) => setHistoricoAberto(e.target.open)} className="group mt-8 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
-            <summary className="flex items-center justify-between p-5 cursor-pointer bg-stone-50/50 dark:bg-slate-800/30 hover:bg-stone-50 dark:hover:bg-slate-800/80 transition-colors list-none">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-stone-200 dark:bg-slate-950 rounded-lg text-stone-600 dark:text-slate-400"><History className="w-5 h-5" /></div>
-                <h3 className="text-sm font-bold text-stone-800 dark:text-slate-100">Bimestres anteriores (só consulta)</h3>
-              </div>
-              <ChevronDown className="w-5 h-5 text-stone-400 dark:text-slate-500 transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="p-4 sm:p-6 border-t border-stone-100 dark:border-slate-800 space-y-3">
-              {modulosAnteriores.map((m) => (
-                <div key={m.id} className="text-sm text-stone-600 dark:text-slate-400">
-                  <strong className="text-stone-800 dark:text-slate-100">{m.titulo}:</strong> {(m.itens || []).length} ferramenta{(m.itens || []).length === 1 ? '' : 's'}
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
       </div>
     </div>
   );

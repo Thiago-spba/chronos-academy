@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, GraduationCap, AlertCircle } from "lucide-react";
-import { auth, googleProvider } from "../firebase";
+import { auth, googleProvider } from "../firebaseProfessor";
 import { signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
 
 const ADMIN_EMAIL = "thiago.rpba@gmail.com"; // único e-mail com acesso ao painel

@@ -34,7 +34,7 @@ export default function AulaAnimada() {
       {!estado.carregando && !estado.dados && (
         <div className="text-center text-stone-200 pt-24 px-6">
           <p className="font-bold text-lg mb-2">{estado.erro ? 'Não foi possível abrir esta aula.' : 'Aula não encontrada.'}</p>
-          <p className="text-sm text-stone-400 mb-6">{estado.erro ? 'Verifique a internet e tente de novo.' : 'Ela pode ter sido retirada pelo professor.'}</p>
+          <p className="text-sm text-stone-400 mb-6">{estado.erro ? (navigator.onLine === false ? 'Esta aula ainda não foi guardada neste aparelho. Abra-a uma vez com internet e depois ela funciona sem sinal.' : 'Verifique a internet e tente de novo.') : 'Ela pode ter sido retirada pelo professor.'}</p>
           <button onClick={voltar} className="px-5 py-3 rounded-xl bg-indigo-600 text-white font-bold">Voltar</button>
         </div>
       )}

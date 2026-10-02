@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, Trash2, Plus, AlertTriangle, ExternalLink } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { db } from '../firebase';
+import { auth } from '../firebaseProfessor';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Toast } from '../components/Notificacao';

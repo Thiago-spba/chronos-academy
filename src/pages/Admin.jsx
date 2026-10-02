@@ -9,7 +9,8 @@ import {
   ClipboardList, Copy, Presentation
 } from "lucide-react";
 
-import { db, auth, storage } from "../firebase";
+import { db } from "../firebase";
+import { auth, storage } from "../firebaseProfessor";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";

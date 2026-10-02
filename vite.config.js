@@ -14,6 +14,9 @@ export default defineConfig({
         navigateFallback: 'index.html', // ← PWA redireciona para index em qualquer rota
         // As aulas animadas são páginas próprias (public/aulas-animadas): não trocar pelo app.
         navigateFallbackDenylist: [/^\/aulas-animadas\//],
+        // Guarda tambem as fontes e imagens do proprio site (as aulas animadas usam a fonte Lexend):
+        // assim elas abrem iguais mesmo sem internet.
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
       },
       manifest: {
         name: 'Chronos Academy - História e Tecnologia',

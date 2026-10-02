@@ -6,7 +6,8 @@ import {
   AlertTriangle, ArrowUp, ArrowDown, Eye, EyeOff, ExternalLink,
   FastForward, History, ChevronDown
 } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { db } from '../firebase';
+import { auth } from '../firebaseProfessor';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ANO_LEGADO, idModulo, tituloModulo, ordenarModulos, moduloEmAndamento, lerModulo } from '../utils/bimestres';

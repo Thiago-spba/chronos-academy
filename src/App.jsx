@@ -1,15 +1,18 @@
 ﻿import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { GraduationCap, Moon, Sun, ArrowLeft, ChevronDown, ChevronUp, Mail, Cpu, BookOpen, Quote, Lock, Wrench } from 'lucide-react';
 import Home from './pages/Home';
 import Turma from './pages/Turma';
-import AdminLogin from './pages/AdminLogin';
-import Admin from './pages/Admin';
-import Pratica from './pages/Pratica';
-import AdminFerramentas from './pages/AdminFerramentas';
-import AdminNomes from './pages/AdminNomes';
+// Telas pesadas ou do professor so sao baixadas quando abertas: a Home e a turma do aluno abrem mais rapido.
+// (Tudo continua guardado para uso sem internet.)
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Pratica = lazy(() => import('./pages/Pratica'));
+const AdminFerramentas = lazy(() => import('./pages/AdminFerramentas'));
+const AdminNomes = lazy(() => import('./pages/AdminNomes'));
+const AulaAnimada = lazy(() => import('./pages/AulaAnimada'));
 import AvisoConexao from './components/AvisoConexao';
-import AulaAnimada from './pages/AulaAnimada';
+import ArmazenamentoLocal from './components/ArmazenamentoLocal';
 import { TemaContext } from './components/BotaoTema';
 
 /* =========================================================================
@@ -64,6 +67,8 @@ function GlobalFooter() {
           </div>
         </div>
       </div>
+
+      <ArmazenamentoLocal />
     </footer>
   );
 }
@@ -129,6 +134,7 @@ export default function App() {
       )}
 
       <main className={`flex-1 w-full ${!isAdminRoute ? 'max-w-5xl mx-auto p-4 sm:p-6' : ''}`}>
+        <Suspense fallback={<div className="text-center py-24 text-stone-400 dark:text-slate-500 font-bold">Carregando...</div>}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/turma/:id" element={<Turma />} />
@@ -139,6 +145,7 @@ export default function App() {
           <Route path="/admin/nomes" element={<AdminNomes />} />
           <Route path="/admin/ferramentas" element={<AdminFerramentas />} />
         </Routes>
+        </Suspense>
       </main>
 
       {!isAdminRoute && <GlobalFooter />}

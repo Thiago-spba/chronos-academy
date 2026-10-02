@@ -4,10 +4,41 @@ import { Play, Calendar, Download, FileText, FileCheck2, Target, Rocket, AlignLe
 import YouTube from 'react-youtube';
 
 import { db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { lerModulo, ordenarModulos, unirDuplicados, anoAtualDaTurma, buscarAulas, contarPorSemestre } from '../utils/bimestres';
 import MaterialEstudo from '../components/MaterialEstudo';
 import { acharAulaAnimada, linkAulaAnimada } from '../utils/aulasAnimadas';
+import { docIdAnimada } from '../utils/aulaGerada';
+
+// Guarda no aparelho, em segundo plano, as aulas animadas e os materiais desta turma,
+// para abrirem mesmo sem internet. Cada aula e baixada uma unica vez por aparelho
+// (quando o professor muda a aula, ela atualiza sozinha na proxima vez que o aluno abrir com internet).
+const CHAVE_BAIXADOS = '@chronos_baixados';
+function lerBaixados() {
+  try { return new Set(JSON.parse(localStorage.getItem(CHAVE_BAIXADOS) || '[]')); } catch (_) { return new Set(); }
+}
+function guardarBaixados(set) {
+  try { localStorage.setItem(CHAVE_BAIXADOS, JSON.stringify([...set].slice(-400))); } catch (_) { /* sem armazenamento: so nao lembra */ }
+}
+async function baixarParaOffline(dadosTurma) {
+  if (!dadosTurma || typeof navigator === 'undefined' || !navigator.onLine) return;
+  const baixados = lerBaixados();
+  const fila = [];
+  for (const mod of dadosTurma.modulos || []) {
+    for (const aula of mod.aulas || []) {
+      if (!aula || !aula.id) continue;
+      if (aula.aulaGerada && !aula.aulaAnimada) fila.push(docIdAnimada(aula.id));
+      if (aula.temMaterialEstudo) fila.push(`material_${aula.id}`);
+    }
+  }
+  for (const docId of fila.filter((d) => !baixados.has(d)).slice(0, 40)) {
+    try {
+      await getDoc(doc(db, 'chronos', docId));
+      baixados.add(docId);
+    } catch (_) { break; /* sem sinal: tenta de novo outro dia */ }
+  }
+  guardarBaixados(baixados);
+}
 
 function VideoPlayer({ titulo, videoId, duracao }) {
   const [ativo, setAtivo] = useState(false);
@@ -15,9 +46,14 @@ function VideoPlayer({ titulo, videoId, duracao }) {
   const playerRef = useRef(null);
   
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`);
+  const [semImagem, setSemImagem] = useState(false);
+  const [semInternet, setSemInternet] = useState(false);
   const storageKey = `@chronos_video_${videoId}`;
 
   const handlePlay = () => {
+    // O video e do YouTube e nao pode ser guardado no aparelho: sem internet, avisa em vez de ficar travado.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) { setSemInternet(true); return; }
+    setSemInternet(false);
     setAtivo(true);
     setTimeout(() => {
       videoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -63,7 +99,7 @@ function VideoPlayer({ titulo, videoId, duracao }) {
   return (
     <div ref={videoRef} className="relative aspect-video w-full max-w-xl mx-auto bg-black rounded-xl overflow-hidden shadow-md group transition-all">
       {!ativo ? (
-        <div className="absolute inset-0 w-full h-full">
+        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-slate-800 to-slate-950">
           <img
             src={thumbnailUrl}
             alt={titulo}
@@ -74,9 +110,18 @@ function VideoPlayer({ titulo, videoId, duracao }) {
                 setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`);
               }
             }}
-            onError={() => setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`)}
+            onError={() => {
+              const hq = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+              if (thumbnailUrl === hq) setSemImagem(true); else setThumbnailUrl(hq);
+            }}
+            style={semImagem ? { display: 'none' } : undefined}
           />
-          <button onClick={handlePlay} className="absolute inset-0 flex items-center justify-center">
+          {semInternet && (
+            <div className="absolute inset-x-3 top-3 z-10 rounded-lg bg-black/80 px-3 py-2 text-center text-xs font-bold text-white">
+              Este vídeo precisa de internet. Quando o sinal voltar, toque para assistir.
+            </div>
+          )}
+          <button onClick={handlePlay} aria-label={`Assistir: ${titulo}`} className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform">
               <Play className="w-7 h-7 text-amber-700" fill="currentColor" />
             </div>
@@ -141,6 +186,13 @@ export default function Turma() {
 
     return () => unsubscribe();
   }, [id]);
+
+  const turmaParaBaixar = bancoDados ? bancoDados[id] : null;
+  useEffect(() => {
+    if (!turmaParaBaixar) return undefined;
+    const t = setTimeout(() => { baixarParaOffline(turmaParaBaixar); }, 1500); // depois de a tela aparecer
+    return () => clearTimeout(t);
+  }, [id, !!turmaParaBaixar]);
 
   useEffect(() => {
     if (aulaAtiva) {

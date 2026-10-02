@@ -150,7 +150,13 @@ function iniciar(AULA, temaIdx){
     function tracar(e, pos, d){
       var len = e.getTotalLength();
       e.style.strokeDasharray = len; e.style.strokeDashoffset = len;
-      tl.to(e, {strokeDashoffset:0, duration:d || .6, ease:'power1.inOut'}, pos);
+      // Um traço ainda não desenhado deixa um pontinho (a ponta redonda). Por isso fica invisível
+      // até o instante em que começa a ser desenhado.
+      if (+gsap.getProperty(e, 'opacity') === 1){
+        gsap.set(e, {opacity:0});
+        tl.set(e, {opacity:1}, pos);
+        tl.to(e, {strokeDashoffset:0, duration:d || .6, ease:'power1.inOut'}, '<');
+      } else tl.to(e, {strokeDashoffset:0, duration:d || .6, ease:'power1.inOut'}, pos);
     }
     function P_(a){ return (a.junto ? '<' : '>') + (a.atraso != null ? String(a.atraso) : ''); }
     var legAtual = null;
